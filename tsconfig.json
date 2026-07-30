@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "ai": ["./node_modules/ai"],
+      "ai/react": ["./node_modules/ai/react"]
     }
   },
   "include": [
