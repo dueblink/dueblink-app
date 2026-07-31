@@ -260,6 +260,22 @@ export default function DashboardPage() {
     api: '/api/pro-recovery-assistant',
   });
 
+  // Auto-open Pro Recovery Assistant right after Pro upgrade
+  useEffect(() => {
+    const justUpgraded = localStorage.getItem('just_upgraded');
+    if (justUpgraded === 'true') {
+      localStorage.removeItem('just_upgraded');
+      
+      const timer = setTimeout(() => {
+        setIsPro(true);
+        setActiveAction("welcome_pro");
+        complete(JSON.stringify({ action: "welcome_pro", clients, history: [] }));
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [clients, complete]);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
@@ -333,7 +349,7 @@ export default function DashboardPage() {
 
   const handleAssistantAction = async (action: string) => {
     if (!isPro) {
-      alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+      alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
       router.push('/pricing');
       return;
     }
@@ -343,7 +359,7 @@ export default function DashboardPage() {
 
   const handleProRecovery = async (client: any) => {
     if (!isPro) {
-      alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+      alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
       router.push('/pricing');
       return;
     }
@@ -353,7 +369,7 @@ export default function DashboardPage() {
 
   const handleSummarizeOutstanding = async () => {
     if (!isPro) {
-      alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+      alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
       router.push('/pricing');
       return;
     }
@@ -430,7 +446,7 @@ export default function DashboardPage() {
           >
             <div className="flex justify-between items-center mb-6" suppressHydrationWarning={true}>
               <h3 className="font-black text-[#245B92] uppercase text-[10px] tracking-widest" suppressHydrationWarning={true}>
-                {isStreaming ? "Thinking..." : "AI Insight"}
+                {isStreaming ? "Thinking..." : "Pro Recovery Assistant"}
               </h3>
               <button onClick={() => setActiveAction(null)} className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-full cursor-pointer" suppressHydrationWarning={true}><X size={16}/></button>
             </div>
@@ -461,13 +477,13 @@ export default function DashboardPage() {
       ) : (
         <div 
           onClick={() => {
-            alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+            alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
             router.push('/pricing');
           }}
           className="fixed bottom-6 right-6 sm:bottom-8 sm:right-10 z-[9999] bg-slate-900 text-white px-4 py-3 rounded-full shadow-2xl cursor-pointer flex items-center gap-2 text-xs font-black border-2 border-[#20B8BE] hover:bg-slate-800 transition transform hover:scale-105"
-          title="Blink AI Locked - Upgrade to Pro"
+          title="Assistant Locked - Upgrade to Pro"
         >
-          <Lock size={14} className="text-[#20B8BE]" /> Blink Locked 🔒
+          <Lock size={14} className="text-[#20B8BE]" /> Assistant Locked 🔒
         </div>
       )}
 
@@ -594,7 +610,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>You are Pro ✨</h2>
-                <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Blink AI Recovery Assistant and premium features are fully unlocked.</p>
+                <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Pro Recovery Assistant and premium features are fully unlocked.</p>
               </div>
             </div>
             <span className="bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md">
@@ -604,7 +620,7 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
             <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
-              <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>Unlock Blink AI Recovery Assistant</h2>
+              <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>Unlock Pro Recovery Assistant</h2>
               <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Automate follow-ups, analyze payment trends, and recover money faster.</p>
             </div>
             <button 

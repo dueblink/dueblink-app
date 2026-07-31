@@ -489,7 +489,10 @@ export default function PricingPage() {
               </div>
 
               <button 
-                onClick={() => router.push('/dashboard')}
+                onClick={() => {
+                  localStorage.setItem('just_upgraded', 'true');
+                  router.push('/dashboard');
+                }}
                 className="w-full py-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer shadow-md"
               >
                 Go to Dashboard
