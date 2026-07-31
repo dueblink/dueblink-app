@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Copy, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu } from 'lucide-react';
+import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Copy, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Lock, Crown } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -267,7 +267,6 @@ export default function DashboardPage() {
       } else {
         setUser(currentUser);
         
-        // Fetch user Pro status from Firestore
         try {
           const userDocRef = doc(db, 'users', currentUser.uid);
           const userDoc = await getDoc(userDocRef);
@@ -453,10 +452,25 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       
-      <FloatingRobot 
-        onTrigger={handleAssistantAction} 
-        recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
-      />
+      {/* FLOATING ROBOT WITH LOCKED OVERLAY FOR FREE USERS */}
+      <div className="relative">
+        <FloatingRobot 
+          onTrigger={handleAssistantAction} 
+          recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
+        />
+        {!isPro && (
+          <div 
+            onClick={() => {
+              alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+              router.push('/pricing');
+            }}
+            className="fixed bottom-7 right-6 sm:bottom-9 sm:right-10 z-[9999] bg-slate-900/90 text-white p-2 rounded-full shadow-lg cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-slate-700 hover:bg-slate-800 transition"
+            title="Locked: Upgrade to Pro to unlock Blink"
+          >
+            <Lock size={12} className="text-[#20B8BE]" /> Blink Locked
+          </div>
+        )}
+      </div>
 
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-300 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
@@ -572,8 +586,23 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8 sm:space-y-12" suppressHydrationWarning={true}>
         
-        {/* UPGRADE BANNER (Appears for Free Users Only) */}
-        {!isPro && (
+        {/* PRO STATUS BANNER OR UPGRADE BANNER */}
+        {isPro ? (
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
+            <div className="space-y-1 text-center sm:text-left flex items-center gap-3" suppressHydrationWarning={true}>
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                <Crown size={24} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>You are Pro ✨</h2>
+                <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Blink AI Recovery Assistant and premium features are fully unlocked.</p>
+              </div>
+            </div>
+            <span className="bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md">
+              Active Pro Plan
+            </span>
+          </div>
+        ) : (
           <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
             <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
               <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>Unlock Blink AI Recovery Assistant</h2>
