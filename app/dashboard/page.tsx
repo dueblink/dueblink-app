@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Copy, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import { useCompletion } from 'ai/react';
@@ -91,7 +91,7 @@ function AddClientModal({ isOpen, onClose, user }: { isOpen: boolean; onClose: (
           <>
             <div className="mb-6" suppressHydrationWarning={true}>
               <h2 className="text-xl font-black uppercase tracking-tight text-slate-900" suppressHydrationWarning={true}>Add New Client</h2>
-              <p className="text-xs text-slate-500 font-medium mt-1" suppressHydrationWarning={true}>Add a client to start tracking payments and generating AI reminders.</p>
+              <p className="text-xs text-slate-500 font-medium mt-1" suppressHydrationWarning={true}>Add a client to start tracking payments and managing invoices.</p>
             </div>
 
             <form className="space-y-4" onSubmit={handleSave} suppressHydrationWarning={true}>
@@ -232,16 +232,7 @@ function AddClientModal({ isOpen, onClose, user }: { isOpen: boolean; onClose: (
                 className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                 suppressHydrationWarning={true}
               >
-                Go to Client Details
-              </button>
-              
-              <button 
-                onClick={() => { handleResetAndClose(); router.push('/dashboard'); }} 
-                className="w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
-                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                suppressHydrationWarning={true}
-              >
-                <Sparkles size={16} /> Generate AI Reminder
+                Go to Dashboard Overview
               </button>
             </div>
           </div>
@@ -255,17 +246,14 @@ export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isPro, setIsPro] = useState(false);
   const [clients, setClients] = useState<any[]>([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // State for toggling small details module per client
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
-
-  // Custom Delete Confirmation Popup State
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
 
   const { completion, complete, isLoading: isStreaming } = useCompletion({
@@ -273,10 +261,25 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    setMounted(true);
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) router.push('/login');
-      else { setUser(currentUser); setLoading(false); }
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push('/login');
+      } else {
+        setUser(currentUser);
+        
+        // Fetch user Pro status from Firestore
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists() && userDoc.data().isPro) {
+            setIsPro(true);
+          }
+        } catch (err) {
+          console.error("Error fetching pro status:", err);
+        }
+
+        setLoading(false);
+      }
     });
     return () => unsubscribe();
   }, [router]);
@@ -287,7 +290,6 @@ export default function DashboardPage() {
     return onSnapshot(q, (snapshot) => setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
   }, [user]);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
@@ -318,10 +320,10 @@ export default function DashboardPage() {
 
   const totalOutstanding = clients.filter(c => c.status === 'Pending').reduce((acc, c) => acc + Number(c.amount || 0), 0);
   const pendingCount = clients.filter(c => c.status === 'Pending').length;
+  const paidCount = clients.filter(c => c.status === 'Paid').length;
   
   const totalClientsCount = clients.length;
-  const paidClientsCount = clients.filter(c => c.status === 'Paid').length;
-  const recoveryRateValue = totalClientsCount > 0 ? Math.round((paidClientsCount / totalClientsCount) * 100) : 0;
+  const recoveryRateValue = totalClientsCount > 0 ? Math.round((paidCount / totalClientsCount) * 100) : 0;
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -331,16 +333,31 @@ export default function DashboardPage() {
   };
 
   const handleAssistantAction = async (action: string) => {
+    if (!isPro) {
+      alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+      router.push('/pricing');
+      return;
+    }
     setActiveAction(action);
     await complete(JSON.stringify({ action, clients, history: [] }));
   };
 
   const handleProRecovery = async (client: any) => {
+    if (!isPro) {
+      alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+      router.push('/pricing');
+      return;
+    }
     setActiveAction(client.id);
     await complete(JSON.stringify({ client, history: client.reminderHistory || [] }));
   };
 
   const handleSummarizeOutstanding = async () => {
+    if (!isPro) {
+      alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+      router.push('/pricing');
+      return;
+    }
     setActiveAction("summary");
     await complete(JSON.stringify({ 
       action: "summarize_outstanding", 
@@ -402,7 +419,7 @@ export default function DashboardPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {activeAction && (
+        {activeAction && isPro && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.8, y: 50, x: 50 }}
             animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
@@ -441,11 +458,9 @@ export default function DashboardPage() {
         recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
       />
 
-      {/* --- PRECISE SAAS NAVBAR WITH ALL ANIMATIONS & HOVERS APPLIED --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-300 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
           
-          {/* LOGO WITH HOVER ANIMATION */}
           <motion.div 
             whileHover={{ scale: 1.03 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -457,11 +472,7 @@ export default function DashboardPage() {
           </motion.div>
 
           <div className="flex items-center gap-8" suppressHydrationWarning={true}>
-            
-            {/* DESKTOP NAV LINKS */}
             <div className="hidden md:flex items-center gap-6 text-sm font-bold text-slate-600" suppressHydrationWarning={true}>
-              
-              {/* Dashboard Link */}
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -477,7 +488,6 @@ export default function DashboardPage() {
                 )}
               </motion.button>
 
-              {/* Pricing Link */}
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -493,7 +503,6 @@ export default function DashboardPage() {
                 )}
               </motion.button>
 
-              {/* Account Link */}
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -510,7 +519,6 @@ export default function DashboardPage() {
               </motion.button>
             </div>
 
-            {/* CTA / LOGOUT BUTTON WITH SCALE & SHADOW EFFECTS */}
             <div className="flex items-center gap-4" suppressHydrationWarning={true}>
               <motion.button 
                 whileHover={{ scale: 1.02 }}
@@ -525,7 +533,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* MOBILE HAMBURGER TOGGLE BUTTON */}
           <div className="flex md:hidden items-center" suppressHydrationWarning={true}>
             <motion.button 
               whileTap={{ scale: 0.9 }}
@@ -537,10 +544,8 @@ export default function DashboardPage() {
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </motion.button>
           </div>
-
         </div>
 
-        {/* MOBILE DROPDOWN DRAWER */}
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div 
@@ -552,33 +557,13 @@ export default function DashboardPage() {
               suppressHydrationWarning={true}
             >
               <div className="flex flex-col space-y-3 font-bold text-slate-700">
-                <button 
-                  onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
-                  className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/dashboard' ? 'bg-slate-50 text-[#245B92]' : 'text-slate-700 hover:bg-slate-50'}`}
-                >
-                  Dashboard
-                </button>
-                <button 
-                  onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }}
-                  className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/pricing' ? 'bg-slate-50 text-[#245B92]' : 'text-slate-700 hover:bg-slate-50'}`}
-                >
-                  Pricing
-                </button>
-                <button 
-                  onClick={() => { router.push('/account'); setMobileMenuOpen(false); }}
-                  className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/account' ? 'bg-slate-50 text-[#245B92]' : 'text-slate-700 hover:bg-slate-50'}`}
-                >
-                  Account
-                </button>
+                <button onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg transition font-bold text-slate-700 hover:bg-slate-50">Dashboard</button>
+                <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg transition font-bold text-slate-700 hover:bg-slate-50">Pricing</button>
+                <button onClick={() => { router.push('/account'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg transition font-bold text-slate-700 hover:bg-slate-50">Account</button>
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
-                <button 
-                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
-                  className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
-                >
-                  Logout
-                </button>
+                <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">Logout</button>
               </div>
             </motion.div>
           )}
@@ -586,19 +571,37 @@ export default function DashboardPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8 sm:space-y-12" suppressHydrationWarning={true}>
+        
+        {/* UPGRADE BANNER (Appears for Free Users Only) */}
+        {!isPro && (
+          <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
+            <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
+              <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>Unlock Blink AI Recovery Assistant</h2>
+              <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Automate follow-ups, analyze payment trends, and recover money faster.</p>
+            </div>
+            <button 
+              onClick={() => router.push('/pricing')}
+              className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition cursor-pointer whitespace-nowrap"
+              suppressHydrationWarning={true}
+            >
+              Upgrade to Pro 🚀
+            </button>
+          </div>
+        )}
+
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
           <div className="space-y-1.5" suppressHydrationWarning={true}>
             <h1 className="text-3xl sm:text-4xl font-black text-slate-900" suppressHydrationWarning={true}>
               {getGreeting()}, {user?.email?.split('@')[0]} 👋
             </h1>
             <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
-              Here's your payment recovery overview.
+              Here's your complete payment management overview.
             </p>
             
             <div className="flex flex-wrap items-center gap-6 pt-2 text-xs font-bold text-slate-600" suppressHydrationWarning={true}>
-              <span suppressHydrationWarning={true}>Last reminder: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>Today</strong></span>
-              <span suppressHydrationWarning={true}>Recovered this month: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>₹0</strong></span>
-              <span suppressHydrationWarning={true}>Clients: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>{clients.length}</strong></span>
+              <span suppressHydrationWarning={true}>Paid: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>{paidCount}</strong></span>
+              <span suppressHydrationWarning={true}>Pending: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>{pendingCount}</strong></span>
+              <span suppressHydrationWarning={true}>Total Clients: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>{clients.length}</strong></span>
             </div>
           </div>
 
@@ -623,7 +626,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {recommendation && (
+        {recommendation && isPro && (
           <section className="p-6 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-sm border-l-8 border-l-[#2BB6A8]" suppressHydrationWarning={true}>
             <h2 className="text-[10px] font-black text-[#2BB6A8] uppercase tracking-widest mb-4" suppressHydrationWarning={true}>Today's Recommendation</h2>
             <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4" suppressHydrationWarning={true}>
@@ -676,7 +679,6 @@ export default function DashboardPage() {
                 return (
                   <div key={c.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:border-slate-200 transition space-y-4" suppressHydrationWarning={true}>
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
-                      {/* Minimal Row: Client Name & Status */}
                       <div className="space-y-1" suppressHydrationWarning={true}>
                         <div className="flex items-center gap-3" suppressHydrationWarning={true}>
                           <p className="font-bold text-base text-slate-900" suppressHydrationWarning={true}>{c.name}</p>
@@ -687,9 +689,7 @@ export default function DashboardPage() {
                         <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>{c.company || c.email || 'No company'}</p>
                       </div>
 
-                      {/* Right Action buttons */}
                       <div className="flex items-center gap-3 w-full sm:w-auto" suppressHydrationWarning={true}>
-                        {/* View Button to toggle the small details module */}
                         <button 
                           onClick={() => setExpandedClientId(isExpanded ? null : c.id)} 
                           className="flex-1 sm:flex-none text-xs font-bold bg-white border border-slate-200 px-4 py-2 rounded-xl hover:bg-slate-50 shadow-sm transition cursor-pointer text-slate-700 flex items-center justify-center gap-1.5"
@@ -725,7 +725,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    {/* Small Collapsible Module for Amount Due, Due Date, and Overdue */}
                     <AnimatePresence>
                       {isExpanded && (
                         <motion.div 
@@ -747,15 +746,17 @@ export default function DashboardPage() {
                             </span>
                           </div>
 
-                          <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
-                            <button 
-                              onClick={() => handleProRecovery(c)} 
-                              className="text-xs font-bold text-[#245B92] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-                              suppressHydrationWarning={true}
-                            >
-                              <Sparkles size={14} className="text-[#20B8BE]" suppressHydrationWarning={true} /> Generate AI Reminder
-                            </button>
-                          </div>
+                          {isPro && (
+                            <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
+                              <button 
+                                onClick={() => handleProRecovery(c)} 
+                                className="text-xs font-bold text-[#245B92] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                                suppressHydrationWarning={true}
+                              >
+                                <Sparkles size={14} className="text-[#20B8BE]" suppressHydrationWarning={true} /> Generate AI Reminder
+                              </button>
+                            </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
