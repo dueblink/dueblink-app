@@ -452,25 +452,24 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       
-      {/* FLOATING ROBOT WITH LOCKED OVERLAY FOR FREE USERS */}
-      <div className="relative">
+      {/* FLOATING ROBOT (UNLOCKED FOR PRO, LOCKED BADGE FOR FREE) */}
+      {isPro ? (
         <FloatingRobot 
           onTrigger={handleAssistantAction} 
           recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
         />
-        {!isPro && (
-          <div 
-            onClick={() => {
-              alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
-              router.push('/pricing');
-            }}
-            className="fixed bottom-7 right-6 sm:bottom-9 sm:right-10 z-[9999] bg-slate-900/90 text-white p-2 rounded-full shadow-lg cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold border border-slate-700 hover:bg-slate-800 transition"
-            title="Locked: Upgrade to Pro to unlock Blink"
-          >
-            <Lock size={12} className="text-[#20B8BE]" /> Blink Locked
-          </div>
-        )}
-      </div>
+      ) : (
+        <div 
+          onClick={() => {
+            alert("Upgrade to DueBlink Pro to unlock Blink AI Recovery Assistant.");
+            router.push('/pricing');
+          }}
+          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-10 z-[9999] bg-slate-900 text-white px-4 py-3 rounded-full shadow-2xl cursor-pointer flex items-center gap-2 text-xs font-black border-2 border-[#20B8BE] hover:bg-slate-800 transition transform hover:scale-105"
+          title="Blink AI Locked - Upgrade to Pro"
+        >
+          <Lock size={14} className="text-[#20B8BE]" /> Blink Locked 🔒
+        </div>
+      )}
 
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-300 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
