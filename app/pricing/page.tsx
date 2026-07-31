@@ -5,7 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -87,8 +88,23 @@ export default function PricingPage() {
         name: "DueBlink",
         description: `Pro Subscription (${billingCycle})`,
         image: "/logo.png",
-        handler: function (response: any) {
+        handler: async function (response: any) {
           console.log("Payment ID:", response.razorpay_payment_id);
+          
+          try {
+            // Automatically update THIS user's Firestore document to Pro for everyone
+            if (user?.uid) {
+              const userRef = doc(db, 'users', user.uid);
+              await updateDoc(userRef, {
+                isPro: true,
+                proSince: serverTimestamp(),
+                razorpayPaymentId: response.razorpay_payment_id
+              });
+            }
+          } catch (err) {
+            console.error("Error updating pro status in database:", err);
+          }
+
           setPaymentSuccessModal(true);
         },
         prefill: {
