@@ -284,13 +284,18 @@ export default function DashboardPage() {
         setUser(currentUser);
         
         try {
+          // Fetch the permanent user document from Firestore
           const userDocRef = doc(db, 'users', currentUser.uid);
           const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists() && userDoc.data().isPro) {
-            setIsPro(true);
+          
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.isPro) {
+              setIsPro(true);
+            }
           }
         } catch (err) {
-          console.error("Error fetching pro status:", err);
+          console.error("Error fetching pro status from database:", err);
         }
 
         setLoading(false);
