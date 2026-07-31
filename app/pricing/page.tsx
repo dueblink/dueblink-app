@@ -52,7 +52,7 @@ export default function PricingPage() {
     }
   };
 
-  const handleUpgradeClick = (plan: 'free' | 'pro') => {
+  const handleUpgradeClick = async (plan: 'free' | 'pro') => {
     if (plan === 'free') {
       if (user) {
         router.push('/dashboard');
@@ -62,20 +62,54 @@ export default function PricingPage() {
       return;
     }
 
-    // PRO Plan Flow
+    // PRO Plan Flow with Razorpay
+    if (!user) {
+      router.push('/create-account?redirect=checkout');
+      return;
+    }
+
     setIsProcessing(true);
-    setTimeout(() => {
+
+    try {
+      // 1. Calculate amount in smallest unit (paise for INR, cents for USD)
+      const amountInPaise = isIndia 
+        ? (billingCycle === 'monthly' ? 49900 : 499900) 
+        : (billingCycle === 'monthly' ? 900 : 8900);
+
+      const currency = isIndia ? 'INR' : 'USD';
+
+      // 2. Configure Razorpay Options
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: amountInPaise,
+        currency: currency,
+        name: "DueBlink",
+        description: `Pro Subscription (${billingCycle})`,
+        image: "/logo.png",
+        handler: function (response: any) {
+          console.log("Payment ID:", response.razorpay_payment_id);
+          alert("Payment successful! Redirecting to your dashboard...");
+          router.push('/dashboard');
+        },
+        prefill: {
+          email: user?.email || "",
+          name: user?.displayName || "DueBlink User",
+        },
+        theme: {
+          color: "#245B92",
+        },
+      };
+
+      // 3. Open Razorpay Checkout Modal
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+
+    } catch (error) {
+      console.error("Payment error:", error);
+      alert("Something went wrong with checkout. Please try again.");
+    } finally {
       setIsProcessing(false);
-      if (!user) {
-        router.push('/create-account?redirect=checkout');
-      } else {
-        const gateway = isIndia ? 'Razorpay' : 'Stripe';
-        const priceDisplay = isIndia 
-          ? (billingCycle === 'monthly' ? '₹499/month' : '₹4,999/year') 
-          : (billingCycle === 'monthly' ? '$9/month' : '$89/year');
-        alert(`Connecting to ${gateway} Secure Checkout for ${priceDisplay} (${billingCycle})...`);
-      }
-    }, 800);
+    }
   };
 
   return (
