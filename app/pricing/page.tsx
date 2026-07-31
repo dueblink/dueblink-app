@@ -443,7 +443,7 @@ export default function PricingPage() {
                 suppressHydrationWarning={true}
               >
                 {isProcessing ? <Zap className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {isProcessing ? 'Connecting Gateway...' : (user ? 'Manage Subscription' : 'Upgrade to Pro')}
+                {isProcessing ? 'Connecting Gateway...' : 'Upgrade to Pro'}
               </button>
             </motion.div>
 
