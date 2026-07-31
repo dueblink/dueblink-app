@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Sparkles, Zap, X, Menu, ChevronDown } from 'lucide-react';
+import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -16,6 +16,7 @@ export default function PricingPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [isProcessing, setIsProcessing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [paymentSuccessModal, setPaymentSuccessModal] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -88,8 +89,7 @@ export default function PricingPage() {
         image: "/logo.png",
         handler: function (response: any) {
           console.log("Payment ID:", response.razorpay_payment_id);
-          alert("Payment successful! Redirecting to your dashboard...");
-          router.push('/dashboard');
+          setPaymentSuccessModal(true);
         },
         prefill: {
           email: user?.email || "",
@@ -461,6 +461,43 @@ export default function PricingPage() {
           </p>
         </div>
       </section>
+
+      {/* --- CUSTOM SaaS SUCCESS MODAL --- */}
+      <AnimatePresence>
+        {paymentSuccessModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full text-center shadow-2xl border border-slate-100 space-y-6"
+            >
+              <div className="w-16 h-16 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto text-[#20B8BE]">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-[#0F172A]">You're officially Pro! 🎉</h3>
+                <p className="text-sm font-medium text-slate-500">
+                  Your payment was successfully processed. Your account has been upgraded with unlimited AI recovery tools.
+                </p>
+              </div>
+
+              <button 
+                onClick={() => router.push('/dashboard')}
+                className="w-full py-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer shadow-md"
+              >
+                Go to Dashboard
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* --- GLOBAL FOOTER WITH ANIMATION --- */}
       <motion.footer 
