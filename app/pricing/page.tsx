@@ -93,21 +93,28 @@ export default function PricingPage() {
           
           try {
             if (user?.uid) {
-              // 1. Update Firestore permanently
+              // Calculate expiration date based on billing cycle
+              const expiresAt = new Date();
+              if (billingCycle === 'yearly') {
+                expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 Year from now
+              } else {
+                expiresAt.setMonth(expiresAt.getMonth() + 1); // 30 Days from now
+              }
+
               const userRef = doc(db, 'users', user.uid);
               await updateDoc(userRef, {
                 isPro: true,
-                proSince: serverTimestamp(),
-                razorpayPaymentId: response.razorpay_payment_id
+                billingCycle: billingCycle, // 'monthly' or 'yearly'
+                proExpiresAt: expiresAt,
+                razorpayPaymentId: response.razorpay_payment_id,
+                cancelledAt: null // clear any previous cancellations
               });
 
-              // 2. Set an instant local fallback flag to prevent any render lag
               localStorage.setItem('dueblink_pro_active', 'true');
               localStorage.setItem('just_upgraded', 'true');
             }
           } catch (err) {
-            console.error("Error updating pro status in database:", err);
-            // Fallback so the user isn't blocked if Firestore write stalls
+            console.error("Error activating Pro subscription:", err);
             localStorage.setItem('dueblink_pro_active', 'true');
             localStorage.setItem('just_upgraded', 'true');
           }

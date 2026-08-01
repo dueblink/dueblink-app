@@ -260,10 +260,14 @@ export default function DashboardPage() {
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
 
   // Settings states
-  const [reminderTone, setReminderTone] = useState('Professional');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [aiTone, setAiTone] = useState('Professional');
+  const [reminderStyle, setReminderStyle] = useState('Standard');
   const [aiSuggestions, setAiSuggestions] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [paymentReminders, setPaymentReminders] = useState(true);
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [reminderNotifs, setReminderNotifs] = useState(true);
+  const [productUpdates, setProductUpdates] = useState(true);
 
   const { completion, complete, isLoading: isStreaming } = useCompletion({
     api: '/api/pro-recovery-assistant',
@@ -291,7 +295,10 @@ export default function DashboardPage() {
         router.push('/login');
       } else {
         setUser(currentUser);
+        setName(currentUser.displayName || '');
+        setEmail(currentUser.email || '');
         
+        // Instant check using local backup flag to prevent render lag
         if (localStorage.getItem('dueblink_pro_active') === 'true') {
           setIsPro(true);
         }
@@ -302,13 +309,44 @@ export default function DashboardPage() {
           
           if (userDoc.exists()) {
             const data = userDoc.data();
-            if (data.isPro) {
+            
+            // Check if user is marked as Pro and has an expiration date
+            if (data.isPro && data.proExpiresAt) {
+              const expirationDate = data.proExpiresAt.toDate();
+              const now = new Date();
+
+              if (now > expirationDate) {
+                // SUBSCRIPTION EXPIRED: Automatically revert user to Free plan
+                await updateDoc(userDocRef, {
+                  isPro: false,
+                  proExpiresAt: null
+                });
+                setIsPro(false);
+                localStorage.removeItem('dueblink_pro_active');
+              } else {
+                // STILL ACTIVE: Keep Pro unlocked
+                setIsPro(true);
+                localStorage.setItem('dueblink_pro_active', 'true');
+              }
+            } else if (data.isPro) {
+              // Pro without expiration set (lifetime/manual override)
               setIsPro(true);
               localStorage.setItem('dueblink_pro_active', 'true');
+            } else {
+              // Free plan user
+              setIsPro(false);
+              localStorage.removeItem('dueblink_pro_active');
             }
+
+            if (data.aiTone) setAiTone(data.aiTone);
+            if (data.reminderStyle) setReminderStyle(data.reminderStyle);
+            if (data.aiSuggestions !== undefined) setAiSuggestions(data.aiSuggestions);
+            if (data.emailNotifs !== undefined) setEmailNotifs(data.emailNotifs);
+            if (data.reminderNotifs !== undefined) setReminderNotifs(data.reminderNotifs);
+            if (data.productUpdates !== undefined) setProductUpdates(data.productUpdates);
           }
         } catch (err) {
-          console.error("Error fetching pro status from database:", err);
+          console.error("Error fetching pro status:", err);
         }
 
         setLoading(false);
@@ -886,8 +924,8 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase">AI Reminder Tone</label>
                   <select 
-                    value={reminderTone} 
-                    onChange={(e) => setReminderTone(e.target.value)}
+                    value={aiTone} 
+                    onChange={(e) => setAiTone(e.target.value)}
                     className="w-full px-4 py-3 border border-slate-200 bg-white rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-[#245B92]"
                   >
                     <option value="Professional">Professional & Polite</option>
@@ -924,8 +962,8 @@ export default function DashboardPage() {
                   </div>
                   <input 
                     type="checkbox" 
-                    checked={emailNotifications} 
-                    onChange={() => setEmailNotifications(!emailNotifications)}
+                    checked={emailNotifs} 
+                    onChange={() => setEmailNotifs(!emailNotifs)}
                     className="w-5 h-5 accent-[#245B92] cursor-pointer" 
                   />
                 </div>
@@ -936,8 +974,8 @@ export default function DashboardPage() {
                   </div>
                   <input 
                     type="checkbox" 
-                    checked={paymentReminders} 
-                    onChange={() => setPaymentReminders(!paymentReminders)}
+                    checked={reminderNotifs} 
+                    onChange={() => setReminderNotifs(!reminderNotifs)}
                     className="w-5 h-5 accent-[#245B92] cursor-pointer" 
                   />
                 </div>
