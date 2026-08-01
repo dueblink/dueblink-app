@@ -22,29 +22,36 @@ export async function POST(req: Request) {
 
     const { client, history, action, clients, total } = body;
 
-    let systemPrompt = "You are the DueBlink Pro Recovery Assistant. Be professional, encouraging, data-driven, and concise.";
+    let systemPrompt = `You are Blink, the DueBlink AI Recovery Assistant. 
+You must NEVER respond like ChatGPT, never write long essays, never use markdown asterisks (**), and never dump raw unformatted text.
+Always speak in short sentences, be friendly, professional, data-driven, and concise.
+Every response must answer three core questions clearly:
+1. What did I find?
+2. What do I recommend?
+3. What should you do next?`;
+
     let userPrompt = "";
 
     // 1. Handle Dashboard Actions
     if (action) {
       if (action === "welcome_pro") {
-        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically! Briefly explain that the Pro Recovery Assistant is ready to help them automate follow-ups and recover pending payments instantly.";
-        userPrompt = "Give a warm, exciting welcome message to a freelancer or agency owner who just upgraded to DueBlink Pro!";
+        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically in short sentences. Explain that Blink is ready to automate follow-ups and recover pending payments instantly.";
+        userPrompt = "Give a short, warm, exciting welcome message to a freelancer or agency owner who just upgraded to DueBlink Pro!";
       } else if (action === "recommend") {
-        systemPrompt += "\nAnalyze the following clients and recommend the next best action. Identify urgent follow-ups.";
-        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Suggest follow-up priorities.`;
+        systemPrompt += "\nAnalyze the following clients and provide a short summary, a specific recommendation in 2-4 short sentences, and end with one recommended action.";
+        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Format response with short sentences, data points, and a final recommended action.`;
       } else if (action === "summarize" || action === "summarize_outstanding") {
-        systemPrompt += "\nSummarize the total outstanding payments and provide a high-level cash flow insight.";
+        systemPrompt += "\nSummarize the total outstanding payments with brief stats, a short cash flow insight in short sentences, and a clear next recommended action.";
         userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}.`;
       } else if (action === "overdue") {
-        systemPrompt += "\nIdentify all clients who are overdue by more than 30 days and suggest a 'Firm' tone follow-up strategy.";
-        userPrompt = `List overdue clients and suggest follow-up strategies: ${JSON.stringify(clients)}.`;
+        systemPrompt += "\nList overdue clients briefly, show amounts and delays, and give a clear recommended action (e.g., Start with [Name]).";
+        userPrompt = `List overdue clients and suggest follow-up strategies based on these clients: ${JSON.stringify(clients)}.`;
       } else if (action === "priorities") {
-        systemPrompt += "\nAnalyze all clients and identify the top 3 most critical clients that require immediate action today based on amount and delay.";
+        systemPrompt += "\nIdentify top priority clients needing attention today based on amount and delay. Speak in short sentences and provide a clear final recommendation.";
         userPrompt = `What are today's priorities based on these clients: ${JSON.stringify(clients)}?`;
       } else if (action === "rewrite") {
-        systemPrompt += "\nYou are an expert communication editor. Rewrite a payment reminder for a client to be more persuasive and professional.";
-        userPrompt = `Rewrite a payment reminder to be more professional and persuasive for a client: ${JSON.stringify(clients[0])}.`;
+        systemPrompt += "\nYou are Blink. Rewrite the payment reminder concisely and professionally without markdown or long paragraphs.";
+        userPrompt = `Rewrite a payment reminder to be more professional and persuasive for this client: ${JSON.stringify(clients?.[0] || client || {})}.`;
       }
     } 
     // 2. Handle Individual Client Reminders
@@ -57,10 +64,10 @@ export async function POST(req: Request) {
         - Tone: ${client.reminderTemplate || 'Friendly'}
         
         Instructions:
-        1. If Days Overdue > 30, emphasize urgency and business impact.
+        1. If Days Overdue > 30, emphasize urgency and business impact using short sentences.
         2. If History Count > 2, suggest a call or alternative action.
-        3. Return ONLY the email body text.`;
-      userPrompt = `Write a ${client.reminderTemplate || 'Friendly'} follow-up email.`;
+        3. Return clean, professional text without markdown or raw formatting.`;
+      userPrompt = `Write a ${client.reminderTemplate || 'Friendly'} follow-up message.`;
     } 
     // 3. Reject if no valid action/client is found
     else {
