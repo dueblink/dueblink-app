@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 export default function PricingPage() {
@@ -18,6 +18,7 @@ export default function PricingPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paymentSuccessModal, setPaymentSuccessModal] = useState(false);
+  const [isUserPro, setIsUserPro] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -28,14 +29,49 @@ export default function PricingPage() {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  // Auth listener to check if user is logged in
+  // Auth listener and Pro status check
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         localStorage.setItem('user_authenticated', 'true');
+        
+        // Instant check using local backup flag
+        if (localStorage.getItem('dueblink_pro_active') === 'true') {
+          setIsUserPro(true);
+        }
+
+        try {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.isPro) {
+              if (data.proExpiresAt) {
+                const expires = data.proExpiresAt.toDate();
+                if (new Date() < expires) {
+                  setIsUserPro(true);
+                  localStorage.setItem('dueblink_pro_active', 'true');
+                } else {
+                  setIsUserPro(false);
+                  localStorage.removeItem('dueblink_pro_active');
+                }
+              } else {
+                setIsUserPro(true);
+                localStorage.setItem('dueblink_pro_active', 'true');
+              }
+            } else {
+              setIsUserPro(false);
+              localStorage.removeItem('dueblink_pro_active');
+            }
+          }
+        } catch (err) {
+          console.error("Error checking pricing page pro status:", err);
+        }
+
       } else {
         localStorage.removeItem('user_authenticated');
+        setIsUserPro(false);
       }
     });
     return () => unsubscribe();
@@ -47,6 +83,7 @@ export default function PricingPage() {
       localStorage.removeItem('user_authenticated');
       localStorage.removeItem('has_created_account');
       setUser(null);
+      setIsUserPro(false);
       router.push('/');
       router.refresh();
     } catch (error) {
@@ -73,14 +110,12 @@ export default function PricingPage() {
     setIsProcessing(true);
 
     try {
-      // 1. Calculate amount in smallest unit (paise for INR, cents for USD)
       const amountInPaise = isIndia 
         ? (billingCycle === 'monthly' ? 49900 : 499900) 
         : (billingCycle === 'monthly' ? 900 : 8900);
 
       const currency = isIndia ? 'INR' : 'USD';
 
-      // 2. Configure Razorpay Options
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: amountInPaise,
@@ -93,30 +128,31 @@ export default function PricingPage() {
           
           try {
             if (user?.uid) {
-              // Calculate expiration date based on billing cycle
               const expiresAt = new Date();
               if (billingCycle === 'yearly') {
-                expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 Year from now
+                expiresAt.setFullYear(expiresAt.getFullYear() + 1);
               } else {
-                expiresAt.setMonth(expiresAt.getMonth() + 1); // 30 Days from now
+                expiresAt.setMonth(expiresAt.getMonth() + 1);
               }
 
               const userRef = doc(db, 'users', user.uid);
               await updateDoc(userRef, {
                 isPro: true,
-                billingCycle: billingCycle, // 'monthly' or 'yearly'
+                billingCycle: billingCycle,
                 proExpiresAt: expiresAt,
                 razorpayPaymentId: response.razorpay_payment_id,
-                cancelledAt: null // clear any previous cancellations
+                cancelledAt: null
               });
 
               localStorage.setItem('dueblink_pro_active', 'true');
               localStorage.setItem('just_upgraded', 'true');
+              setIsUserPro(true);
             }
           } catch (err) {
             console.error("Error activating Pro subscription:", err);
             localStorage.setItem('dueblink_pro_active', 'true');
             localStorage.setItem('just_upgraded', 'true');
+            setIsUserPro(true);
           }
 
           setPaymentSuccessModal(true);
@@ -130,7 +166,6 @@ export default function PricingPage() {
         },
       };
 
-      // 3. Open Razorpay Checkout Modal
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
 
@@ -145,11 +180,10 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
       
-      {/* --- GLOBAL STICKY HEADER BAR WITH ANIMATED ACTIVE INDICATOR --- */}
+      {/* NAVBAR */}
       <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
           
-          {/* LOGO */}
           <motion.div 
             whileHover={{ scale: 1.03 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
@@ -160,13 +194,8 @@ export default function PricingPage() {
             <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
           </motion.div>
 
-          {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
           <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
-            
-            {/* Center Navigation Links with Smooth Animated Underline */}
             <div className="flex items-center gap-6 text-sm font-bold text-slate-600" suppressHydrationWarning={true}>
-              
-              {/* Pricing Link */}
               <motion.div 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -175,14 +204,11 @@ export default function PricingPage() {
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Pricing</span>
-                {pathname === '/pricing' ? (
+                {pathname === '/pricing' && (
                   <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.25, ease: "easeInOut" }} suppressHydrationWarning={true} />
-                ) : (
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-200 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
                 )}
               </motion.div>
 
-              {/* Contact Link */}
               <motion.div 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -191,16 +217,12 @@ export default function PricingPage() {
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Contact</span>
-                {pathname === '/contact' ? (
+                {pathname === '/contact' && (
                   <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.25, ease: "easeInOut" }} suppressHydrationWarning={true} />
-                ) : (
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-200 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
                 )}
               </motion.div>
-
             </div>
 
-            {/* DYNAMIC AUTH BUTTONS */}
             <div className="flex items-center gap-4" suppressHydrationWarning={true}>
               {pathname === '/login' ? (
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.2 }} onClick={() => router.push('/create-account')} className="text-xs sm:text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
@@ -235,10 +257,8 @@ export default function PricingPage() {
                 </>
               )}
             </div>
-
           </div>
 
-          {/* MOBILE HAMBURGER TOGGLE BUTTON */}
           <div className="flex md:hidden items-center">
             <motion.button 
               whileTap={{ scale: 0.9 }}
@@ -250,10 +270,8 @@ export default function PricingPage() {
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </motion.button>
           </div>
-
         </div>
 
-        {/* MOBILE DROPDOWN MENU */}
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div 
@@ -265,51 +283,20 @@ export default function PricingPage() {
               suppressHydrationWarning={true}
             >
               <div className="flex flex-col space-y-3 font-bold text-slate-700">
-                <button 
-                  onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }}
-                  className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/pricing' ? 'bg-slate-50 text-[#1C2E8F]' : 'text-[#1E293B] hover:bg-slate-50'}`}
-                >
-                  Pricing
-                </button>
-                <button 
-                  onClick={() => { router.push('/contact'); setMobileMenuOpen(false); }}
-                  className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/contact' ? 'bg-slate-50 text-[#1C2E8F]' : 'text-[#1E293B] hover:bg-slate-50'}`}
-                >
-                  Contact
-                </button>
+                <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/pricing' ? 'bg-slate-50 text-[#1C2E8F]' : 'text-[#1E293B] hover:bg-slate-50'}`}>Pricing</button>
+                <button onClick={() => { router.push('/contact'); setMobileMenuOpen(false); }} className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/contact' ? 'bg-slate-50 text-[#1C2E8F]' : 'text-[#1E293B] hover:bg-slate-50'}`}>Contact</button>
               </div>
 
               <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
                 {user ? (
                   <>
-                    <button 
-                      onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
-                      className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition"
-                    >
-                      Dashboard
-                    </button>
-                    <button 
-                      onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
-                      className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
-                    >
-                      Logout
-                    </button>
+                    <button onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition">Dashboard</button>
+                    <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">Logout</button>
                   </>
                 ) : (
                   <>
-                    <button 
-                      onClick={() => { router.push('/login'); setMobileMenuOpen(false); }}
-                      className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition"
-                    >
-                      Login
-                    </button>
-                    <button 
-                      onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }}
-                      className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition"
-                      style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                    >
-                      Create Account
-                    </button>
+                    <button onClick={() => { router.push('/login'); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition">Login</button>
+                    <button onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}>Create Account</button>
                   </>
                 )}
               </div>
@@ -318,7 +305,7 @@ export default function PricingPage() {
         </AnimatePresence>
       </nav>
 
-      {/* --- HERO SECTION --- */}
+      {/* HERO SECTION */}
       <motion.section 
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -343,10 +330,7 @@ export default function PricingPage() {
             AI-powered payment recovery for freelancers, agencies and consultants.
           </p>
 
-          {/* Controls Bar: Region & Billing Cycle */}
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-            
-            {/* Region Toggle */}
             <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80">
               <button 
                 onClick={() => setIsIndia(true)} 
@@ -362,7 +346,6 @@ export default function PricingPage() {
               </button>
             </div>
 
-            {/* Monthly / Yearly Billing Toggle */}
             <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80">
               <button 
                 onClick={() => setBillingCycle('monthly')} 
@@ -378,12 +361,11 @@ export default function PricingPage() {
                 <span className="text-[9px] font-black bg-teal-500 text-white px-1.5 py-0.5 rounded-md">Save ~15%</span>
               </button>
             </div>
-
           </div>
         </div>
       </motion.section>
 
-      {/* --- PRICING SECTION --- */}
+      {/* PRICING SECTION */}
       <section className="bg-white py-20 border-b border-slate-100" suppressHydrationWarning={true}>
         <div className="max-w-5xl mx-auto px-4 text-center space-y-12" suppressHydrationWarning={true}>
           
@@ -436,7 +418,6 @@ export default function PricingPage() {
                 </div>
                 <p className="text-slate-400 text-sm mb-6 font-medium" suppressHydrationWarning={true}>Unlock full potential</p>
                 
-                {/* Dynamic Price Display based on toggle */}
                 <div className="text-5xl font-black mb-1 text-[#0F172A]" suppressHydrationWarning={true}>
                   {isIndia 
                     ? (billingCycle === 'monthly' ? '₹499' : '₹4,999') 
@@ -466,14 +447,26 @@ export default function PricingPage() {
                   ))}
                 </ul>
               </div>
+
               <button 
-                onClick={() => handleUpgradeClick('pro')} 
+                onClick={() => {
+                  if (isUserPro) {
+                    router.push('/dashboard');
+                  } else {
+                    handleUpgradeClick('pro');
+                  }
+                }} 
                 disabled={isProcessing}
                 className="w-full py-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer shadow-xs flex items-center justify-center gap-2"
                 suppressHydrationWarning={true}
               >
-                {isProcessing ? <Zap className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {isProcessing ? 'Connecting Gateway...' : 'Upgrade to Pro'}
+                {isProcessing ? (
+                  <><Zap className="w-4 h-4 animate-spin" /> Connecting Gateway...</>
+                ) : isUserPro ? (
+                  <><Sparkles className="w-4 h-4" /> You are Pro ✨ (Go to Dashboard)</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> Upgrade to Pro</>
+                )}
               </button>
             </motion.div>
 
@@ -481,7 +474,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* --- WHY UPGRADE SECTION --- */}
+      {/* WHY UPGRADE SECTION */}
       <section className="bg-slate-50 py-20 border-b border-slate-100 text-center" suppressHydrationWarning={true}>
         <div className="max-w-3xl mx-auto px-4 space-y-4" suppressHydrationWarning={true}>
           <div className="text-3xl select-none">🧠</div>
@@ -492,7 +485,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* --- CUSTOM SaaS SUCCESS MODAL --- */}
+      {/* SUCCESS MODAL */}
       <AnimatePresence>
         {paymentSuccessModal && (
           <motion.div 
@@ -532,7 +525,7 @@ export default function PricingPage() {
         )}
       </AnimatePresence>
 
-      {/* --- GLOBAL FOOTER WITH ANIMATION --- */}
+      {/* FOOTER */}
       <motion.footer 
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
@@ -542,7 +535,6 @@ export default function PricingPage() {
         suppressHydrationWarning={true}
       >
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-            
           <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
             <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
               <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -558,14 +550,13 @@ export default function PricingPage() {
             <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
             <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
           </div>
-            
+          
           <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
             <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
               support@dueblink.com
             </a>
             <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
           </div>
-            
         </div>
       </motion.footer>
 

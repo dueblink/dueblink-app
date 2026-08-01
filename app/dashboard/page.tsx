@@ -310,13 +310,11 @@ export default function DashboardPage() {
           if (userDoc.exists()) {
             const data = userDoc.data();
             
-            // Check if user is marked as Pro and has an expiration date
             if (data.isPro && data.proExpiresAt) {
               const expirationDate = data.proExpiresAt.toDate();
               const now = new Date();
 
               if (now > expirationDate) {
-                // SUBSCRIPTION EXPIRED: Automatically revert user to Free plan
                 await updateDoc(userDocRef, {
                   isPro: false,
                   proExpiresAt: null
@@ -324,16 +322,13 @@ export default function DashboardPage() {
                 setIsPro(false);
                 localStorage.removeItem('dueblink_pro_active');
               } else {
-                // STILL ACTIVE: Keep Pro unlocked
                 setIsPro(true);
                 localStorage.setItem('dueblink_pro_active', 'true');
               }
             } else if (data.isPro) {
-              // Pro without expiration set (lifetime/manual override)
               setIsPro(true);
               localStorage.setItem('dueblink_pro_active', 'true');
             } else {
-              // Free plan user
               setIsPro(false);
               localStorage.removeItem('dueblink_pro_active');
             }
@@ -375,6 +370,27 @@ export default function DashboardPage() {
       router.refresh();
     } catch (error) {
       console.error("Logout error:", error);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (confirm("Are you sure you want to cancel your Pro subscription? You will lose access to Pro recovery assistant features.")) {
+      try {
+        if (user) {
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, {
+            isPro: false,
+            proExpiresAt: null
+          });
+        }
+        setIsPro(false);
+        localStorage.removeItem('dueblink_pro_active');
+        alert("Subscription successfully canceled.");
+        router.refresh();
+      } catch (err) {
+        console.error("Error canceling subscription:", err);
+        alert("Failed to cancel subscription.");
+      }
     }
   };
 
@@ -893,23 +909,44 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Billing & Subscription Section */}
+            {/* BILLING & SUBSCRIPTION SECTION */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <CreditCard className="text-[#245B92]" size={20} />
+                <Crown className="text-amber-500" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Billing & Subscription</h3>
               </div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-slate-400 uppercase">Current Plan</p>
-                  <p className="text-xl font-black text-slate-900">{isPro ? 'DueBlink Pro Plan ✨' : 'Free Plan'}</p>
-                  <p className="text-xs text-slate-500 font-medium">{isPro ? 'All advanced AI recovery tools are active.' : 'Upgrade to Pro for unlimited AI reminders and assistant.'}</p>
+                  <p className="text-xl font-black text-slate-900">{isPro ? 'DueBlink Pro 🚀' : 'Free Plan'}</p>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {isPro ? 'All Pro recovery tools and AI assistant are fully unlocked.' : 'Upgrade to Pro to unlock unlimited AI features.'}
+                  </p>
                 </div>
-                <button 
-                  onClick={() => router.push('/pricing')}
-                  className="px-6 py-3 rounded-xl text-white font-bold text-xs bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition shadow-sm cursor-pointer"
-                >
-                  {isPro ? 'Manage Subscription' : 'Upgrade to Pro 🚀'}
+                {isPro ? (
+                  <div className="flex items-center gap-3">
+                    <span className="bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-full">Active Pro</span>
+                    <button 
+                      onClick={handleCancelSubscription} 
+                      className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-xs hover:bg-red-50 transition cursor-pointer"
+                    >
+                      Cancel Subscription
+                    </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => router.push('/pricing')} 
+                    className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition cursor-pointer"
+                  >
+                    Upgrade to Pro ✨
+                  </button>
+                )}
+              </div>
+              
+              <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs font-semibold text-slate-500 px-2 gap-2">
+                <span>Manage Billing: You can cancel anytime before your renewal date.</span>
+                <button onClick={() => router.push('/pricing')} className="text-[#245B92] font-bold hover:underline cursor-pointer">
+                  View Pricing & Plans →
                 </button>
               </div>
             </div>
