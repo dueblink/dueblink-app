@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2 } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -29,6 +29,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   // State for in-panel AI response display
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [showMessageBubble, setShowMessageBubble] = useState(false);
@@ -37,6 +38,38 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Robust cleaner to completely strip metadata and format text blocks properly
+  const cleanResponseText = (rawText: string) => {
+    if (!rawText) return '';
+    try {
+      let text = rawText;
+      text = text.replace(/f:\{messageId:[^}]+\}/g, '');
+      text = text.replace(/f:\{[^\}]+\}/g, '');
+
+      const lines = text.split('\n');
+      const processedLines = lines.map(line => {
+        let cleanLine = line.trim();
+        const match = cleanLine.match(/^[0-9]+:"(.*)"$/);
+        if (match && match[1]) {
+          cleanLine = match[1];
+        }
+        cleanLine = cleanLine
+          .replace(/\\n/g, '\n')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+
+        if (/^[a-z]:\{.*\}$/.test(cleanLine)) {
+          return '';
+        }
+        return cleanLine;
+      });
+
+      return processedLines.join('\n').trim() || text.trim();
+    } catch {
+      return rawText;
+    }
+  };
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -63,7 +96,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     const saved = localStorage.getItem('freeReminders');
     if (saved) setRemainingFreeReminders(parseInt(saved));
 
-    // Only show welcome message bubble on dashboard if user is Pro or on landing page
     if (pathname !== '/dashboard' || isPro) {
       setShowMessageBubble(true);
       const loadMinimizeTimer = setTimeout(() => {
@@ -257,7 +289,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
 
     try {
-      // Fetch data from local storage or fallback to empty array so route.ts gets valid client payload
       const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       const totalAmount = savedClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
 
@@ -284,21 +315,23 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
-          // Clean Vercel AI SDK data stream prefixes if present
-          const cleanChunk = chunk
-            .replace(/^[0-9]+:/gm, '')
-            .replace(/"/g, '')
-            .replace(/\\n/g, '\n');
-          fullText += cleanChunk;
+          fullText += chunk;
         }
       }
 
-      setAiResponse(fullText.trim() || "Analysis complete. No urgent actions needed right now.");
+      setAiResponse(cleanResponseText(fullText) || "Analysis complete. No urgent actions needed right now.");
     } catch (err) {
       setAiResponse("Unable to fetch portfolio analysis right now. Please check your connection and try again.");
     } finally {
       setUiState('idle');
     }
+  };
+
+  const handleCopy = async () => {
+    if (!aiResponse) return;
+    await navigator.clipboard.writeText(aiResponse);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleLandingAction = () => {
@@ -441,7 +474,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-3xl w-[300px] sm:w-[340px] overflow-hidden"
+            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-3xl w-[320px] sm:w-[380px] overflow-hidden"
             suppressHydrationWarning={true}
           >
             {/* Header Banner */}
@@ -479,19 +512,29 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             </div>
 
             {/* Content Area */}
-            <div className="p-5 max-h-[380px] overflow-y-auto" suppressHydrationWarning={true}>
+            <div className="p-5 max-h-[400px] overflow-y-auto" suppressHydrationWarning={true}>
               {isLoggedIn ? (
                 isPro ? (
                   aiResponse || uiState === 'processing' ? (
-                    <div className="py-3 space-y-3 text-left">
+                    <div className="py-2 space-y-3 text-left">
                       {uiState === 'processing' ? (
-                        <div className="flex flex-col items-center justify-center py-8 space-y-3 text-slate-400">
+                        <div className="flex flex-col items-center justify-center py-10 space-y-3 text-slate-400">
                           <Loader2 size={28} className="animate-spin text-[#20B8BE]" />
                           <p className="text-xs font-bold tracking-wide">Analyzing your portfolio...</p>
                         </div>
                       ) : (
-                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed shadow-inner">
-                          {aiResponse}
+                        <div className="space-y-3">
+                          {/* Standard paragraph block container with normal word wrapping and spacing */}
+                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-800 font-medium whitespace-pre-wrap leading-relaxed shadow-inner break-words block">
+                            {aiResponse}
+                          </div>
+                          <button
+                            onClick={handleCopy}
+                            className="w-full py-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                            {copied ? 'Copied to Clipboard!' : 'Copy Result'}
+                          </button>
                         </div>
                       )}
                       <button 
