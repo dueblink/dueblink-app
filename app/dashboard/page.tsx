@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Copy, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Lock, Crown, Settings as SettingsIcon, CreditCard, Bell, Shield, HelpCircle, LogOut } from 'lucide-react';
-import { onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from 'firebase/auth';
+import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Copy, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle } from 'lucide-react';
+import { onAuthStateChanged, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
@@ -259,16 +259,12 @@ export default function DashboardPage() {
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Settings states
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [aiTone, setAiTone] = useState('Professional');
-  const [reminderStyle, setReminderStyle] = useState('Standard');
-  const [aiSuggestions, setAiSuggestions] = useState(true);
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [reminderNotifs, setReminderNotifs] = useState(true);
-  const [productUpdates, setProductUpdates] = useState(true);
 
   const { completion, complete, isLoading: isStreaming } = useCompletion({
     api: '/api/pro-recovery-assistant',
@@ -296,8 +292,6 @@ export default function DashboardPage() {
         router.push('/login');
       } else {
         setUser(currentUser);
-        setName(currentUser.displayName || '');
-        setEmail(currentUser.email || '');
         
         // Instant check using local backup flag to prevent render lag
         if (localStorage.getItem('dueblink_pro_active') === 'true') {
@@ -335,11 +329,8 @@ export default function DashboardPage() {
             }
 
             if (data.aiTone) setAiTone(data.aiTone);
-            if (data.reminderStyle) setReminderStyle(data.reminderStyle);
-            if (data.aiSuggestions !== undefined) setAiSuggestions(data.aiSuggestions);
             if (data.emailNotifs !== undefined) setEmailNotifs(data.emailNotifs);
             if (data.reminderNotifs !== undefined) setReminderNotifs(data.reminderNotifs);
-            if (data.productUpdates !== undefined) setProductUpdates(data.productUpdates);
           }
         } catch (err) {
           console.error("Error fetching pro status:", err);
@@ -382,11 +373,8 @@ export default function DashboardPage() {
     
     try {
       setLoading(true);
-      
-      // Reference the user's document in Firestore
       const userRef = doc(db, 'users', user.uid);
       
-      // Use setDoc with merge: true so it works whether the doc exists or not
       await setDoc(userRef, { 
         isPro: false, 
         proExpiresAt: null, 
@@ -395,15 +383,15 @@ export default function DashboardPage() {
         name: user.displayName || ''
       }, { merge: true });
 
-      // Clear local storage cache
       localStorage.removeItem('dueblink_pro_active');
       
-      // Update local state
       setIsPro(false);
       setLoading(false);
       setCancelModalOpen(false);
       
-      alert("Your Pro subscription has been successfully cancelled.");
+      setSuccessMessage("Your Pro subscription has been successfully cancelled.");
+      setTimeout(() => setSuccessMessage(null), 5000);
+
       router.refresh();
       
     } catch (error: any) {
@@ -723,6 +711,27 @@ export default function DashboardPage() {
       {/* MAIN CONTENT AREA */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8 sm:space-y-12" suppressHydrationWarning={true}>
         
+        {/* SUCCESS NOTIFICATION TOAST */}
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl flex items-center justify-between shadow-sm"
+              suppressHydrationWarning={true}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">✓</div>
+                <p className="text-xs font-bold tracking-wide">{successMessage}</p>
+              </div>
+              <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer">
+                <X size={16} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {activeTab === 'overview' ? (
           <>
             {/* PRO STATUS BANNER OR UPGRADE BANNER */}
@@ -1034,18 +1043,6 @@ export default function DashboardPage() {
                     <option value="Firm">Firm & Direct</option>
                     <option value="Friendly">Friendly & Casual</option>
                   </select>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 self-end">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Smart AI Suggestions</p>
-                    <p className="text-xs text-slate-500">Auto-recommend best follow-up actions</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={aiSuggestions} 
-                    onChange={() => setAiSuggestions(!aiSuggestions)}
-                    className="w-5 h-5 accent-[#245B92] cursor-pointer" 
-                  />
                 </div>
               </div>
             </div>
