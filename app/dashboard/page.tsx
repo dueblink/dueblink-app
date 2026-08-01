@@ -258,6 +258,7 @@ export default function DashboardPage() {
 
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   // Settings states
   const [name, setName] = useState('');
@@ -374,23 +375,27 @@ export default function DashboardPage() {
   };
 
   const handleCancelSubscription = async () => {
-    if (confirm("Are you sure you want to cancel your Pro subscription? You will lose access to Pro recovery assistant features.")) {
-      try {
-        if (user) {
-          const userDocRef = doc(db, 'users', user.uid);
-          await updateDoc(userDocRef, {
-            isPro: false,
-            proExpiresAt: null
-          });
-        }
-        setIsPro(false);
-        localStorage.removeItem('dueblink_pro_active');
-        alert("Subscription successfully canceled.");
-        router.refresh();
-      } catch (err) {
-        console.error("Error canceling subscription:", err);
-        alert("Failed to cancel subscription.");
-      }
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { 
+        isPro: false, 
+        proExpiresAt: null, 
+        cancelledAt: serverTimestamp() 
+      });
+
+      localStorage.removeItem('dueblink_pro_active');
+      setIsPro(false);
+      setLoading(false);
+      setCancelModalOpen(false);
+      alert("Your Pro subscription has been successfully cancelled.");
+      router.refresh();
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      alert("Failed to cancel subscription. Please try again.");
+      setLoading(false);
     }
   };
 
@@ -467,6 +472,50 @@ export default function DashboardPage() {
     >
       <AddClientModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} user={user} />
       
+      {/* --- CUSTOM SUBSCRIPTION CANCELLATION MODAL --- */}
+      <AnimatePresence>
+        {cancelModalOpen && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" suppressHydrationWarning={true}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6"
+              suppressHydrationWarning={true}
+            >
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
+                <AlertTriangle size={32} />
+              </div>
+
+              <div className="space-y-2" suppressHydrationWarning={true}>
+                <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>Cancel Pro Subscription?</h3>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
+                  Are you sure you want to cancel? You will lose access to the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and unlimited client recovery tools.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2" suppressHydrationWarning={true}>
+                <button 
+                  onClick={() => setCancelModalOpen(false)} 
+                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-3xs"
+                  suppressHydrationWarning={true}
+                >
+                  Keep Pro Plan ✨
+                </button>
+                <button 
+                  onClick={handleCancelSubscription} 
+                  disabled={loading}
+                  className="flex-1 py-3.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition cursor-pointer flex items-center justify-center gap-2"
+                  suppressHydrationWarning={true}
+                >
+                  {loading ? <Loader2 className="animate-spin" size={14} /> : 'Yes, Cancel Plan'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {clientToDelete && (
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" suppressHydrationWarning={true}>
@@ -680,9 +729,17 @@ export default function DashboardPage() {
                     <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Pro Recovery Assistant and premium features are fully unlocked.</p>
                   </div>
                 </div>
-                <span className="bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md">
-                  Active Pro Plan
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md">
+                    Active Pro Plan
+                  </span>
+                  <button 
+                    onClick={() => setCancelModalOpen(true)}
+                    className="bg-white/10 hover:bg-white/25 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md transition cursor-pointer"
+                  >
+                    Cancel Plan
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
@@ -927,7 +984,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <span className="bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-full">Active Pro</span>
                     <button 
-                      onClick={handleCancelSubscription} 
+                      onClick={() => setCancelModalOpen(true)} 
                       className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-xs hover:bg-red-50 transition cursor-pointer"
                     >
                       Cancel Subscription
