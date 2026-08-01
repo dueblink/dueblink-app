@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, Lock } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -26,6 +26,10 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
   
+  // State for in-panel AI response display
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [activeActionName, setActiveActionName] = useState<string | null>(null);
+
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [showMessageBubble, setShowMessageBubble] = useState(false);
   const [clickedSectionText, setClickedSectionText] = useState<string | null>(null);
@@ -222,7 +226,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       if (isPro) {
         return `${greeting}, ${userName}!\n\nI'm Blink, your AI Recovery Assistant. ✨\n\nI'm here to analyze your client portfolio, prioritize overdue payments, and generate smart follow-ups for you!`;
       }
-      return ""; // No welcome message bubble for free users on dashboard
+      return ""; 
     }
     if (clickedSectionText) return clickedSectionText;
 
@@ -237,33 +241,37 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     return "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how to recover payments faster.\n\nNeed help? Click me anytime.";
   };
 
-  const handleActionClick = async (action: string) => {
+  const handleActionClick = async (actionId: string, actionTitle: string) => {
     if (!isPro) {
       router.push('/pricing');
       return;
     }
     if (uiState === 'processing') return;
+
+    setActiveActionName(actionTitle);
+    setUiState('processing');
+    setAiResponse(null);
+
     if (onTrigger) {
-      onTrigger(action);
-      setIsExpanded(false);
-    } else if (isLoggedIn) {
-      setUiState('processing');
-      try {
-        const response = await fetch('/api/pro-recovery-assistant', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action })
-        });
-        const data = await response.json();
-        if (data.suggestion) {
-          window.dispatchEvent(new CustomEvent('open-ai-preview', { detail: data.suggestion }));
-        }
-      } finally {
-        setUiState('idle');
-        setIsExpanded(false);
+      onTrigger(actionId);
+    }
+
+    try {
+      const response = await fetch('/api/pro-recovery-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: actionId })
+      });
+      const data = await response.json();
+      if (data.suggestion) {
+        setAiResponse(data.suggestion);
+      } else {
+        setAiResponse("Analysis complete. No urgent actions needed right now.");
       }
-    } else {
-      router.push('/create-account');
+    } catch (err) {
+      setAiResponse("Failed to generate response. Please try again.");
+    } finally {
+      setUiState('idle');
     }
   };
 
@@ -292,7 +300,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   return (
     <div className="fixed bottom-24 right-6 z-[900] sm:bottom-28 sm:right-8 flex flex-col items-end gap-3" suppressHydrationWarning={true}>
       
-      {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE (Hidden on dashboard for free users) */}
+      {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
       <AnimatePresence>
         {!isExpanded && showMessageBubble && (isPro || pathname !== '/dashboard') && (
           <motion.div 
@@ -399,7 +407,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL */}
+      {/* 3. EXPANDED PANEL WITH IN-PANEL AI RESPONSE DISPLAY */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -415,16 +423,27 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none" />
               <div className="flex justify-between items-start relative z-10" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-                    <Brain size={20} className="text-white" />
-                  </div>
+                  {aiResponse || uiState === 'processing' ? (
+                    <button 
+                      onClick={() => { setAiResponse(null); setActiveActionName(null); }}
+                      className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer"
+                    >
+                      <ArrowLeft size={18} className="text-white" />
+                    </button>
+                  ) : (
+                    <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+                      <Brain size={20} className="text-white" />
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-black tracking-wider uppercase text-[10px] text-white/90">Blink AI</h3>
-                    <p className="text-sm font-bold text-white mt-0.5">{isPro ? 'Pro AI Recovery Assistant' : 'Upgrade to Unlock Pro'}</p>
+                    <p className="text-sm font-bold text-white mt-0.5">
+                      {activeActionName ? activeActionName : (isPro ? 'Pro AI Recovery Assistant' : 'Upgrade to Unlock Pro')}
+                    </p>
                   </div>
                 </div>
                 <button 
-                  onClick={() => setIsExpanded(false)} 
+                  onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); }} 
                   className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition cursor-pointer"
                   suppressHydrationWarning={true}
                 >
@@ -434,45 +453,63 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             </div>
 
             {/* Content Area */}
-            <div className="p-5" suppressHydrationWarning={true}>
+            <div className="p-5 max-h-[380px] overflow-y-auto" suppressHydrationWarning={true}>
               {isLoggedIn ? (
                 isPro ? (
-                  <div className="space-y-2.5" suppressHydrationWarning={true}>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Quick Actions</p>
-                      <span className="text-[10px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Pro Active</span>
-                    </div>
-                    {[
-                      { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={15}/>, desc: 'Create AI reminder message' },
-                      { name: "Today's Priorities", id: 'priorities', icon: <Brain size={15}/>, desc: 'Review critical accounts' },
-                      { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={15}/>, desc: 'Analyze total dues' },
-                      { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={15}/>, desc: 'Adjust tone & urgency' },
-                      { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={15}/>, desc: 'Filter delayed payments' },
-                    ].map((act) => (
-                      <button 
-                        key={act.id}
-                        onClick={() => handleActionClick(act.id)}
-                        className="w-full text-left p-3 rounded-2xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
-                        suppressHydrationWarning={true}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-[#20B8BE]/10 text-[#245B92] group-hover:text-[#20B8BE] flex items-center justify-center transition-colors">
-                            {act.icon}
-                          </div>
-                          <div>
-                            <p className="font-bold text-xs text-slate-800 group-hover:text-[#245B92] transition-colors">{act.name}</p>
-                            <p className="text-[10px] text-slate-400 font-medium">{act.desc}</p>
-                          </div>
+                  aiResponse || uiState === 'processing' ? (
+                    <div className="py-3 space-y-3 text-left">
+                      {uiState === 'processing' ? (
+                        <div className="flex flex-col items-center justify-center py-8 space-y-3 text-slate-400">
+                          <Loader2 size={28} className="animate-spin text-[#20B8BE]" />
+                          <p className="text-xs font-bold tracking-wide">Analyzing your portfolio...</p>
                         </div>
-                        <ChevronRight size={14} className="text-slate-300 group-hover:text-[#20B8BE] transition-colors" />
+                      ) : (
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed shadow-inner">
+                          {aiResponse}
+                        </div>
+                      )}
+                      <button 
+                        onClick={() => { setAiResponse(null); setActiveActionName(null); }}
+                        className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+                      >
+                        ← Back to Quick Actions
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5" suppressHydrationWarning={true}>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Quick Actions</p>
+                        <span className="text-[10px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Pro Active</span>
+                      </div>
+                      {[
+                        { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={15}/>, desc: 'Create AI reminder message' },
+                        { name: "Today's Priorities", id: 'priorities', icon: <Brain size={15}/>, desc: 'Review critical accounts' },
+                        { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={15}/>, desc: 'Analyze total dues' },
+                        { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={15}/>, desc: 'Adjust tone & urgency' },
+                        { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={15}/>, desc: 'Filter delayed payments' },
+                      ].map((act) => (
+                        <button 
+                          key={act.id}
+                          onClick={() => handleActionClick(act.id, act.name)}
+                          className="w-full text-left p-3 rounded-2xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
+                          suppressHydrationWarning={true}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-[#20B8BE]/10 text-[#245B92] group-hover:text-[#20B8BE] flex items-center justify-center transition-colors">
+                              {act.icon}
+                            </div>
+                            <div>
+                              <p className="font-bold text-xs text-slate-800 group-hover:text-[#245B92] transition-colors">{act.name}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{act.desc}</p>
+                            </div>
+                          </div>
+                          <ChevronRight size={14} className="text-slate-300 group-hover:text-[#20B8BE] transition-colors" />
+                        </button>
+                      ))}
+                    </div>
+                  )
                 ) : (
                   <div className="py-4 text-center space-y-4">
-                    <div className="w-12 h-12 bg-teal-50 text-[#20B8BE] rounded-2xl flex items-center justify-center mx-auto">
-                      <Lock size={22} />
-                    </div>
                     <div className="space-y-1">
                       <h5 className="font-black text-sm text-slate-900">Unlock Pro Assistant</h5>
                       <p className="text-xs text-slate-500 font-medium leading-relaxed">
@@ -516,6 +553,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       >
         <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
       </motion.button>
-      </div>
+    </div>
   );
 }
