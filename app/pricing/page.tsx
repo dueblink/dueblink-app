@@ -92,17 +92,24 @@ export default function PricingPage() {
           console.log("Payment ID:", response.razorpay_payment_id);
           
           try {
-            // Automatically update THIS user's Firestore document to Pro for everyone
             if (user?.uid) {
+              // 1. Update Firestore permanently
               const userRef = doc(db, 'users', user.uid);
               await updateDoc(userRef, {
                 isPro: true,
                 proSince: serverTimestamp(),
                 razorpayPaymentId: response.razorpay_payment_id
               });
+
+              // 2. Set an instant local fallback flag to prevent any render lag
+              localStorage.setItem('dueblink_pro_active', 'true');
+              localStorage.setItem('just_upgraded', 'true');
             }
           } catch (err) {
             console.error("Error updating pro status in database:", err);
+            // Fallback so the user isn't blocked if Firestore write stalls
+            localStorage.setItem('dueblink_pro_active', 'true');
+            localStorage.setItem('just_upgraded', 'true');
           }
 
           setPaymentSuccessModal(true);

@@ -283,8 +283,13 @@ export default function DashboardPage() {
       } else {
         setUser(currentUser);
         
+        // Instant check using local backup flag so it never flickers on refresh
+        if (localStorage.getItem('dueblink_pro_active') === 'true') {
+          setIsPro(true);
+        }
+
         try {
-          // Fetch the permanent user document from Firestore
+          // Double-check and sync with Firestore database
           const userDocRef = doc(db, 'users', currentUser.uid);
           const userDoc = await getDoc(userDocRef);
           
@@ -292,6 +297,7 @@ export default function DashboardPage() {
             const data = userDoc.data();
             if (data.isPro) {
               setIsPro(true);
+              localStorage.setItem('dueblink_pro_active', 'true'); // Keep backup in sync
             }
           }
         } catch (err) {
