@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, Lock, ArrowLeft, Loader2 } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -263,13 +263,16 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         body: JSON.stringify({ action: actionId })
       });
       const data = await response.json();
+      
       if (data.suggestion) {
         setAiResponse(data.suggestion);
+      } else if (data.error) {
+        setAiResponse(`Notice: ${data.error}`);
       } else {
         setAiResponse("Analysis complete. No urgent actions needed right now.");
       }
     } catch (err) {
-      setAiResponse("Failed to generate response. Please try again.");
+      setAiResponse("Unable to fetch portfolio analysis right now. Please check your connection and try again.");
     } finally {
       setUiState('idle');
     }
