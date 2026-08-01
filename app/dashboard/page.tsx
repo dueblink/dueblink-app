@@ -250,10 +250,8 @@ export default function DashboardPage() {
   const [isPro, setIsPro] = useState(false);
   const [clients, setClients] = useState<any[]>([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeAction, setActiveAction] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Tab state: 'overview' or 'settings'
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
 
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
@@ -261,7 +259,6 @@ export default function DashboardPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Settings states
   const [aiTone, setAiTone] = useState('Professional');
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [reminderNotifs, setReminderNotifs] = useState(true);
@@ -270,7 +267,6 @@ export default function DashboardPage() {
     api: '/api/pro-recovery-assistant',
   });
 
-  // Auto-open Pro Recovery Assistant right after Pro upgrade
   useEffect(() => {
     const justUpgraded = localStorage.getItem('just_upgraded');
     if (justUpgraded === 'true') {
@@ -278,7 +274,6 @@ export default function DashboardPage() {
       
       const timer = setTimeout(() => {
         setIsPro(true);
-        setActiveAction("welcome_pro");
         complete(JSON.stringify({ action: "welcome_pro", clients, history: [] }));
       }, 1000);
 
@@ -293,7 +288,6 @@ export default function DashboardPage() {
       } else {
         setUser(currentUser);
         
-        // Instant check using local backup flag to prevent render lag
         if (localStorage.getItem('dueblink_pro_active') === 'true') {
           setIsPro(true);
         }
@@ -432,7 +426,6 @@ export default function DashboardPage() {
       router.push('/pricing');
       return;
     }
-    setActiveAction(action);
     await complete(JSON.stringify({ action, clients, history: [] }));
   };
 
@@ -442,7 +435,6 @@ export default function DashboardPage() {
       router.push('/pricing');
       return;
     }
-    setActiveAction(client.id);
     await complete(JSON.stringify({ client, history: client.reminderHistory || [] }));
   };
 
@@ -452,7 +444,6 @@ export default function DashboardPage() {
       router.push('/pricing');
       return;
     }
-    setActiveAction("summary");
     await complete(JSON.stringify({ 
       action: "summarize_outstanding", 
       clients: clients, 
@@ -555,43 +546,8 @@ export default function DashboardPage() {
           </div>
         )}
       </AnimatePresence>
-
-      <AnimatePresence>
-        {activeAction && isPro && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.8, y: 50, x: 50 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 50, x: 50 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            style={{ transformOrigin: "bottom right" }}
-            className="fixed bottom-24 right-6 sm:bottom-28 sm:right-10 z-[999] w-[calc(100vw-48px)] sm:w-96 bg-white border border-slate-200 shadow-2xl rounded-3xl p-6 overflow-hidden max-h-[60vh]"
-            suppressHydrationWarning={true}
-          >
-            <div className="flex justify-between items-center mb-6" suppressHydrationWarning={true}>
-              <h3 className="font-black text-[#245B92] uppercase text-[10px] tracking-widest" suppressHydrationWarning={true}>
-                {isStreaming ? "Thinking..." : "Pro Recovery Assistant"}
-              </h3>
-              <button onClick={() => setActiveAction(null)} className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-full cursor-pointer" suppressHydrationWarning={true}><X size={16}/></button>
-            </div>
-            
-            <div className="text-sm text-slate-700 overflow-y-auto whitespace-pre-wrap leading-7 tracking-normal font-medium max-h-[40vh]" suppressHydrationWarning={true}>
-              {completion || (isStreaming ? "Generating response..." : "Processing...")}
-            </div>
-            
-            {!isStreaming && completion && (
-              <button 
-                onClick={async () => { await navigator.clipboard.writeText(completion); alert("Copied!"); }} 
-                className="mt-8 flex items-center gap-2 text-[10px] font-bold text-[#1C2E8F] uppercase tracking-wider hover:opacity-80 cursor-pointer"
-                suppressHydrationWarning={true}
-              >
-                <Copy size={12} /> Copy Result
-              </button>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
       
-      {/* FLOATING ROBOT - Always renders for both Free and Pro users */}
+      {/* FLOATING ROBOT - Displays all AI responses strictly inside its own widget panel */}
       <FloatingRobot 
         isPro={isPro}
         onTrigger={(action) => {
@@ -819,8 +775,8 @@ export default function DashboardPage() {
                     <p className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>{recommendation.name}</p>
                     <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>{recommendation.company || recommendation.email} • ₹{recommendation.amount} Outstanding</p>
                   </div>
-                  <button onClick={() => handleProRecovery(recommendation)} disabled={activeAction === recommendation.id} className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer" suppressHydrationWarning={true}>
-                    {activeAction === recommendation.id ? <><Loader2 className="animate-spin" size={16} suppressHydrationWarning={true} /> Thinking...</> : "Generate Follow-up"}
+                  <button onClick={() => handleProRecovery(recommendation)} className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer" suppressHydrationWarning={true}>
+                    Generate Follow-up
                   </button>
                 </div>
               </section>
