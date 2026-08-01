@@ -267,6 +267,13 @@ export default function DashboardPage() {
     api: '/api/pro-recovery-assistant',
   });
 
+  // Sync clients to localStorage whenever they update from Firebase
+  useEffect(() => {
+    if (clients && clients.length > 0) {
+      localStorage.setItem('dueblink_clients', JSON.stringify(clients));
+    }
+  }, [clients]);
+
   useEffect(() => {
     const justUpgraded = localStorage.getItem('just_upgraded');
     if (justUpgraded === 'true') {
