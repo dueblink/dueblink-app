@@ -14,9 +14,10 @@ interface FloatingRobotProps {
     daysOverdue: number;
   } | null;
   isPro?: boolean;
+  externalAction?: string | null;
 }
 
-export default function FloatingRobot({ onTrigger, recommendation, isPro = false }: FloatingRobotProps) {
+export default function FloatingRobot({ onTrigger, recommendation, isPro = false, externalAction = null }: FloatingRobotProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('User');
@@ -111,6 +112,19 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       unsubscribe();
     };
   }, [pathname, isPro]);
+
+  // Listen to external actions triggered from outside dashboard buttons
+  useEffect(() => {
+    if (externalAction && pathname === '/dashboard') {
+      setIsExpanded(true);
+      setShowMessageBubble(false);
+      if (externalAction === 'summarize') {
+        handleActionClick('summarize', 'Outstanding Summary');
+      } else if (externalAction === 'recommend') {
+        handleActionClick('recommend', 'Generate Follow-up');
+      }
+    }
+  }, [externalAction, pathname]);
 
   // Inactivity Timer
   useEffect(() => {
