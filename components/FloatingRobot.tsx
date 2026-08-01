@@ -511,18 +511,11 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
           setIsExpanded(!isExpanded);
           setShowMessageBubble(false);
         }}
-        className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform relative"
+        className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform"
         suppressHydrationWarning={true}
       >
         <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
-        
-        {/* REFINED PRO LOCK BADGE */}
-        {!isPro && pathname === '/dashboard' && (
-          <div className="absolute top-0 right-0 w-7 h-7 bg-gradient-to-r from-slate-900 to-slate-800 rounded-full border-2 border-white flex items-center justify-center text-white shadow-md">
-            <Lock size={11} className="text-[#20B8BE]" />
-          </div>
-        )}
       </motion.button>
-    </div>
+      </div>
   );
 }
