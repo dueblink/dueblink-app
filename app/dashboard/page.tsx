@@ -263,6 +263,9 @@ export default function DashboardPage() {
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [reminderNotifs, setReminderNotifs] = useState(true);
 
+  // Added state to control FloatingRobot actions from outside dashboard buttons
+  const [robotAction, setRobotAction] = useState<string | null>(null);
+
   const { completion, complete, isLoading: isStreaming } = useCompletion({
     api: '/api/pro-recovery-assistant',
   });
@@ -451,6 +454,7 @@ export default function DashboardPage() {
       router.push('/pricing');
       return;
     }
+    setRobotAction('summarize');
     await complete(JSON.stringify({ 
       action: "summarize_outstanding", 
       clients: clients, 
@@ -554,9 +558,10 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       
-      {/* FLOATING ROBOT - Displays all AI responses strictly inside its own widget panel */}
+      {/* FLOATING ROBOT - Displays AI responses and listens to dashboard outside button triggers */}
       <FloatingRobot 
         isPro={isPro}
+        externalAction={robotAction}
         onTrigger={(action) => {
           if (!isPro) {
             router.push('/pricing');
@@ -753,7 +758,16 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <button onClick={handleSummarizeOutstanding} disabled={isStreaming} className="text-xs font-bold text-white bg-[#0F172A] px-5 py-2.5 rounded-xl shadow-sm hover:opacity-90 transition cursor-pointer flex items-center gap-2" suppressHydrationWarning={true}>
+              {/* Outstanding Summary Button - Connected to open Blink panel with results */}
+              <button 
+                onClick={() => {
+                  setRobotAction('summarize');
+                  handleSummarizeOutstanding();
+                }} 
+                disabled={isStreaming} 
+                className="text-xs font-bold text-white bg-[#0F172A] px-5 py-2.5 rounded-xl shadow-sm hover:opacity-90 transition cursor-pointer flex items-center gap-2"
+                suppressHydrationWarning={true}
+              >
                 {isStreaming ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
                 {isStreaming ? 'Summarizing...' : 'Outstanding Summary'}
               </button>
@@ -782,7 +796,15 @@ export default function DashboardPage() {
                     <p className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>{recommendation.name}</p>
                     <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>{recommendation.company || recommendation.email} • ₹{recommendation.amount} Outstanding</p>
                   </div>
-                  <button onClick={() => handleProRecovery(recommendation)} className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer" suppressHydrationWarning={true}>
+                  {/* Generate Follow-up Button - Connected to open Blink panel with results */}
+                  <button 
+                    onClick={() => { 
+                      setRobotAction('recommend'); 
+                      handleProRecovery(recommendation); 
+                    }} 
+                    className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    suppressHydrationWarning={true}
+                  >
                     Generate Follow-up
                   </button>
                 </div>
@@ -897,7 +919,7 @@ export default function DashboardPage() {
                               {isPro && (
                                 <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
                                   <button 
-                                    onClick={() => handleProRecovery(c)} 
+                                    onClick={() => { setRobotAction('recommend'); handleProRecovery(c); }} 
                                     className="text-xs font-bold text-[#245B92] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                                     suppressHydrationWarning={true}
                                   >
