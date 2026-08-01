@@ -141,64 +141,54 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const currentSectionIndexRef = useRef(currentSectionIndex);
   currentSectionIndexRef.current = currentSectionIndex;
 
+  // Use IntersectionObserver for 100% accurate, stutter-free section tracking
   useEffect(() => {
     if (pathname === '/dashboard') return;
 
-    let ticking = false;
+    const sectionIds = [
+      'hero',                 // 0
+      'late-payments',        // 1
+      'features',             // 2
+      'ai-recovery-assistant',// 3
+      'dashboard-preview',    // 4
+      'reminder-generator',   // 5
+      'without-vs-with',      // 6
+      'reminder-examples',    // 7
+      'how-it-works',         // 8
+      'built-for',            // 9
+      'pricing',              // 10
+      'faq',                  // 11
+      'missed-followup',      // 12
+      'final-cta'             // 13
+    ];
 
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const sectionIds = [
-            'hero',                 // 0
-            'late-payments',        // 1
-            'features',             // 2
-            'ai-recovery-assistant',// 3
-            'dashboard-preview',    // 4
-            'reminder-generator',   // 5
-            'without-vs-with',      // 6
-            'reminder-examples',    // 7
-            'how-it-works',         // 8
-            'built-for',            // 9
-            'pricing',              // 10
-            'faq',                  // 11
-            'missed-followup',      // 12
-            'final-cta'             // 13
-          ];
-
-          const viewportCenter = window.innerHeight / 2;
-          let closestIndex = 0;
-          let minDistance = Infinity;
-
-          sectionIds.forEach((id, index) => {
-            const element = document.getElementById(id);
-            if (element) {
-              const rect = element.getBoundingClientRect();
-              const elementCenter = rect.top + rect.height / 2;
-              const distance = Math.abs(viewportCenter - elementCenter);
-
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestIndex = index;
-              }
-            }
-          });
-
-          if (currentSectionIndexRef.current !== closestIndex) {
-            setCurrentSectionIndex(closestIndex);
+    const observerCallback: IntersectionObserverCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const index = sectionIds.indexOf(entry.target.id);
+          if (index !== -1 && currentSectionIndexRef.current !== index) {
+            setCurrentSectionIndex(index);
             setClickedSectionText(null);
           }
-          ticking = false;
-        });
-        ticking = true;
-      }
+        }
+      });
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
+    const observerOptions = {
+      root: null,
+      rootMargin: '-40% 0px -40% 0px',
+      threshold: 0
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    sectionIds.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
     };
   }, [pathname]);
 
@@ -262,7 +252,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     ];
 
     setClickedSectionText(messages[currentSectionIndex] || messages[0]);
-    setShowMessageBubble(true);
+    setShowMessageBubble((prev) => !prev);
   };
 
   const getActiveMessage = () => {
@@ -656,10 +646,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       <motion.button 
         whileHover={{ scale: 1.05 }} 
         whileTap={{ scale: 0.95 }}
-        onClick={() => {
-          setIsExpanded(!isExpanded);
-          setShowMessageBubble(false);
-        }}
+        onClick={handleRobotClick}
         className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform"
         suppressHydrationWarning={true}
       >
