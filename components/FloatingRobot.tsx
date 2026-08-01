@@ -26,7 +26,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
   
-  // State for landing page scroll section message bubble & cancel/dismiss visibility
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [showMessageBubble, setShowMessageBubble] = useState(false);
   const [clickedSectionText, setClickedSectionText] = useState<string | null>(null);
@@ -60,21 +59,20 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     const saved = localStorage.getItem('freeReminders');
     if (saved) setRemainingFreeReminders(parseInt(saved));
 
-    // Page Load Robot Message (Shows on both Landing and Dashboard)
-    setShowMessageBubble(true);
-    const loadMinimizeTimer = setTimeout(() => {
-      setShowMessageBubble((prev) => (clickedSectionText ? prev : false));
-    }, 6000);
-
-    const savedReminders = localStorage.getItem('freeReminders');
-    if (savedReminders) setRemainingFreeReminders(parseInt(savedReminders));
+    // Only show welcome message bubble on dashboard if user is Pro or on landing page
+    if (pathname !== '/dashboard' || isPro) {
+      setShowMessageBubble(true);
+      const loadMinimizeTimer = setTimeout(() => {
+        setShowMessageBubble((prev) => (clickedSectionText ? prev : false));
+      }, 6000);
+      return () => clearTimeout(loadMinimizeTimer);
+    }
 
     return () => {
       clearTimeout(timer);
-      clearTimeout(loadMinimizeTimer);
       unsubscribe();
     };
-  }, [pathname]);
+  }, [pathname, isPro]);
 
   // Inactivity Timer
   useEffect(() => {
@@ -102,11 +100,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     };
   }, [pathname]);
 
-  // Use a ref to track the current index without re-triggering the effect
   const currentSectionIndexRef = useRef(currentSectionIndex);
   currentSectionIndexRef.current = currentSectionIndex;
 
-  // Optimized Scroll listener synchronized with Landing Page sections
   useEffect(() => {
     if (pathname === '/dashboard') return;
 
@@ -158,7 +154,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     };
   }, [pathname]);
 
-  // Click behavior messages matching exact section order (14 sections)
   const handleRobotClick = () => {
     if (pathname === '/dashboard') {
       setIsExpanded(!isExpanded);
@@ -224,68 +219,22 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   const getActiveMessage = () => {
     if (pathname === '/dashboard') {
-      return `${greeting}, ${userName}!\n\nI'm Blink, your AI Recovery Assistant.\n\nClick me to manage priorities, generate follow-ups, or check client statuses!`;
+      if (isPro) {
+        return `${greeting}, ${userName}!\n\nI'm Blink, your AI Recovery Assistant. ✨\n\nI'm here to analyze your client portfolio, prioritize overdue payments, and generate smart follow-ups for you!`;
+      }
+      return ""; // No welcome message bubble for free users on dashboard
     }
     if (clickedSectionText) return clickedSectionText;
 
     if (isLoggedIn && isPro) {
-      const proDefaultMessages = [
-        `Welcome back, ${userName}!\n\nEverything is unlocked and ready.`,
-        "Your Pro workspace is ready.",
-        "You have access to every DueBlink feature.",
-        "Open your AI Recovery Assistant to analyze payments, generate follow-ups and recover money faster.",
-        "Your dashboard is your recovery command center.",
-        "You can generate unlimited AI reminders anytime.",
-        "Your dashboard is your recovery command center.",
-        "Your dashboard is your recovery command center.",
-        "Your dashboard is your recovery command center.",
-        "Your dashboard is your recovery command center.",
-        "You're already enjoying every Pro feature.",
-        "Most common questions are answered here.",
-        "Your Pro workspace is ready.",
-        "Let's recover more payments."
-      ];
-      return proDefaultMessages[currentSectionIndex] || `Welcome back, ${userName}!\n\nEverything is unlocked and ready.`;
+      return `Welcome back, ${userName}!\n\nI'm Blink, your Pro AI Recovery Assistant. Everything is unlocked and ready.`;
     }
 
     if (isLoggedIn) {
-      const freeDefaultMessages = [
-        `Welcome back, ${userName}!\n\nReady to continue recovering payments?`,
-        "Open your dashboard to continue managing your clients.",
-        "Everything you've seen is available inside your account.",
-        "Upgrade to Pro to unlock AI recommendations and smart follow-ups.",
-        "This is your payment recovery workspace.",
-        "You can generate reminders instantly using your saved client data.",
-        "This is your payment recovery workspace.",
-        "This is your payment recovery workspace.",
-        "This is your payment recovery workspace.",
-        "This is your payment recovery workspace.",
-        "You're on the Free plan. Upgrade anytime to unlock every AI feature.",
-        "Most common questions are answered here.",
-        "This is your payment recovery workspace.",
-        "Continue where you left off."
-      ];
-      return freeDefaultMessages[currentSectionIndex] || `Welcome back, ${userName}!\n\nReady to continue recovering payments?`;
+      return `Welcome back, ${userName}!\n\nReady to continue recovering payments?`;
     }
 
-    const visitorMessages = [
-      "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how to recover payments faster.\n\nNeed help? Click me anytime.",
-      "This explains why spreadsheets, WhatsApp and memory aren't enough.",
-      "These are the tools DueBlink gives you to organize clients and recover payments.",
-      "This is DueBlink Pro's smartest feature. It analyzes payment data and recommends your next action.",
-      "This is where you'll manage clients, reminders and payment tracking.",
-      "You can generate up to 5 AI reminders for free before creating an account.",
-      "Here's the difference between manual tracking and using DueBlink.",
-      "See how DueBlink automatically adjusts reminder tones based on how overdue a payment is.",
-      "This section shows the complete payment recovery workflow.",
-      "If clients owe you money, DueBlink is built for you.",
-      "Start free. Upgrade only when you need unlimited AI and the Recovery Assistant.",
-      "Most common questions are answered here.",
-      "This is why consistent follow-ups matter for healthy cash flow.",
-      "You're ready. Try your first AI reminder."
-    ];
-
-    return visitorMessages[currentSectionIndex] || visitorMessages[0];
+    return "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how to recover payments faster.\n\nNeed help? Click me anytime.";
   };
 
   const handleActionClick = async (action: string) => {
@@ -343,9 +292,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   return (
     <div className="fixed bottom-24 right-6 z-[900] sm:bottom-28 sm:right-8 flex flex-col items-end gap-3" suppressHydrationWarning={true}>
       
-      {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
+      {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE (Hidden on dashboard for free users) */}
       <AnimatePresence>
-        {!isExpanded && showMessageBubble && (
+        {!isExpanded && showMessageBubble && (isPro || pathname !== '/dashboard') && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -395,7 +344,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
       {/* 2. DASHBOARD PROACTIVE RECOMMENDATION CARD */}
       <AnimatePresence>
-        {!isExpanded && isLoggedIn && recommendation && showRecommendation && pathname === '/dashboard' && (
+        {!isExpanded && isLoggedIn && recommendation && showRecommendation && pathname === '/dashboard' && isPro && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -443,14 +392,14 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
               suppressHydrationWarning={true}
             >
-              <span>{isPro ? "Generate Follow-up" : "Unlock Pro Assistant"}</span> 
-              {isPro ? <ChevronRight size={14} /> : <Lock size={12} />}
+              <span>Generate Follow-up</span> 
+              <ChevronRight size={14} />
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL (SMOOTH & CLEAN UI/UX) */}
+      {/* 3. EXPANDED PANEL */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -554,7 +503,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 4. WIDGET BUTTON (ALWAYS INTERACTIVE & CLICKABLE FOR EVERYONE) */}
+      {/* 4. WIDGET BUTTON */}
       <motion.button 
         whileHover={{ scale: 1.05 }} 
         whileTap={{ scale: 0.95 }}
