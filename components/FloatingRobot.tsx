@@ -39,7 +39,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const pathname = usePathname();
   const router = useRouter();
 
-  // Robust cleaner to completely strip metadata and format text blocks properly
+  // Robust cleaner: Replaces all standalone newlines or carriage returns with spaces so sentences flow naturally in paragraphs, preventing vertical word-stacking
   const cleanResponseText = (rawText: string) => {
     if (!rawText) return '';
     try {
@@ -55,7 +55,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
           cleanLine = match[1];
         }
         cleanLine = cleanLine
-          .replace(/\\n/g, '\n')
+          .replace(/\\n/g, ' ')
           .replace(/\\"/g, '"')
           .replace(/\\\\/g, '\\');
 
@@ -65,7 +65,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         return cleanLine;
       });
 
-      return processedLines.join('\n').trim() || text.trim();
+      // Filter out empty lines and join with a single space to form seamless paragraphs
+      return processedLines.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || text.trim();
     } catch {
       return rawText;
     }
@@ -524,8 +525,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {/* Standard paragraph block container with normal word wrapping and spacing */}
-                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-800 font-medium whitespace-pre-wrap leading-relaxed shadow-inner break-words block">
+                          {/* Standard paragraph block container with normal word wrapping and paragraph layout */}
+                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-800 font-medium whitespace-normal leading-relaxed shadow-inner break-words block w-full text-left">
                             {aiResponse}
                           </div>
                           <button
