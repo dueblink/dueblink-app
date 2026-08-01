@@ -257,20 +257,43 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
 
     try {
+      // Fetch data from local storage or fallback to empty array so route.ts gets valid client payload
+      const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
+      const totalAmount = savedClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
+
       const response = await fetch('/api/pro-recovery-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: actionId })
+        body: JSON.stringify({ 
+          action: actionId,
+          clients: savedClients,
+          total: totalAmount
+        })
       });
-      const data = await response.json();
-      
-      if (data.suggestion) {
-        setAiResponse(data.suggestion);
-      } else if (data.error) {
-        setAiResponse(`Notice: ${data.error}`);
-      } else {
-        setAiResponse("Analysis complete. No urgent actions needed right now.");
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch response");
       }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          // Clean Vercel AI SDK data stream prefixes if present
+          const cleanChunk = chunk
+            .replace(/^[0-9]+:/gm, '')
+            .replace(/"/g, '')
+            .replace(/\\n/g, '\n');
+          fullText += cleanChunk;
+        }
+      }
+
+      setAiResponse(fullText.trim() || "Analysis complete. No urgent actions needed right now.");
     } catch (err) {
       setAiResponse("Unable to fetch portfolio analysis right now. Please check your connection and try again.");
     } finally {
