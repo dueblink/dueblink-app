@@ -150,10 +150,20 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       if (!ticking) {
         window.requestAnimationFrame(() => {
           const sectionIds = [
-            'hero', 'late-payments', 'features', 'ai-recovery-assistant',
-            'dashboard-preview', 'reminder-generator', 'without-vs-with',
-            'reminder-examples', 'how-it-works', 'built-for', 'pricing',
-            'faq', 'missed-followup', 'final-cta'
+            'hero',                 // 0
+            'late-payments',        // 1
+            'features',             // 2
+            'ai-recovery-assistant',// 3
+            'dashboard-preview',    // 4
+            'reminder-generator',   // 5
+            'without-vs-with',      // 6
+            'reminder-examples',    // 7
+            'how-it-works',         // 8
+            'built-for',            // 9
+            'pricing',              // 10
+            'faq',                  // 11
+            'missed-followup',      // 12
+            'final-cta'             // 13
           ];
 
           const viewportCenter = window.innerHeight / 2;
@@ -206,33 +216,33 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
     const messages = isLoggedIn && isPro ? [
       "Your Pro workspace is ready.",
-      "Your Pro workspace is ready.",
       "You have access to every DueBlink feature.",
       "Open your AI Recovery Assistant to analyze payments, generate follow-ups and recover money faster.",
       "Your dashboard is your recovery command center.",
       "You can generate unlimited AI reminders anytime.",
-      "Your dashboard is your recovery command center.",
-      "Your dashboard is your recovery command center.",
-      "Your dashboard is your recovery command center.",
-      "Your dashboard is your recovery command center.",
-      "You're already enjoying every Pro feature.",
+      "Track unpaid invoices effortlessly.",
+      "Use smart follow-ups to get paid sooner.",
+      "Review client payment statuses in real-time.",
+      "Follow the automated workflow from invoice to paid.",
+      "Built specifically for freelancers, agencies, and consultants.",
+      "Your Pro subscription is active with zero limits.",
       "Most common questions are answered here.",
-      "Your Pro workspace is ready.",
-      "Let's recover more payments."
+      "Stay consistent with your payment tracking.",
+      "Let's recover more payments today."
     ] : isLoggedIn ? [
-      "Open your dashboard to continue managing your clients.",
       "Open your dashboard to continue managing your clients.",
       "Everything you've seen is available inside your account.",
       "Upgrade to Pro to unlock AI recommendations and smart follow-ups.",
       "This is your payment recovery workspace.",
       "You can generate reminders instantly using your saved client data.",
-      "This is your payment recovery workspace.",
-      "This is your payment recovery workspace.",
-      "This is your payment recovery workspace.",
-      "This is your payment recovery workspace.",
+      "Track your pending and paid invoices easily.",
+      "See the difference between manual tracking and DueBlink.",
+      "Review real reminder examples for different overdue stages.",
+      "Follow the simple step-by-step recovery process.",
+      "Designed for service businesses and freelancers.",
       "You're on the Free plan. Upgrade anytime to unlock every AI feature.",
       "Most common questions are answered here.",
-      "This is your payment recovery workspace.",
+      "Avoid missed follow-ups to protect your cash flow.",
       "Continue where you left off."
     ] : [
       "Start here. Try 5 free AI reminders—no signup required.",
