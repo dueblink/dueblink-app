@@ -26,9 +26,10 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
   
-  // State for in-panel AI response display
+  // State for in-panel AI response display & interactive commands
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
@@ -282,6 +283,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (uiState === 'processing') return;
 
     setActiveActionName(actionTitle);
+    setActiveActionId(actionId);
     setUiState('processing');
     setAiResponse(null);
 
@@ -485,7 +487,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 <div className="flex items-center gap-2">
                   {aiResponse || uiState === 'processing' ? (
                     <button 
-                      onClick={() => { setAiResponse(null); setActiveActionName(null); }}
+                      onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
                       className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer"
                     >
                       <ArrowLeft size={14} className="text-white" />
@@ -503,7 +505,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   </div>
                 </div>
                 <button 
-                  onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); }} 
+                  onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }} 
                   className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition cursor-pointer"
                   suppressHydrationWarning={true}
                 >
@@ -531,24 +533,38 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                           <p className="text-[11px] font-bold tracking-wide">Blink is analyzing your payments...</p>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-800 font-medium whitespace-pre-line leading-relaxed shadow-inner break-words block w-full text-left max-h-[180px] overflow-y-auto">
                             {aiResponse}
                           </div>
-                          <button
-                            onClick={handleCopy}
-                            className="w-full py-2 bg-[#0F172A] text-white rounded-xl font-bold text-[11px] shadow-md hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                          >
-                            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                            {copied ? 'Copied to Clipboard!' : 'Copy Result'}
-                          </button>
+                          
+                          {/* DYNAMIC COMMAND BUTTONS APPEARING UPON AI RESPONSE */}
+                          <div className="grid grid-cols-2 gap-1.5 pt-1">
+                            <button
+                              onClick={handleCopy}
+                              className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                              {copied ? 'Copied!' : 'Copy'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (activeActionId) handleActionClick(activeActionId, activeActionName || 'Regenerating...');
+                              }}
+                              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Sparkles size={11} className="text-[#20B8BE]" />
+                              Regenerate
+                            </button>
+                          </div>
                         </div>
                       )}
+                      
                       <button 
-                        onClick={() => { setAiResponse(null); setActiveActionName(null); }}
-                        className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer"
+                        onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
+                        className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
                       >
-                        ← Back to Quick Actions
+                        <ArrowLeft size={12} /> Back to Quick Actions
                       </button>
                     </div>
                   ) : (
