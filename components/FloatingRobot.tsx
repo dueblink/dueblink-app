@@ -39,7 +39,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const pathname = usePathname();
   const router = useRouter();
 
-  // Robust cleaner: Replaces all standalone newlines or carriage returns with spaces so sentences flow naturally in paragraphs, preventing vertical word-stacking
+  // Perfectly parse and clean text streams for natural paragraph layout & spacing
   const cleanResponseText = (rawText: string) => {
     if (!rawText) return '';
     try {
@@ -55,7 +55,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
           cleanLine = match[1];
         }
         cleanLine = cleanLine
-          .replace(/\\n/g, ' ')
+          .replace(/\\n/g, '\n')
           .replace(/\\"/g, '"')
           .replace(/\\\\/g, '\\');
 
@@ -65,8 +65,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         return cleanLine;
       });
 
-      // Filter out empty lines and join with a single space to form seamless paragraphs
-      return processedLines.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || text.trim();
+      // Preserve intentional paragraph spacing while collapsing abnormal vertical fragmentation
+      return processedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim() || text.trim();
     } catch {
       return rawText;
     }
@@ -513,7 +513,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             </div>
 
             {/* Content Area */}
-            <div className="p-5 max-h-[400px] overflow-y-auto" suppressHydrationWarning={true}>
+            <div className="p-5 max-h-[420px] overflow-y-auto" suppressHydrationWarning={true}>
               {isLoggedIn ? (
                 isPro ? (
                   aiResponse || uiState === 'processing' ? (
@@ -525,13 +525,13 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {/* Standard paragraph block container with normal word wrapping and paragraph layout */}
-                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-800 font-medium whitespace-normal leading-relaxed shadow-inner break-words block w-full text-left">
+                          {/* PERFECT SPACING & FONT CONTAINER: Uses clean block layout, optimal line-height, and normal wrapping so long text reads naturally */}
+                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[13px] text-slate-800 font-medium whitespace-pre-line leading-relaxed shadow-inner break-words block w-full text-left">
                             {aiResponse}
                           </div>
                           <button
                             onClick={handleCopy}
-                            className="w-full py-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer"
+                            className="w-full py-3 bg-[#0F172A] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer"
                           >
                             {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                             {copied ? 'Copied to Clipboard!' : 'Copy Result'}
