@@ -375,26 +375,39 @@ export default function DashboardPage() {
   };
 
   const handleCancelSubscription = async () => {
-    if (!user) return;
+    if (!user) {
+      alert("No active user found. Please log in again.");
+      return;
+    }
     
     try {
       setLoading(true);
+      
+      // 1. Reference the user's document in Firestore
       const userRef = doc(db, 'users', user.uid);
+      
+      // 2. Perform the update to downgrade to Free
       await updateDoc(userRef, { 
         isPro: false, 
         proExpiresAt: null, 
         cancelledAt: serverTimestamp() 
       });
 
+      // 3. Clear local storage cache
       localStorage.removeItem('dueblink_pro_active');
+      
+      // 4. Update local state
       setIsPro(false);
       setLoading(false);
       setCancelModalOpen(false);
+      
       alert("Your Pro subscription has been successfully cancelled.");
       router.refresh();
-    } catch (error) {
-      console.error("Error cancelling subscription:", error);
-      alert("Failed to cancel subscription. Please try again.");
+      
+    } catch (error: any) {
+      console.error("Detailed Cancellation Error:", error);
+      // Show the actual error message to help debug if it's a Firestore permissions issue
+      alert(`Failed to cancel subscription: ${error.message || "Please try again."}`);
       setLoading(false);
     }
   };
