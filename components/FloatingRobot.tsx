@@ -496,9 +496,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                     </div>
                   )}
                   <div>
-                    <h3 className="font-black tracking-wider uppercase text-[10px] text-white/90">Blink AI</h3>
+                    <h3 className="font-black tracking-wider uppercase text-[10px] text-white/90">Blink</h3>
                     <p className="text-sm font-bold text-white mt-0.5">
-                      {activeActionName ? activeActionName : (isPro ? 'Pro AI Recovery Assistant' : 'Upgrade to Unlock Pro')}
+                      {activeActionName ? activeActionName : 'Your AI Recovery Assistant'}
                     </p>
                   </div>
                 </div>
@@ -510,10 +510,17 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   <X size={16} />
                 </button>
               </div>
+
+              {!aiResponse && uiState !== 'processing' && (
+                <div className="mt-4 pt-3 border-t border-white/15 text-left" suppressHydrationWarning={true}>
+                  <p className="text-xs font-bold text-white/90">{greeting}, {userName}!</p>
+                  <p className="text-[11px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
+                </div>
+              )}
             </div>
 
             {/* Content Area */}
-            <div className="p-5 max-h-[400px] overflow-y-auto" suppressHydrationWarning={true}>
+            <div className="p-5 max-h-[420px] overflow-y-auto" suppressHydrationWarning={true}>
               {isLoggedIn ? (
                 isPro ? (
                   aiResponse || uiState === 'processing' ? (
@@ -521,17 +528,16 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                       {uiState === 'processing' ? (
                         <div className="flex flex-col items-center justify-center py-10 space-y-3 text-slate-400">
                           <Loader2 size={28} className="animate-spin text-[#20B8BE]" />
-                          <p className="text-xs font-bold tracking-wide">Analyzing your portfolio...</p>
+                          <p className="text-xs font-bold tracking-wide">Blink is analyzing your payments...</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {/* Standard paragraph block container with normal word wrapping and paragraph layout */}
-                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs text-slate-800 font-medium whitespace-normal leading-relaxed shadow-inner break-words block w-full text-left">
+                          <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[13px] text-slate-800 font-medium whitespace-pre-line leading-relaxed shadow-inner break-words block w-full text-left">
                             {aiResponse}
                           </div>
                           <button
                             onClick={handleCopy}
-                            className="w-full py-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer"
+                            className="w-full py-3 bg-[#0F172A] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer"
                           >
                             {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                             {copied ? 'Copied to Clipboard!' : 'Copy Result'}
@@ -548,20 +554,20 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   ) : (
                     <div className="space-y-2.5" suppressHydrationWarning={true}>
                       <div className="flex items-center justify-between mb-1">
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Quick Actions</p>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Choose an action</p>
                         <span className="text-[10px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Pro Active</span>
                       </div>
                       {[
-                        { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={15}/>, desc: 'Create AI reminder message' },
-                        { name: "Today's Priorities", id: 'priorities', icon: <Brain size={15}/>, desc: 'Review critical accounts' },
-                        { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={15}/>, desc: 'Analyze total dues' },
-                        { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={15}/>, desc: 'Adjust tone & urgency' },
-                        { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={15}/>, desc: 'Filter delayed payments' },
+                        { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={15}/>, desc: 'Generate an AI Email & WhatsApp follow-up' },
+                        { name: "Today's Priorities", id: 'priorities', icon: <Brain size={15}/>, desc: 'See who needs your attention today' },
+                        { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={15}/>, desc: 'Analyze your outstanding payments' },
+                        { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={15}/>, desc: 'Rewrite your reminder professionally' },
+                        { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={15}/>, desc: 'Find clients with overdue payments' },
                       ].map((act) => (
                         <button 
                           key={act.id}
                           onClick={() => handleActionClick(act.id, act.name)}
-                          className="w-full text-left p-3 rounded-2xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
+                          className="w-full text-left p-3 rounded-2xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
                           suppressHydrationWarning={true}
                         >
                           <div className="flex items-center gap-3">
@@ -573,9 +579,13 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                               <p className="text-[10px] text-slate-400 font-medium">{act.desc}</p>
                             </div>
                           </div>
-                          <ChevronRight size={14} className="text-slate-300 group-hover:text-[#20B8BE] transition-colors" />
+                          <ChevronRight size={14} className="text-slate-300 group-hover:text-[#20B8BE] group-hover:translate-x-0.5 transition-all" />
                         </button>
                       ))}
+
+                      <div className="pt-3 text-center border-t border-slate-100 mt-3">
+                        <p className="text-[10px] font-medium text-slate-400">Powered by DueBlink AI</p>
+                      </div>
                     </div>
                   )
                 ) : (
@@ -592,6 +602,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                     >
                       Upgrade to Pro ✨
                     </button>
+                    <div className="pt-2 text-center">
+                      <p className="text-[10px] font-medium text-slate-400">Powered by DueBlink AI</p>
+                    </div>
                   </div>
                 )
               ) : (
@@ -599,10 +612,13 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed" suppressHydrationWarning={true}>
                     {remainingFreeReminders > 0 ? `Hi! You have ${remainingFreeReminders} free reminders remaining.` : "You've used your free reminders. Create an account to continue!"}
                   </p>
-                  <button onClick={handleLandingAction} className="w-full text-white py-3 rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
+                  <button onClick={handleLandingAction} className="w-full text-white py-3 rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer mb-3" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
                     <span>{remainingFreeReminders > 0 ? "Try 5 AI Reminders Free" : "Create Account"}</span> 
                     <ArrowRight size={14} />
                   </button>
+                  <div className="pt-2 text-center border-t border-slate-100">
+                    <p className="text-[10px] font-medium text-slate-400">Powered by DueBlink AI</p>
+                  </div>
                 </div>
               )}
             </div>
