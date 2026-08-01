@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -13,12 +13,12 @@ interface FloatingRobotProps {
     amount: string | number;
     daysOverdue: number;
   } | null;
+  isPro?: boolean;
 }
 
-export default function FloatingRobot({ onTrigger, recommendation }: FloatingRobotProps) {
+export default function FloatingRobot({ onTrigger, recommendation, isPro = false }: FloatingRobotProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isPro, setIsPro] = useState(false);
   const [userName, setUserName] = useState('User');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRecommendation, setShowRecommendation] = useState(true);
@@ -33,6 +33,7 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
 
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -53,9 +54,6 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
         setIsLoggedIn(false);
         setUserName('User');
       }
-
-      const proStatus = localStorage.getItem('is_pro_user') === 'true';
-      setIsPro(proStatus);
     });
 
     const timer = setTimeout(() => setIsVisible(true), 1000);
@@ -158,7 +156,7 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [pathname]); // <-- Removed currentSectionIndex dependency to prevent listener recreation lag
+  }, [pathname]);
 
   // Click behavior messages matching exact section order (14 sections)
   const handleRobotClick = () => {
@@ -291,6 +289,10 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
   };
 
   const handleActionClick = async (action: string) => {
+    if (!isPro) {
+      router.push('/pricing');
+      return;
+    }
     if (uiState === 'processing') return;
     if (onTrigger) {
       onTrigger(action);
@@ -312,13 +314,13 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
         setIsExpanded(false);
       }
     } else {
-      window.location.href = '/create-account';
+      router.push('/create-account');
     }
   };
 
   const handleLandingAction = () => {
     if (isLoggedIn) {
-      window.location.href = '/dashboard';
+      router.push('/dashboard');
     } else if (remainingFreeReminders > 0) {
       const newCount = remainingFreeReminders - 1;
       setRemainingFreeReminders(newCount);
@@ -329,10 +331,10 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
         setIsExpanded(false);
         setShowMessageBubble(false);
       } else {
-        window.location.href = '/create-account';
+        router.push('/create-account');
       }
     } else {
-      window.location.href = '/create-account';
+      router.push('/create-account');
     }
   };
 
@@ -400,7 +402,13 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-2xl rounded-3xl p-5 flex flex-col gap-3 cursor-pointer hover:border-[#20B8BE] transition-all max-w-[300px] relative group"
-            onClick={() => setIsExpanded(true)}
+            onClick={() => {
+              if (!isPro) {
+                router.push('/pricing');
+                return;
+              }
+              setIsExpanded(true);
+            }}
             suppressHydrationWarning={true}
           >
             <button onClick={(e) => { e.stopPropagation(); setShowRecommendation(false); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition" suppressHydrationWarning={true}>
@@ -422,9 +430,21 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
                 <Zap size={14} className="fill-[#20B8BE] text-[#20B8BE]" />
               </div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onTrigger?.('recommend'); }} className="w-full text-white py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
-              <span>Generate Follow-up</span>
-              <ChevronRight size={14} />
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                if (!isPro) {
+                  router.push('/pricing');
+                  return;
+                }
+                onTrigger?.('recommend'); 
+              }} 
+              className="w-full text-white py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer" 
+              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
+              suppressHydrationWarning={true}
+            >
+              <span>{isPro ? "Generate Follow-up" : "Unlock Pro Assistant"}</span> 
+              {isPro ? <ChevronRight size={14} /> : <Lock size={12} />}
             </button>
           </motion.div>
         )}
@@ -450,8 +470,8 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
                     <Brain size={20} className="text-white" />
                   </div>
                   <div>
-                    <h3 className="font-black tracking-wider uppercase text-xs text-white/90">Blink AI</h3>
-                    <p className="text-sm font-bold text-white mt-0.5">Your AI Recovery Assistant</p>
+                    <h3 className="font-black tracking-wider uppercase text-[10px] text-white/90">Blink AI</h3>
+                    <p className="text-sm font-bold text-white mt-0.5">{isPro ? 'Pro AI Recovery Assistant' : 'Upgrade to Unlock Pro'}</p>
                   </div>
                 </div>
                 <button 
@@ -467,37 +487,57 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
             {/* Content Area */}
             <div className="p-5" suppressHydrationWarning={true}>
               {isLoggedIn ? (
-                <div className="space-y-2.5" suppressHydrationWarning={true}>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Quick Actions</p>
-                    <span className="text-[10px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Active</span>
+                isPro ? (
+                  <div className="space-y-2.5" suppressHydrationWarning={true}>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Quick Actions</p>
+                      <span className="text-[10px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Pro Active</span>
+                    </div>
+                    {[
+                      { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={15}/>, desc: 'Create AI reminder message' },
+                      { name: "Today's Priorities", id: 'priorities', icon: <Brain size={15}/>, desc: 'Review critical accounts' },
+                      { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={15}/>, desc: 'Analyze total dues' },
+                      { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={15}/>, desc: 'Adjust tone & urgency' },
+                      { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={15}/>, desc: 'Filter delayed payments' },
+                    ].map((act) => (
+                      <button 
+                        key={act.id}
+                        onClick={() => handleActionClick(act.id)}
+                        className="w-full text-left p-3 rounded-2xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
+                        suppressHydrationWarning={true}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-[#20B8BE]/10 text-[#245B92] group-hover:text-[#20B8BE] flex items-center justify-center transition-colors">
+                            {act.icon}
+                          </div>
+                          <div>
+                            <p className="font-bold text-xs text-slate-800 group-hover:text-[#245B92] transition-colors">{act.name}</p>
+                            <p className="text-[10px] text-slate-400 font-medium">{act.desc}</p>
+                          </div>
+                        </div>
+                        <ChevronRight size={14} className="text-slate-300 group-hover:text-[#20B8BE] transition-colors" />
+                      </button>
+                    ))}
                   </div>
-                  {[
-                    { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={15}/>, desc: 'Create AI reminder message' },
-                    { name: "Today's Priorities", id: 'priorities', icon: <Brain size={15}/>, desc: 'Review critical accounts' },
-                    { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={15}/>, desc: 'Analyze total dues' },
-                    { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={15}/>, desc: 'Adjust tone & urgency' },
-                    { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={15}/>, desc: 'Filter delayed payments' },
-                  ].map((act) => (
+                ) : (
+                  <div className="py-4 text-center space-y-4">
+                    <div className="w-12 h-12 bg-teal-50 text-[#20B8BE] rounded-2xl flex items-center justify-center mx-auto">
+                      <Lock size={22} />
+                    </div>
+                    <div className="space-y-1">
+                      <h5 className="font-black text-sm text-slate-900">Unlock Pro Assistant</h5>
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                        Upgrade to DueBlink Pro to generate instant AI follow-up messages and payment recovery strategies.
+                      </p>
+                    </div>
                     <button 
-                      key={act.id}
-                      onClick={() => handleActionClick(act.id)}
-                      className="w-full text-left p-3 rounded-2xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
-                      suppressHydrationWarning={true}
+                      onClick={() => { setIsExpanded(false); router.push('/pricing'); }}
+                      className="w-full py-3 rounded-xl text-white font-bold text-xs shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-[#20B8BE]/10 text-[#245B92] group-hover:text-[#20B8BE] flex items-center justify-center transition-colors">
-                          {act.icon}
-                        </div>
-                        <div>
-                          <p className="font-bold text-xs text-slate-800 group-hover:text-[#245B92] transition-colors">{act.name}</p>
-                          <p className="text-[10px] text-slate-400 font-medium">{act.desc}</p>
-                        </div>
-                      </div>
-                      <ChevronRight size={14} className="text-slate-300 group-hover:text-[#20B8BE] transition-colors" />
+                      Upgrade to Pro ✨
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )
               ) : (
                 <div className="text-center py-2" suppressHydrationWarning={true}>
                   <p className="text-sm font-bold text-slate-800 mb-5 leading-relaxed" suppressHydrationWarning={true}>
@@ -518,11 +558,22 @@ export default function FloatingRobot({ onTrigger, recommendation }: FloatingRob
       <motion.button 
         whileHover={{ scale: 1.05 }} 
         whileTap={{ scale: 0.95 }}
-        onClick={handleRobotClick}
-        className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform"
+        onClick={() => {
+          if (pathname === '/dashboard' && !isPro) {
+            setIsExpanded(!isExpanded);
+            return;
+          }
+          handleRobotClick();
+        }}
+        className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform relative"
         suppressHydrationWarning={true}
       >
         <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
+        {!isPro && pathname === '/dashboard' && (
+          <div className="absolute top-0 right-0 w-6 h-6 bg-slate-900 rounded-full border-2 border-white flex items-center justify-center text-white shadow-md">
+            <Lock size={10} className="text-[#20B8BE]" />
+          </div>
+        )}
       </motion.button>
     </div>
   );
