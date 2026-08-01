@@ -554,16 +554,13 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 4. WIDGET BUTTON */}
+      {/* 4. WIDGET BUTTON (ALWAYS INTERACTIVE & CLICKABLE FOR EVERYONE) */}
       <motion.button 
         whileHover={{ scale: 1.05 }} 
         whileTap={{ scale: 0.95 }}
         onClick={() => {
-          if (pathname === '/dashboard' && !isPro) {
-            setIsExpanded(!isExpanded);
-            return;
-          }
-          handleRobotClick();
+          setIsExpanded(!isExpanded);
+          setShowMessageBubble(false);
         }}
         className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform relative"
         suppressHydrationWarning={true}

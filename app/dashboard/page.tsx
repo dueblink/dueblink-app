@@ -603,24 +603,18 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       
-      {/* FLOATING ROBOT */}
-      {isPro ? (
-        <FloatingRobot 
-          onTrigger={handleAssistantAction} 
-          recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
-        />
-      ) : (
-        <div 
-          onClick={() => {
-            alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
+      {/* FLOATING ROBOT - Always renders for both Free and Pro users */}
+      <FloatingRobot 
+        isPro={isPro}
+        onTrigger={(action) => {
+          if (!isPro) {
             router.push('/pricing');
-          }}
-          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-10 z-[9999] bg-slate-900 text-white px-4 py-3 rounded-full shadow-2xl cursor-pointer flex items-center gap-2 text-xs font-black border-2 border-[#20B8BE] hover:bg-slate-800 transition transform hover:scale-105"
-          title="Assistant Locked - Upgrade to Pro"
-        >
-          <Lock size={14} className="text-[#20B8BE]" /> Assistant Locked 🔒
-        </div>
-      )}
+            return;
+          }
+          handleAssistantAction(action);
+        }} 
+        recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
+      />
 
       {/* NAVBAR */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-300 shadow-xs" suppressHydrationWarning={true}>
