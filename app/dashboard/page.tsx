@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Copy, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Lock, Crown, Settings as SettingsIcon, CreditCard, Bell, Shield, HelpCircle, LogOut } from 'lucide-react';
 import { onAuthStateChanged, signOut, updatePassword, sendPasswordResetEmail } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import { useCompletion } from 'ai/react';
@@ -383,20 +383,22 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       
-      // 1. Reference the user's document in Firestore
+      // Reference the user's document in Firestore
       const userRef = doc(db, 'users', user.uid);
       
-      // 2. Perform the update to downgrade to Free
-      await updateDoc(userRef, { 
+      // Use setDoc with merge: true so it works whether the doc exists or not
+      await setDoc(userRef, { 
         isPro: false, 
         proExpiresAt: null, 
-        cancelledAt: serverTimestamp() 
-      });
+        cancelledAt: serverTimestamp(),
+        email: user.email || '',
+        name: user.displayName || ''
+      }, { merge: true });
 
-      // 3. Clear local storage cache
+      // Clear local storage cache
       localStorage.removeItem('dueblink_pro_active');
       
-      // 4. Update local state
+      // Update local state
       setIsPro(false);
       setLoading(false);
       setCancelModalOpen(false);
@@ -406,7 +408,6 @@ export default function DashboardPage() {
       
     } catch (error: any) {
       console.error("Detailed Cancellation Error:", error);
-      // Show the actual error message to help debug if it's a Firestore permissions issue
       alert(`Failed to cancel subscription: ${error.message || "Please try again."}`);
       setLoading(false);
     }
