@@ -23,36 +23,34 @@ export async function POST(req: Request) {
     const { client, history, action, clients, total } = body;
 
     let systemPrompt = `You are Blink, the DueBlink AI Recovery Assistant. 
-You must NEVER respond like ChatGPT, never write long essays, never use markdown asterisks (**), and never dump raw unformatted text.
-Always speak in short sentences, be friendly, professional, data-driven, and concise.
-CRITICAL FORMATTING RULE: Every single point, statistic, or list item MUST be on its own separate new line. Never combine multiple points into a single paragraph or block of text.
-Every response must answer three core questions clearly, each on a new line:
-1. What did I find?
-2. What do I recommend?
-3. What should you do next?`;
+CRITICAL FORMATTING INSTRUCTIONS:
+- NEVER respond like ChatGPT, never write long essays or paragraphs, never use markdown asterisks (**), and never output raw unformatted text blocks.
+- Every single piece of data, heading, stat, or item MUST be strictly separated onto its own individual new line using line breaks.
+- Structure your output into clear, distinct sections: Quick Summary, Blink Recommendation, and Next Best Action.
+- Keep sentences extremely short, concise, data-driven, and easy to scan within seconds.`;
 
     let userPrompt = "";
 
     // 1. Handle Dashboard Actions
     if (action) {
       if (action === "welcome_pro") {
-        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically in short sentences. Explain that Blink is ready to automate follow-ups and recover pending payments instantly. Put each point on a separate line.";
-        userPrompt = "Give a short, warm, exciting welcome message to a freelancer or agency owner who just upgraded to DueBlink Pro!";
+        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically using short, distinct lines. Format every phrase on a new line.";
+        userPrompt = "Give a short, warm, exciting welcome message for an upgraded Pro user. Format each point on its own separate line.";
       } else if (action === "recommend") {
-        systemPrompt += "\nAnalyze the following clients and provide a short summary, a specific recommendation in 2-4 short sentences, and end with one recommended action. Ensure every single item, statistic, or point is isolated on its own separate line.";
-        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Format every individual data point, insight, and final action on a separate new line.`;
+        systemPrompt += "\nAnalyze the clients. Output your response strictly using separate lines for: Quick Summary, Blink Recommendation (2-3 short sentences), and Next Best Action. No paragraphs.";
+        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Format strictly line-by-line with no paragraph blocks.`;
       } else if (action === "summarize" || action === "summarize_outstanding") {
-        systemPrompt += "\nSummarize the total outstanding payments with brief stats, a short cash flow insight in short sentences, and a clear next recommended action. Format every stat and point strictly on its own separate line.";
-        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Format every stat or point on a separate line.`;
+        systemPrompt += "\nProvide a payment overview. Output your response strictly on separate lines for: Payment Overview stats, Blink Insight, and Next Best Action.";
+        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Format line-by-line.`;
       } else if (action === "overdue") {
-        systemPrompt += "\nList overdue clients briefly, show amounts and delays, and give a clear recommended action. Every client entry, stat, and recommendation must be on its own separate new line.";
-        userPrompt = `List overdue clients and suggest follow-up strategies based on these clients: ${JSON.stringify(clients)}. Ensure every item is on a separate line.`;
+        systemPrompt += "\nList overdue clients and stats. Output strictly line-by-line for each client, followed by Blink Recommendation and Next Best Action.";
+        userPrompt = `List overdue clients and suggest strategies based on: ${JSON.stringify(clients)}. Format line-by-line.`;
       } else if (action === "priorities") {
-        systemPrompt += "\nIdentify top priority clients needing attention today based on amount and delay. Speak in short sentences and provide a clear final recommendation. Format each priority item on its own separate line.";
-        userPrompt = `What are today's priorities based on these clients: ${JSON.stringify(clients)}? Format every detail on a separate line.`;
+        systemPrompt += "\nIdentify today's priorities. Output strictly line-by-line for High, Medium, Low priorities, Blink Recommendation, and Next Best Action.";
+        userPrompt = `What are today's priorities based on: ${JSON.stringify(clients)}? Format line-by-line.`;
       } else if (action === "rewrite") {
-        systemPrompt += "\nYou are Blink. Rewrite the payment reminder concisely and professionally without markdown or long paragraphs. Keep lines distinct and separate.";
-        userPrompt = `Rewrite a payment reminder to be more professional and persuasive for this client: ${JSON.stringify(clients?.[0] || client || {})}.`;
+        systemPrompt += "\nRewrite the payment reminder concisely. Output strictly line-by-line for Tone, Preview, and Blink Recommendation.";
+        userPrompt = `Rewrite a payment reminder for this client: ${JSON.stringify(clients?.[0] || client || {})}. Format line-by-line.`;
       }
     } 
     // 2. Handle Individual Client Reminders
@@ -65,10 +63,10 @@ Every response must answer three core questions clearly, each on a new line:
         - Tone: ${client.reminderTemplate || 'Friendly'}
         
         Instructions:
-        1. If Days Overdue > 30, emphasize urgency and business impact using short sentences.
-        2. If History Count > 2, suggest a call or alternative action.
-        3. Return clean, professional text without markdown or raw formatting. Keep distinct segments on separate lines.`;
-      userPrompt = `Write a ${client.reminderTemplate || 'Friendly'} follow-up message.`;
+        1. Output strictly line-by-line.
+        2. Include sections for Client Summary, AI Email, AI WhatsApp, Blink Recommendation, and Next Best Action.
+        3. Never combine text into paragraphs.`;
+      userPrompt = `Write a ${client.reminderTemplate || 'Friendly'} follow-up message with structured line-by-line sections.`;
     } 
     // 3. Reject if no valid action/client is found
     else {
