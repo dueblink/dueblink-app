@@ -23,49 +23,102 @@ export async function POST(req: Request) {
     const { client, history, action, clients, total } = body;
 
     let systemPrompt = `You are Blink, the DueBlink AI Recovery Assistant. 
-CRITICAL FORMATTING INSTRUCTIONS & LAYOUT RULES:
-- Do NOT output every word or character on a separate line. Write in clean, normal flowing sentences grouped into distinct sections.
-- Never write long essays or paragraphs, and never use markdown asterisks (**).
-- Use clear section titles followed by standard spacing and text:
-  Action Name: [Name]
-  Quick Summary: [1-2 sentences overview]
-  Client Information:
-  - Client: [Name]
-  - Company: [Company]
-  - Amount Due: [Amount]
-  - Due Date: [Date]
-  - Status: [Status]
-  - Email: [Email]
-  Blink Recommendation: [2-3 sentences recommendation]
-  Next Best Action: [1 clear action step]
-  Additional Insights:
-  - Days Overdue: [Days]
-  - Previous Reminders: [Count]
-  - Recovery Chance: [Chance]
-  - Priority Level: [Level]`;
+
+Strict Layout Rules:
+- Return ONLY plain text.
+- No JSON.
+- No Markdown.
+- No code blocks.
+- No streaming metadata.
+- Every label must be on its own line.
+- Never combine fields on one line.
+- Keep recommendations under 3 lines.
+- Never output long paragraphs.
+
+You must follow this exact layout for every response:
+
+Blink
+
+<Action Name>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+Quick Summary
+
+<1–2 lines>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+Client Information
+
+Client
+<Value>
+
+Company
+<Value>
+
+Amount Due
+₹<Amount>
+
+Due Date
+<Value>
+
+Status
+<Value>
+
+Email
+<Value>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+Blink Recommendation
+
+<2–3 lines>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+Next Best Action
+
+<One clear action>
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+Additional Insights
+
+Days Overdue
+<Value>
+
+Previous Reminders
+<Value>
+
+Recovery Chance
+<Value>
+
+Priority Level
+<Value>`;
 
     let userPrompt = "";
 
     // 1. Handle Dashboard Actions
     if (action) {
       if (action === "welcome_pro") {
-        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically using short, clean paragraphs following the Blink layout.";
-        userPrompt = "Give a short, warm, exciting welcome message for an upgraded Pro user following the Blink layout.";
+        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically using the exact Blink layout.";
+        userPrompt = "Provide a short, welcoming overview for the Pro user using the exact Blink layout.";
       } else if (action === "recommend") {
-        systemPrompt += "\nAnalyze the clients. Output your response using the exact Blink layout with natural sentence structure.";
-        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Follow the exact Blink section format.`;
+        systemPrompt += "\nAnalyze the clients. Output your response using the exact Blink layout.";
+        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
       } else if (action === "summarize" || action === "summarize_outstanding") {
-        systemPrompt += "\nProvide a payment overview. Output your response using the exact Blink layout with natural sentence structure.";
-        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Follow the exact Blink section format.`;
+        systemPrompt += "\nProvide a payment overview. Output your response using the exact Blink layout.";
+        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Use the exact Blink layout.`;
       } else if (action === "overdue") {
         systemPrompt += "\nList overdue clients and stats following the exact Blink layout.";
-        userPrompt = `List overdue clients and suggest strategies based on: ${JSON.stringify(clients)}. Follow the exact Blink section format.`;
+        userPrompt = `List overdue clients and stats based on: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
       } else if (action === "priorities") {
         systemPrompt += "\nIdentify today's priorities following the exact Blink layout.";
-        userPrompt = `What are today's priorities based on: ${JSON.stringify(clients)}? Follow the exact Blink section format.`;
+        userPrompt = `Identify today's priorities based on: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
       } else if (action === "rewrite") {
         systemPrompt += "\nRewrite the payment reminder concisely following the exact Blink layout.";
-        userPrompt = `Rewrite a payment reminder for this client: ${JSON.stringify(clients?.[0] || client || {})}. Follow the exact Blink section format.`;
+        userPrompt = `Rewrite a payment reminder for this client: ${JSON.stringify(clients?.[0] || client || {})}. Use the exact Blink layout.`;
       }
     } 
     // 2. Handle Individual Client Reminders
@@ -81,9 +134,9 @@ CRITICAL FORMATTING INSTRUCTIONS & LAYOUT RULES:
         - Tone: ${client.reminderTemplate || 'Professional'}
         
         Instructions:
-        1. Follow the exact Blink layout with clean sentence structure.
+        1. Follow the exact Blink layout.
         2. Never combine text into awkward vertical single-word lines.`;
-      userPrompt = `Write a ${client.reminderTemplate || 'Professional'} follow-up message with structured sections following the Blink layout.`;
+      userPrompt = `Write a ${client.reminderTemplate || 'Professional'} follow-up message using the exact Blink layout.`;
     } 
     // 3. Reject if no valid action/client is found
     else {
@@ -99,7 +152,8 @@ CRITICAL FORMATTING INSTRUCTIONS & LAYOUT RULES:
       temperature: 0.7,
     });
 
-    return result.toDataStreamResponse();
+    // Use text stream response instead of data stream response to eliminate protocol wrappers
+    return result.toTextStreamResponse();
     
   } catch (error) {
     console.error("Critical Assistant Error:", error);

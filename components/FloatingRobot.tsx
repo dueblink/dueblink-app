@@ -41,48 +41,12 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const pathname = usePathname();
   const router = useRouter();
 
-  // Bulletproof text cleaner: Completely sanitizes single-character/word streaming artifacts into normal flowing sentences
-  const cleanResponseText = (rawText: string) => {
-    if (!rawText) return '';
-    try {
-      let text = rawText;
-      text = text.replace(/f:\{messageId:[^}]+\}/g, '');
-      text = text.replace(/f:\{[^\}]+\}/g, '');
-
-      // Split into lines or chunks
-      const lines = text.split('\n');
-      const processedLines = lines.map(line => {
-        let cleanLine = line.trim();
-        const match = cleanLine.match(/^[0-9]+:"(.*)"$/);
-        if (match && match[1]) {
-          cleanLine = match[1];
-        }
-        cleanLine = cleanLine
-          .replace(/\\n/g, '\n')
-          .replace(/\\"/g, '"')
-          .replace(/\\\\/g, '\\');
-
-        if (/^[a-z]:\{.*\}$/.test(cleanLine)) {
-          return '';
-        }
-        return cleanLine;
-      });
-
-      // If the AI accidentally injected newlines after every single word, detect and collapse them
-      let combined = processedLines.join(' ');
-      // Fix double spaces
-      combined = combined.replace(/\s+/g, ' ');
-      
-      // Reinsert structured line breaks only before primary capitalized headings for clean formatting
-      const formatted = combined
-        .replace(/(Action Name:|Quick Summary:|Client Information:|Blink Recommendation:|Next Best Action:|Additional Insights:)/g, '\n\n$1')
-        .replace(/(- Client:|- Company:|- Amount Due:|- Due Date:|- Status:|- Email:|- Days Overdue:|- Previous Reminders:|- Recovery Chance:|- Priority Level:)/g, '\n$1')
-        .trim();
-
-      return formatted || text.trim();
-    } catch {
-      return rawText;
-    }
+  // Simplified and clean response parser matching the strict text stream format
+  const cleanResponseText = (text: string) => {
+    return text
+      .replace(/\r/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   };
 
   useEffect(() => {
@@ -347,7 +311,10 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         }
       }
 
-      setAiResponse(cleanResponseText(fullText) || "Analysis complete. No urgent actions needed right now.");
+      setAiResponse(
+        cleanResponseText(fullText) ||
+        "Analysis complete. No urgent actions needed right now."
+      );
     } catch (err) {
       setAiResponse("Unable to fetch portfolio analysis right now. Please check your connection and try again.");
     } finally {
