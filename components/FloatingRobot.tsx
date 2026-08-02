@@ -41,7 +41,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const pathname = usePathname();
   const router = useRouter();
 
-  // Bulletproof text cleaner: Parses stream chunks, strips protocol wrappers, and formats lines into proper clean blocks
+  // Bulletproof text cleaner: Completely sanitizes single-character/word streaming artifacts into normal flowing sentences
   const cleanResponseText = (rawText: string) => {
     if (!rawText) return '';
     try {
@@ -49,6 +49,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       text = text.replace(/f:\{messageId:[^}]+\}/g, '');
       text = text.replace(/f:\{[^\}]+\}/g, '');
 
+      // Split into lines or chunks
       const lines = text.split('\n');
       const processedLines = lines.map(line => {
         let cleanLine = line.trim();
@@ -67,9 +68,18 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         return cleanLine;
       });
 
-      // Filter out empty lines, collapse excess consecutive breaks, and join properly
-      const filtered = processedLines.filter(line => line !== '');
-      return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim() || text.trim();
+      // If the AI accidentally injected newlines after every single word, detect and collapse them
+      let combined = processedLines.join(' ');
+      // Fix double spaces
+      combined = combined.replace(/\s+/g, ' ');
+      
+      // Reinsert structured line breaks only before primary capitalized headings for clean formatting
+      const formatted = combined
+        .replace(/(Action Name:|Quick Summary:|Client Information:|Blink Recommendation:|Next Best Action:|Additional Insights:)/g, '\n\n$1')
+        .replace(/(- Client:|- Company:|- Amount Due:|- Due Date:|- Status:|- Email:|- Days Overdue:|- Previous Reminders:|- Recovery Chance:|- Priority Level:)/g, '\n$1')
+        .trim();
+
+      return formatted || text.trim();
     } catch {
       return rawText;
     }
@@ -549,7 +559,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-800 font-medium whitespace-pre-line leading-relaxed shadow-inner break-words block w-full text-left max-h-[220px] overflow-y-auto">
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed shadow-inner break-words block w-full text-left max-h-[240px] overflow-y-auto">
                             {aiResponse}
                           </div>
                           
