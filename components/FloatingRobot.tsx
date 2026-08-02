@@ -41,7 +41,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const pathname = usePathname();
   const router = useRouter();
 
-  // Robust cleaner: Formats raw AI streams into clean, structured layout matching the Blink AI format rules
+  // Bulletproof text cleaner: Parses stream chunks, strips protocol wrappers, and formats lines into proper clean blocks
   const cleanResponseText = (rawText: string) => {
     if (!rawText) return '';
     try {
@@ -67,7 +67,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         return cleanLine;
       });
 
-      return processedLines.filter(Boolean).join('\n').trim() || text.trim();
+      // Filter out empty lines, collapse excess consecutive breaks, and join properly
+      const filtered = processedLines.filter(line => line !== '');
+      return filtered.join('\n').replace(/\n{3,}/g, '\n\n').trim() || text.trim();
     } catch {
       return rawText;
     }

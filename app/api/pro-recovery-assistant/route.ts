@@ -24,39 +24,48 @@ export async function POST(req: Request) {
 
     let systemPrompt = `You are Blink, the DueBlink AI Recovery Assistant. 
 CRITICAL FORMATTING INSTRUCTIONS & LAYOUT RULES:
-- NEVER respond like ChatGPT, never write long essays or paragraphs, never use markdown asterisks (**), and never output raw unformatted text blocks.
-- Every single piece of data, heading, stat, or item MUST be strictly separated onto its own individual new line using line breaks.
-- Strict layout adherence required for every response:
-  1. Action Name (e.g., Generate Follow-up, Outstanding Summary, etc.)
-  2. Quick Summary (1-2 lines maximum overview)
-  3. Client Information (Each detail on its own line: Client name, Company name, Amount Due, Due Date, Status, Email)
-  4. Blink Recommendation (Short, 2-3 lines max recommendation)
-  5. Next Best Action (One clear actionable step)
-  6. Additional Insights (Optional: Days Overdue, Previous Reminders, Recovery Chance, Priority Level)
-- Keep sentences extremely short, concise, data-driven, and easy to scan within seconds.`;
+- Do NOT output every word or character on a separate line. Write in clean, normal flowing sentences grouped into distinct sections.
+- Never write long essays or paragraphs, and never use markdown asterisks (**).
+- Use clear section titles followed by standard spacing and text:
+  Action Name: [Name]
+  Quick Summary: [1-2 sentences overview]
+  Client Information:
+  - Client: [Name]
+  - Company: [Company]
+  - Amount Due: [Amount]
+  - Due Date: [Date]
+  - Status: [Status]
+  - Email: [Email]
+  Blink Recommendation: [2-3 sentences recommendation]
+  Next Best Action: [1 clear action step]
+  Additional Insights:
+  - Days Overdue: [Days]
+  - Previous Reminders: [Count]
+  - Recovery Chance: [Chance]
+  - Priority Level: [Level]`;
 
     let userPrompt = "";
 
     // 1. Handle Dashboard Actions
     if (action) {
       if (action === "welcome_pro") {
-        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically using short, distinct lines. Format every phrase on a new line following the required Blink layout.";
-        userPrompt = "Give a short, warm, exciting welcome message for an upgraded Pro user. Format strictly line-by-line following the Blink layout.";
+        systemPrompt += "\nWelcome the user to DueBlink Pro enthusiastically using short, clean paragraphs following the Blink layout.";
+        userPrompt = "Give a short, warm, exciting welcome message for an upgraded Pro user following the Blink layout.";
       } else if (action === "recommend") {
-        systemPrompt += "\nAnalyze the clients. Output your response strictly using separate lines following the exact Blink layout: Action Name, Quick Summary, Client Information, Blink Recommendation, Next Best Action, and Additional Insights.";
-        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Format strictly line-by-line following the Blink layout with no paragraph blocks.`;
+        systemPrompt += "\nAnalyze the clients. Output your response using the exact Blink layout with natural sentence structure.";
+        userPrompt = `Analyze these clients: ${JSON.stringify(clients)}. Follow the exact Blink section format.`;
       } else if (action === "summarize" || action === "summarize_outstanding") {
-        systemPrompt += "\nProvide a payment overview. Output your response strictly on separate lines following the exact Blink layout: Action Name, Quick Summary, Client Information/Overview stats, Blink Recommendation, and Next Best Action.";
-        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Format line-by-line following the Blink layout.`;
+        systemPrompt += "\nProvide a payment overview. Output your response using the exact Blink layout with natural sentence structure.";
+        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Follow the exact Blink section format.`;
       } else if (action === "overdue") {
-        systemPrompt += "\nList overdue clients and stats. Output strictly line-by-line following the exact Blink layout with distinct fields for each section.";
-        userPrompt = `List overdue clients and suggest strategies based on: ${JSON.stringify(clients)}. Format line-by-line following the Blink layout.`;
+        systemPrompt += "\nList overdue clients and stats following the exact Blink layout.";
+        userPrompt = `List overdue clients and suggest strategies based on: ${JSON.stringify(clients)}. Follow the exact Blink section format.`;
       } else if (action === "priorities") {
-        systemPrompt += "\nIdentify today's priorities. Output strictly line-by-line following the exact Blink layout for Action Name, Quick Summary, Client Information, Blink Recommendation, and Next Best Action.";
-        userPrompt = `What are today's priorities based on: ${JSON.stringify(clients)}? Format line-by-line following the Blink layout.`;
+        systemPrompt += "\nIdentify today's priorities following the exact Blink layout.";
+        userPrompt = `What are today's priorities based on: ${JSON.stringify(clients)}? Follow the exact Blink section format.`;
       } else if (action === "rewrite") {
-        systemPrompt += "\nRewrite the payment reminder concisely. Output strictly line-by-line following the exact Blink layout.";
-        userPrompt = `Rewrite a payment reminder for this client: ${JSON.stringify(clients?.[0] || client || {})}. Format line-by-line following the Blink layout.`;
+        systemPrompt += "\nRewrite the payment reminder concisely following the exact Blink layout.";
+        userPrompt = `Rewrite a payment reminder for this client: ${JSON.stringify(clients?.[0] || client || {})}. Follow the exact Blink section format.`;
       }
     } 
     // 2. Handle Individual Client Reminders
@@ -72,10 +81,9 @@ CRITICAL FORMATTING INSTRUCTIONS & LAYOUT RULES:
         - Tone: ${client.reminderTemplate || 'Professional'}
         
         Instructions:
-        1. Output strictly line-by-line.
-        2. Follow the exact Blink layout: Action Name, Quick Summary, Client Information, Blink Recommendation, Next Best Action, and Additional Insights.
-        3. Never combine text into paragraphs.`;
-      userPrompt = `Write a ${client.reminderTemplate || 'Professional'} follow-up message with structured line-by-line sections following the Blink layout.`;
+        1. Follow the exact Blink layout with clean sentence structure.
+        2. Never combine text into awkward vertical single-word lines.`;
+      userPrompt = `Write a ${client.reminderTemplate || 'Professional'} follow-up message with structured sections following the Blink layout.`;
     } 
     // 3. Reject if no valid action/client is found
     else {
