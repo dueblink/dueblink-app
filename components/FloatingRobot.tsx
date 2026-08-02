@@ -283,12 +283,14 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     try {
       const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       const totalAmount = savedClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
+      const targetClient = recommendation ? savedClients.find((c: any) => c.name === recommendation.name) || savedClients[0] : savedClients[0];
 
       const response = await fetch('/api/pro-recovery-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           action: actionId,
+          client: targetClient,
           clients: savedClients,
           total: totalAmount
         })
@@ -419,6 +421,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 return;
               }
               setIsExpanded(true);
+              handleActionClick('recommend', 'Generate Follow-up');
             }}
             suppressHydrationWarning={true}
           >
@@ -448,7 +451,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   router.push('/pricing');
                   return;
                 }
-                onTrigger?.('recommend'); 
+                setIsExpanded(true);
+                handleActionClick('recommend', 'Generate Follow-up'); 
               }} 
               className="w-full text-white py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer" 
               style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
