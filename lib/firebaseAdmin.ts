@@ -1,37 +1,36 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const getServiceAccount = () => {
-  // 1. Check if Base64 encoded service account exists (Recommended for Vercel)
+const getFirebaseAdminApp = () => {
+  if (getApps().length > 0) {
+    return getApps()[0];
+  }
+
+  let serviceAccount: any = null;
+
+  // Decode the secure Base64 environment variable from Vercel
   if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
     try {
       const decodedJson = Buffer.from(
-        process.env.FIREBASE_SERVICE_ACCOUNT_B64,
+        process.env.FIREBASE_SERVICE_ACCOUNT_B64.trim(),
         'base64'
       ).toString('utf8');
-      return JSON.parse(decodedJson);
-    } catch (error) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_B64:", error);
+      serviceAccount = JSON.parse(decodedJson);
+    } catch (e) {
+      console.error("Error decoding FIREBASE_SERVICE_ACCOUNT_B64:", e);
     }
   }
 
-  // 2. Fallback to standard FIREBASE_SERVICE_ACCOUNT_KEY JSON string
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    try {
-      return JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    } catch (error) {
-      console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", error);
-    }
+  if (!serviceAccount) {
+    throw new Error(
+      "Firebase Admin initialization failed: FIREBASE_SERVICE_ACCOUNT_B64 environment variable is missing or invalid."
+    );
   }
 
-  return undefined;
+  return initializeApp({
+    credential: cert(serviceAccount),
+  });
 };
 
-const serviceAccount = getServiceAccount();
-
-// Initialize Firebase Admin (preventing multiple initializations)
-const app = !getApps().length 
-  ? initializeApp(serviceAccount ? { credential: cert(serviceAccount) } : {}) 
-  : getApps()[0];
-
+const app = getFirebaseAdminApp();
 export const adminDb = getFirestore(app);
