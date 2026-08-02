@@ -1,42 +1,43 @@
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
-const getFirebaseAdminApp = () => {
-  if (getApps().length > 0) {
-    return getApps()[0];
+let _adminDb: Firestore | null = null;
+
+export const getAdminDb = (): Firestore => {
+  if (_adminDb) {
+    return _adminDb;
   }
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const existingApps = getApps();
+  let app: App;
 
-  // Prevent build errors if environment variables are missing during static analysis
-  if (!projectId || !clientEmail || !privateKey) {
-    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE === 'phase-production-build') {
-      // Dummy mock app for build phase only
-      return initializeApp({
-        credential: cert({
-          projectId: 'placeholder',
-          clientEmail: 'placeholder@placeholder.com',
-          privateKey: '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3...\n-----END PRIVATE KEY-----\n',
-        }),
-      }, 'build-dummy');
+  if (existingApps.length > 0) {
+    app = existingApps[0];
+  } else {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+
+    if (privateKey.includes('\\n')) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
     }
-    throw new Error("Missing Firebase environment variables.");
+
+    app = initializeApp({
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      } as any),
+    });
   }
 
-  if (privateKey.includes('\\n')) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-  }
-
-  return initializeApp({
-    credential: cert({
-      projectId,
-      clientEmail,
-      privateKey,
-    }),
-  });
+  _adminDb = getFirestore(app);
+  return _adminDb;
 };
 
-const app = getFirebaseAdminApp();
-export const adminDb = getFirestore(app);
+// For backward compatibility if other files import adminDb directly
+export const adminDb = {
+  collection: (path: string) => getAdminDb().collection(path),
+  doc: (path: string) => getAdminDb().doc(path),
+  // Add other proxy methods if needed, or update your API files to call getAdminDb()
+} as unknown as Firestore;
