@@ -11,11 +11,13 @@ const getFirebaseAdminApp = () => {
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error("Missing one or more Firebase environment variables (PROJECT_ID, CLIENT_EMAIL, PRIVATE_KEY).");
+    throw new Error("Missing one or more Firebase environment variables.");
   }
 
-  // Ensure escaped \n strings are converted to actual newlines
-  privateKey = privateKey.replace(/\\n/g, '\n');
+  // Handle both literal string "\n" (from Vercel copy-paste) and raw newlines cleanly
+  if (privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
 
   return initializeApp({
     credential: cert({
