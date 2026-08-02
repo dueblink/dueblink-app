@@ -6,54 +6,26 @@ const getFirebaseAdminApp = () => {
     return getApps()[0];
   }
 
-  let serviceAccount: any = null;
+  // Handle newlines safely whether they are literal newlines or escaped \n strings
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY
+    ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+    : undefined;
 
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
-    try {
-      // Decode Base64 string
-      const decodedBuffer = Buffer.from(
-        process.env.FIREBASE_SERVICE_ACCOUNT_B64.trim(),
-        'base64'
-      );
-      
-      // Convert to string and sanitize literal control characters / unescaped newlines inside strings
-      const decodedJson = decodedBuffer
-        .toString('utf8')
-        .replace(/[\u0000-\u001F]+/g, (match) => {
-          // Escape standard control characters so JSON.parse won't crash
-          return JSON.stringify(match).slice(1, -1);
-        });
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
-      serviceAccount = JSON.parse(decodedJson);
-    } catch (e) {
-      console.error("Error decoding FIREBASE_SERVICE_ACCOUNT_B64:", e);
-    }
-  }
-
-  // Fallback if standard service account JSON key is used instead
-  if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    try {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim());
-    } catch (e) {
-      console.error("Error parsing FIREBASE_SERVICE_ACCOUNT_KEY:", e);
-    }
-  }
-
-  // Final validation check for private key formatting
-  if (serviceAccount && serviceAccount.private_key) {
-    serviceAccount.private_key = serviceAccount.private_key
-      .replace(/\\n/g, '\n')
-      .replace(/\\\\n/g, '\n');
-  }
-
-  if (!serviceAccount) {
+  if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
-      "Firebase Admin initialization failed: FIREBASE_SERVICE_ACCOUNT_B64 environment variable is missing or invalid."
+      "Firebase Admin initialization failed: Missing FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, or FIREBASE_PRIVATE_KEY environment variables."
     );
   }
 
   return initializeApp({
-    credential: cert(serviceAccount),
+    credential: cert({
+      projectId,
+      clientEmail,
+      privateKey,
+    }),
   });
 };
 
