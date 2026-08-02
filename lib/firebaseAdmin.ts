@@ -8,20 +8,24 @@ const getFirebaseAdminApp = () => {
 
   let serviceAccount;
 
-  // We read the entire credential as a single Base64 string to prevent Vercel from breaking newlines
   if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
     const decodedJson = Buffer.from(
       process.env.FIREBASE_SERVICE_ACCOUNT_B64.trim(),
       'base64'
     ).toString('utf8');
+    
+    // Parse safely
     serviceAccount = JSON.parse(decodedJson);
-  } else {
-    // Fallback if someone uses individual fields
-    serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    };
+  }
+
+  // Ensure private key handles newlines correctly after decoding
+  if (serviceAccount && serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key
+      .replace(/\\n/g, '\n');
+  }
+
+  if (!serviceAccount) {
+    throw new Error("Firebase Admin initialization failed: Invalid service account.");
   }
 
   return initializeApp({
