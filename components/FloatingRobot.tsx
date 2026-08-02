@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -534,24 +534,64 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                             {aiResponse}
                           </div>
                           
-                          {/* ACTION BUTTONS */}
+                          {/* CONTEXTUAL WORKFLOW ACTION BUTTONS */}
                           <div className="grid grid-cols-2 gap-1.5 pt-1">
-                            <button
-                              onClick={handleCopy}
-                              className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                              {copied ? 'Copied!' : 'Copy'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (activeActionId) handleActionClick(activeActionId, activeActionName || 'Regenerating...');
-                              }}
-                              className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                            >
-                              <Sparkles size={11} className="text-[#20B8BE]" />
-                              Regenerate
-                            </button>
+                            {activeActionId === 'recommend' && (
+                              <>
+                                <button onClick={handleCopy} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                                  {copied ? 'Copied!' : 'Copy Email'}
+                                </button>
+                                <button onClick={() => handleActionClick('rewrite', 'Rewrite Reminder')} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  <Clock size={11} className="text-[#20B8BE]" /> Rewrite
+                                </button>
+                              </>
+                            )}
+
+                            {activeActionId === 'summarize' && (
+                              <>
+                                <button onClick={handleCopy} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  {copied ? <Check size={11} className="text-emerald-400" /> : <Download size={11} />}
+                                  {copied ? 'Copied!' : 'Export Summary'}
+                                </button>
+                                <button onClick={() => handleActionClick('summarize', 'Outstanding Summary')} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  <RefreshCw size={11} className="text-[#20B8BE]" /> Analyze Again
+                                </button>
+                              </>
+                            )}
+
+                            {activeActionId === 'priorities' && (
+                              <>
+                                <button onClick={() => handleActionClick('recommend', 'Generate Follow-up')} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  <Sparkles size={11} className="text-[#20B8BE]" /> Follow-up
+                                </button>
+                                <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy Summary'}
+                                </button>
+                              </>
+                            )}
+
+                            {activeActionId === 'rewrite' && (
+                              <>
+                                <button onClick={handleCopy} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy'}
+                                </button>
+                                <button onClick={() => handleActionClick('rewrite', 'Rewrite Reminder')} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  <RefreshCw size={11} className="text-[#20B8BE]" /> Rewrite Again
+                                </button>
+                              </>
+                            )}
+
+                            {activeActionId === 'overdue' && (
+                              <>
+                                <button onClick={() => handleActionClick('recommend', 'Generate Follow-up')} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  <Sparkles size={11} className="text-[#20B8BE]" /> Follow-up
+                                </button>
+                                <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                  {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy List'}
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
