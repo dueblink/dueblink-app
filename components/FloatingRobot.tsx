@@ -41,7 +41,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const pathname = usePathname();
   const router = useRouter();
 
-  // Robust cleaner: Replaces all standalone newlines or carriage returns with spaces so sentences flow naturally in paragraphs, preventing vertical word-stacking
+  // Robust cleaner: Formats raw AI streams into clean, structured layout matching the Blink AI format rules
   const cleanResponseText = (rawText: string) => {
     if (!rawText) return '';
     try {
@@ -57,7 +57,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
           cleanLine = match[1];
         }
         cleanLine = cleanLine
-          .replace(/\\n/g, ' ')
+          .replace(/\\n/g, '\n')
           .replace(/\\"/g, '"')
           .replace(/\\\\/g, '\\');
 
@@ -67,8 +67,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         return cleanLine;
       });
 
-      // Filter out empty lines and join with a single space to form seamless paragraphs
-      return processedLines.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() || text.trim();
+      return processedLines.filter(Boolean).join('\n').trim() || text.trim();
     } catch {
       return rawText;
     }
@@ -160,7 +159,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',                 // 0
+      'hero',             // 0
       'late-payments',        // 1
       'features',             // 2
       'ai-recovery-assistant',// 3
@@ -384,7 +383,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 max-w-[260px] sm:max-w-[280px] relative text-left"
+            className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 max-w-[260px] sm:max-w-[280px] relative text-left"
             suppressHydrationWarning={true}
           >
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2" suppressHydrationWarning={true}>
@@ -434,7 +433,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-xl border border-slate-200/80 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 cursor-pointer hover:border-[#20B8BE] transition-all max-w-[260px] sm:max-w-[280px] relative group"
+            className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 cursor-pointer hover:border-[#20B8BE] transition-all max-w-[260px] sm:max-w-[280px] relative group"
             onClick={() => {
               if (!isPro) {
                 router.push('/pricing');
@@ -483,7 +482,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL WITH COMPACT, FULLY RESPONSIVE LAYOUT */}
+      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -491,7 +490,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[270px] sm:w-[310px] max-h-[75vh] flex flex-col overflow-hidden"
+            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[280px] sm:w-[320px] max-h-[80vh] flex flex-col overflow-hidden"
             suppressHydrationWarning={true}
           >
             {/* Header Banner */}
@@ -540,19 +539,19 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               {isLoggedIn ? (
                 isPro ? (
                   aiResponse || uiState === 'processing' ? (
-                    <div className="py-1 space-y-2 text-left">
+                    <div className="py-1 space-y-2.5 text-left">
                       {uiState === 'processing' ? (
                         <div className="flex flex-col items-center justify-center py-8 space-y-2 text-slate-400">
                           <Loader2 size={24} className="animate-spin text-[#20B8BE]" />
                           <p className="text-[11px] font-bold tracking-wide">Blink is analyzing your payments...</p>
                         </div>
                       ) : (
-                        <div className="space-y-2.5">
-                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-800 font-medium whitespace-pre-line leading-relaxed shadow-inner break-words block w-full text-left max-h-[180px] overflow-y-auto">
+                        <div className="space-y-3">
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-800 font-medium whitespace-pre-line leading-relaxed shadow-inner break-words block w-full text-left max-h-[220px] overflow-y-auto">
                             {aiResponse}
                           </div>
                           
-                          {/* DYNAMIC COMMAND BUTTONS APPEARING UPON AI RESPONSE */}
+                          {/* ACTION BUTTONS */}
                           <div className="grid grid-cols-2 gap-1.5 pt-1">
                             <button
                               onClick={handleCopy}
