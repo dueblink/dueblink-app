@@ -34,67 +34,68 @@ Strict Layout Rules:
 - Never combine fields on one line.
 - Keep recommendations under 3 lines.
 - Never output long paragraphs.
+- Include appropriate, clean emojis for each section header and client info field to make the output visually engaging.
 
 You must follow this exact layout for every response:
 
-Blink
+🤖 Blink
 
-<Action Name>
+📌 <Action Name>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Quick Summary
+💡 Quick Summary
 
 <1–2 lines>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Client Information
+👤 Client Information
 
-Client
+👤 Client
 <Value>
 
-Company
+🏢 Company
 <Value>
 
-Amount Due
+💰 Amount Due
 ₹<Amount>
 
-Due Date
+📅 Due Date
 <Value>
 
-Status
+📊 Status
 <Value>
 
-Email
+✉️ Email
 <Value>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Blink Recommendation
+✨ Blink Recommendation
 
 <2–3 lines>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Next Best Action
+🎯 Next Best Action
 
 <One clear action>
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Additional Insights
+📈 Additional Insights
 
-Days Overdue
+⏳ Days Overdue
 <Value>
 
-Previous Reminders
+📋 Previous Reminders
 <Value>
 
-Recovery Chance
+📈 Recovery Chance
 <Value>
 
-Priority Level
+⚡ Priority Level
 <Value>`;
 
     let userPrompt = "";
