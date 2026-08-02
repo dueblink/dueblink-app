@@ -10,11 +10,21 @@ const getFirebaseAdminApp = () => {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
+  // Prevent build errors if environment variables are missing during static analysis
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error("Missing one or more Firebase environment variables.");
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PHASE === 'phase-production-build') {
+      // Dummy mock app for build phase only
+      return initializeApp({
+        credential: cert({
+          projectId: 'placeholder',
+          clientEmail: 'placeholder@placeholder.com',
+          privateKey: '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3...\n-----END PRIVATE KEY-----\n',
+        }),
+      }, 'build-dummy');
+    }
+    throw new Error("Missing Firebase environment variables.");
   }
 
-  // Handle both literal string "\n" (from Vercel copy-paste) and raw newlines cleanly
   if (privateKey.includes('\\n')) {
     privateKey = privateKey.replace(/\\n/g, '\n');
   }
@@ -24,7 +34,7 @@ const getFirebaseAdminApp = () => {
       projectId,
       clientEmail,
       privateKey,
-    } as any),
+    }),
   });
 };
 
