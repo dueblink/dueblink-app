@@ -6,17 +6,32 @@ const getFirebaseAdminApp = () => {
     return getApps()[0];
   }
 
-  // Handle newlines safely whether they are literal newlines or escaped \n strings
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY
-    ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-    : undefined;
+  let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+
+  // If Vercel stripped out newlines and turned them into spaces, fix them back
+  if (rawKey.includes('-----BEGIN PRIVATE KEY-----') && !rawKey.includes('\n')) {
+    rawKey = rawKey
+      .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+      .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----')
+      .replace(/MIIEvQIBADANBgkqhkiG9w0BAQEF/g, '\nMIIEvQIBADANBgkqhkiG9w0BAQEF'); // safety patch or handle generic spacing
+  }
+
+  // Proper cleanup for escaped newlines or standard newline conversions
+  const privateKey = rawKey
+    .replace(/\\n/g, '\n')
+    .trim();
+
+  // Ensure headers and footers have correct wrapping
+  const formattedPrivateKey = privateKey.startsWith('-----BEGIN PRIVATE KEY-----')
+    ? privateKey
+    : `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
-  if (!projectId || !clientEmail || !privateKey) {
+  if (!projectId || !clientEmail || !formattedPrivateKey) {
     throw new Error(
-      "Firebase Admin initialization failed: Missing FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, or FIREBASE_PRIVATE_KEY environment variables."
+      "Firebase Admin initialization failed: Missing Firebase environment variables."
     );
   }
 
@@ -24,7 +39,7 @@ const getFirebaseAdminApp = () => {
     credential: cert({
       projectId,
       clientEmail,
-      privateKey,
+      privateKey: formattedPrivateKey,
     }),
   });
 };
