@@ -55,6 +55,9 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
         reminderHistory: []
       });
 
+      // Dispatch event to instantly notify floating robot and dashboard components of new client
+      window.dispatchEvent(new Event('clients-updated'));
+
       setLoading(false);
       setSuccessStep(true);
       // Trigger a router refresh so the dashboard instantly picks up the new client

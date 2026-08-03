@@ -27,6 +27,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
   
+  // Real-time reactive client count state
+  const [savedClientsCount, setSavedClientsCount] = useState(0);
+  
   // State for in-panel AI response display & interactive commands
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
@@ -48,6 +51,30 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       .replace(/\n{3,}/g, "\n\n")
       .trim();
   };
+
+  // Real-time reactive client count synchronization effect
+  useEffect(() => {
+    const updateClientCount = () => {
+      try {
+        const clients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
+        setSavedClientsCount(clients.length);
+      } catch {
+        setSavedClientsCount(0);
+      }
+    };
+
+    // Initial check on mount
+    updateClientCount();
+
+    // Listen to storage events and custom events for instant updates
+    window.addEventListener('storage', updateClientCount);
+    window.addEventListener('clients-updated', updateClientCount);
+
+    return () => {
+      window.removeEventListener('storage', updateClientCount);
+      window.removeEventListener('clients-updated', updateClientCount);
+    };
+  }, []);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -365,8 +392,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   if (pathname === '/create-account' || !isVisible) return null;
 
-  const savedClientsCount = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('dueblink_clients') || '[]').length : 1;
-
   return (
     <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-[900] flex flex-col items-end gap-3" suppressHydrationWarning={true}>
       
@@ -479,7 +504,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT & EMPTY STATES */}
+      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT & REACTIVE EMPTY STATES */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -523,7 +548,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 </button>
               </div>
 
-              {!aiResponse && uiState !== 'processing' && (
+              {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && (
                 <div className="mt-2.5 pt-2 border-t border-white/15 text-left" suppressHydrationWarning={true}>
                   <p className="text-[11px] font-bold text-white/90">{greeting}, {userName}!</p>
                   <p className="text-[10px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
@@ -536,7 +561,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               {isLoggedIn ? (
                 isPro ? (
                   savedClientsCount === 0 && activeActionId ? (
-                    /* EMPTY STATE VIEW PER ACTION WHEN ZERO CLIENTS */
+                    /* REACTIVE EMPTY STATE VIEW PER ACTION WHEN ZERO CLIENTS */
                     <div className="space-y-3 text-left py-1">
                       <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
                         <div className="flex items-center gap-1.5">
