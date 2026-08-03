@@ -489,18 +489,18 @@ export default function LandingPage() {
       >
         <div className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70" suppressHydrationWarning={true}></div>
         <div className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60" suppressHydrationWarning={true}></div>
-        
+         
         <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8" suppressHydrationWarning={true}>
              
         <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden" suppressHydrationWarning={true}>
             <span className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse shrink-0" suppressHydrationWarning={true} />
             <span className="text-[#0F172A] font-bold whitespace-nowrap" suppressHydrationWarning={true}>
             🚀 DueBlink · 
-          </span>
+            </span>
             <span className="text-[#2BB6A8] font-bold truncate max-w-[180px] sm:max-w-none text-left" suppressHydrationWarning={true}>
             {displayedText}
             <span className="animate-pulse ml-0.5 border-r-2 border-[#2BB6A8] h-3 inline-block" suppressHydrationWarning={true} />
-          </span>
+        </span>
       </div>
              
       <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-[#0F172A] uppercase leading-[1.1] sm:leading-[1.02]" suppressHydrationWarning={true}>
@@ -614,7 +614,7 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-        
+         
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
         <motion.span 
@@ -631,7 +631,7 @@ export default function LandingPage() {
         </motion.span>
         ))}
       </div>
-        
+         
       <div className="space-y-3 pt-4 text-sm font-semibold text-slate-600 border-t border-slate-200/60 max-w-xl mx-auto" suppressHydrationWarning={true}>
         <p className="text-slate-700 font-medium" suppressHydrationWarning={true}>
         Small follow-up mistakes become big cash flow problems.
@@ -650,7 +650,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-        
+         
 </div>
     </motion.section>
 
@@ -723,7 +723,7 @@ export default function LandingPage() {
     <section id="ai-recovery-assistant" className="py-16 sm:py-20 bg-slate-50/60 border-b border-slate-100 relative overflow-hidden px-4" suppressHydrationWarning={true}>
     <div className="max-w-5xl mx-auto" suppressHydrationWarning={true}>
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-14 shadow-xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center" suppressHydrationWarning={true}>
-        
+         
         <div className="space-y-6" suppressHydrationWarning={true}>
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider shadow-3xs" suppressHydrationWarning={true}>
           <Bot size={14} /> AI RECOVERY ASSISTANT (PRO)
@@ -882,7 +882,7 @@ export default function LandingPage() {
           <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider">AI Powered</span>
         </motion.button>
           </div>
-          
+           
           <div className="divide-y divide-slate-100 min-w-[300px]" suppressHydrationWarning={true}>
         <div className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0" suppressHydrationWarning={true}>
           <div className="flex items-center gap-3" suppressHydrationWarning={true}>
@@ -938,7 +938,7 @@ export default function LandingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto text-left" suppressHydrationWarning={true}>
-        
+         
         {/* Left Form */}
       <motion.div 
         initial={{ opacity: 0, x: -10 }}
@@ -1057,7 +1057,7 @@ export default function LandingPage() {
             <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
             <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS • AI Strategy</p>
           </div>
-            
+           
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
             {result ? (
               <motion.div 
@@ -1094,7 +1094,7 @@ export default function LandingPage() {
                 {isGenerating ? 'Rewriting...' : 'Regenerate'}
               </button>
             </div>
-              
+               
             <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
               {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
               {activeTab === 'whatsapp' && result.whatsapp_message}
@@ -1377,7 +1377,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-amber-400 mx-auto fill-amber-400" suppressHydrationWarning={true} />
@@ -1603,7 +1603,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
@@ -1651,7 +1651,7 @@ export default function LandingPage() {
             </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${openFaq === index ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
           </button>
-            
+           
           <motion.div
             initial={false}
             animate={{ height: openFaq === index ? "auto" : 0, opacity: openFaq === index ? 1 : 0 }}
@@ -1685,7 +1685,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           Every missed follow-up costs money.
         </h2>
-          
+           
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1707,10 +1707,10 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
         >
             {text}
-          </motion.div>
+        </motion.div>
           ))}
         </motion.div>
-          
+           
         <p className="text-sm sm:text-base text-slate-600 font-medium px-2" suppressHydrationWarning={true}>
           Every missed follow-up delays cash flow. DueBlink keeps every client, reminder, and payment organized so nothing slips through the cracks.
         </p>
@@ -1734,7 +1734,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           {user ? (isPro ? 'Everything is ready. Recover payments with confidence.' : 'Welcome back. Ready to recover more payments?') : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
-          
+           
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1771,7 +1771,7 @@ export default function LandingPage() {
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
         {user ? 'Open Dashboard' : 'Generate Reminder Free'}
           </motion.button>
-          
+           
           {user && !isPro && (
         <motion.button 
           whileHover={{ scale: 1.02 }}
@@ -1785,7 +1785,7 @@ export default function LandingPage() {
         </motion.button>
           )}
         </div>
-          
+           
         {!user && (
           <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
@@ -1803,7 +1803,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-        
+         
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -1819,14 +1819,14 @@ export default function LandingPage() {
         <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
         <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
       </div>
-          
+           
       <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
         <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
           support@dueblink.com
         </a>
         <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
       </div>
-          
+           
     </div>
     </motion.footer>
 
