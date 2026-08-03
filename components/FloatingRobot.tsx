@@ -97,7 +97,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       }
     });
 
-    const timer = setTimeout(() => setIsVisible(true), 1000);
+    const timer = setTimeout(() => setIsVisible(true), 800);
     const saved = localStorage.getItem('freeReminders');
     if (saved) setRemainingFreeReminders(parseInt(saved));
 
@@ -162,7 +162,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',            // 0
+      'hero',           // 0
       'late-payments',        // 1
       'features',             // 2
       'ai-recovery-assistant',// 3
@@ -310,7 +310,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     try {
       const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       
-      // If no clients exist, instantly stop loading so the empty state card is displayed cleanly
       if (savedClients.length === 0) {
         setUiState('idle');
         return;
@@ -393,7 +392,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   if (pathname === '/create-account' || !isVisible) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-[900] flex flex-col items-end gap-3" suppressHydrationWarning={true}>
+    <div className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-[900] flex flex-col items-end gap-3" suppressHydrationWarning={true}>
       
       {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
       <AnimatePresence>
@@ -508,9 +507,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[280px] sm:w-[320px] max-h-[80vh] flex flex-col overflow-hidden"
             suppressHydrationWarning={true}
@@ -533,7 +532,11 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                     </div>
                   )}
                   <div>
-                    <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">Blink</h3>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">Blink</h3>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[8px] font-bold text-white/80 uppercase">Online</span>
+                    </div>
                     <p className="text-xs font-bold text-white mt-0.5 truncate max-w-[160px]">
                       {activeActionName ? activeActionName : 'Your AI Recovery Assistant'}
                     </p>
@@ -608,7 +611,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                       {uiState === 'processing' ? (
                         <div className="flex flex-col items-center justify-center py-8 space-y-2 text-slate-400">
                           <Loader2 size={24} className="animate-spin text-[#20B8BE]" />
-                          <p className="text-[11px] font-bold tracking-wide">Blink is analyzing your payments...</p>
+                          <p className="text-[11px] font-bold tracking-wide">Blink is analyzing...</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
