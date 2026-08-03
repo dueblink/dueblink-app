@@ -283,7 +283,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     try {
       const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       
-      // If no clients exist, instantly stop loading so the precise empty state screen is displayed
+      // If no clients exist, instantly stop loading so the empty state card is displayed cleanly
       if (savedClients.length === 0) {
         setUiState('idle');
         return;
@@ -479,7 +479,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL WITH EXACT DESIGN RULE EMPTY STATES */}
+      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT & EMPTY STATES */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -523,7 +523,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 </button>
               </div>
 
-              {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && (
+              {!aiResponse && uiState !== 'processing' && (
                 <div className="mt-2.5 pt-2 border-t border-white/15 text-left" suppressHydrationWarning={true}>
                   <p className="text-[11px] font-bold text-white/90">{greeting}, {userName}!</p>
                   <p className="text-[10px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
@@ -536,29 +536,31 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               {isLoggedIn ? (
                 isPro ? (
                   savedClientsCount === 0 && activeActionId ? (
-                    /* EXACT DESIGN RULE EMPTY STATES FOR ZERO CLIENTS */
+                    /* EMPTY STATE VIEW PER ACTION WHEN ZERO CLIENTS */
                     <div className="space-y-3 text-left py-1">
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-3">
-                        <div className="space-y-1">
-                          <h4 className="font-extrabold text-slate-900 text-xs">
+                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-black text-[#245B92] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">Blink Guide</span>
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-xs">
                             {activeActionId === 'recommend' && "No Clients Found"}
                             {activeActionId === 'priorities' && "Nothing to Review"}
                             {activeActionId === 'summarize' && "No Payment Data"}
                             {activeActionId === 'rewrite' && "No Reminder Available"}
                             {activeActionId === 'overdue' && "No Overdue Clients"}
                           </h4>
-                          <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                            {activeActionId === 'recommend' && "You haven't added any clients yet.\n\nBlink needs at least one client to generate an AI follow-up."}
-                            {activeActionId === 'priorities' && "You don't have any clients yet.\n\nOnce you add clients, Blink will automatically identify who needs your attention first."}
-                            {activeActionId === 'summarize' && "There are no clients or invoices to analyze.\n\nYour payment insights will appear here after you add your first client."}
-                            {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet.\n\nGenerate your first AI reminder after adding a client."}
-                            {activeActionId === 'overdue' && "You haven't added any clients yet.\n\nBlink will automatically detect overdue payments after client information is added."}
+                          <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                            {activeActionId === 'recommend' && "You haven't added any clients yet. Blink needs at least one client to generate an AI follow-up."}
+                            {activeActionId === 'priorities' && "You don't have any clients yet. Once you add clients, Blink will automatically identify who needs your attention first."}
+                            {activeActionId === 'summarize' && "There are no clients or invoices to analyze. Your payment insights will appear here after you add your first client."}
+                            {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet. Generate your first AI reminder after adding a client."}
+                            {activeActionId === 'overdue' && "You haven't added any clients yet. Blink will automatically detect overdue payments after client information is added."}
                           </p>
                         </div>
-
                         <div className="pt-2 border-t border-slate-200/60">
-                          <p className="text-[10px] font-extrabold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
-                          <p className="text-[11px] text-slate-800 font-bold mt-0.5">Add your first client to get started.</p>
+                          <p className="text-[10px] font-bold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
+                          <p className="text-[11px] text-slate-700 font-semibold mt-0.5">Add your first client to get started.</p>
                         </div>
                       </div>
 
