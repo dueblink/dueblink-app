@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -135,7 +135,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',             // 0
+      'hero',            // 0
       'late-payments',        // 1
       'features',             // 2
       'ai-recovery-assistant',// 3
@@ -282,6 +282,13 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
     try {
       const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
+      
+      // If no clients exist, instantly stop loading so the precise empty state screen is displayed
+      if (savedClients.length === 0) {
+        setUiState('idle');
+        return;
+      }
+
       const totalAmount = savedClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
       const targetClient = recommendation ? savedClients.find((c: any) => c.name === recommendation.name) || savedClients[0] : savedClients[0];
 
@@ -351,7 +358,14 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
   };
 
+  const handleAddClientRedirect = () => {
+    setIsExpanded(false);
+    window.dispatchEvent(new CustomEvent('open-add-client-modal'));
+  };
+
   if (pathname === '/create-account' || !isVisible) return null;
+
+  const savedClientsCount = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('dueblink_clients') || '[]').length : 1;
 
   return (
     <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 z-[900] flex flex-col items-end gap-3" suppressHydrationWarning={true}>
@@ -465,7 +479,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT */}
+      {/* 3. EXPANDED PANEL WITH EXACT DESIGN RULE EMPTY STATES */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -481,7 +495,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               <div className="absolute -right-6 -bottom-6 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none" />
               <div className="flex justify-between items-start relative z-10" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2">
-                  {aiResponse || uiState === 'processing' ? (
+                  {aiResponse || uiState === 'processing' || savedClientsCount === 0 ? (
                     <button 
                       onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
                       className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer"
@@ -509,7 +523,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 </button>
               </div>
 
-              {!aiResponse && uiState !== 'processing' && (
+              {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && (
                 <div className="mt-2.5 pt-2 border-t border-white/15 text-left" suppressHydrationWarning={true}>
                   <p className="text-[11px] font-bold text-white/90">{greeting}, {userName}!</p>
                   <p className="text-[10px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
@@ -521,7 +535,48 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             <div className="p-3.5 overflow-y-auto flex-1 text-xs" suppressHydrationWarning={true}>
               {isLoggedIn ? (
                 isPro ? (
-                  aiResponse || uiState === 'processing' ? (
+                  savedClientsCount === 0 && activeActionId ? (
+                    /* EXACT DESIGN RULE EMPTY STATES FOR ZERO CLIENTS */
+                    <div className="space-y-3 text-left py-1">
+                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-3">
+                        <div className="space-y-1">
+                          <h4 className="font-extrabold text-slate-900 text-xs">
+                            {activeActionId === 'recommend' && "No Clients Found"}
+                            {activeActionId === 'priorities' && "Nothing to Review"}
+                            {activeActionId === 'summarize' && "No Payment Data"}
+                            {activeActionId === 'rewrite' && "No Reminder Available"}
+                            {activeActionId === 'overdue' && "No Overdue Clients"}
+                          </h4>
+                          <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                            {activeActionId === 'recommend' && "You haven't added any clients yet.\n\nBlink needs at least one client to generate an AI follow-up."}
+                            {activeActionId === 'priorities' && "You don't have any clients yet.\n\nOnce you add clients, Blink will automatically identify who needs your attention first."}
+                            {activeActionId === 'summarize' && "There are no clients or invoices to analyze.\n\nYour payment insights will appear here after you add your first client."}
+                            {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet.\n\nGenerate your first AI reminder after adding a client."}
+                            {activeActionId === 'overdue' && "You haven't added any clients yet.\n\nBlink will automatically detect overdue payments after client information is added."}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-200/60">
+                          <p className="text-[10px] font-extrabold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
+                          <p className="text-[11px] text-slate-800 font-bold mt-0.5">Add your first client to get started.</p>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={handleAddClientRedirect}
+                        className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <UserPlus size={13} /> Add New Client
+                      </button>
+
+                      <button 
+                        onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
+                        className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <ArrowLeft size={12} /> Back
+                      </button>
+                    </div>
+                  ) : aiResponse || uiState === 'processing' ? (
                     <div className="py-1 space-y-2.5 text-left">
                       {uiState === 'processing' ? (
                         <div className="flex flex-col items-center justify-center py-8 space-y-2 text-slate-400">
