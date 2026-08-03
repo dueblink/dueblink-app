@@ -71,12 +71,11 @@ function AddClientModal({ isOpen, onClose, user }: { isOpen: boolean; onClose: (
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs" suppressHydrationWarning={true}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" suppressHydrationWarning={true}>
       <motion.div 
-        initial={{ opacity: 0, scale: 0.98, y: 15 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: 15 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
         className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto text-slate-900"
         suppressHydrationWarning={true}
       >
@@ -230,7 +229,7 @@ function AddClientModal({ isOpen, onClose, user }: { isOpen: boolean; onClose: (
             <div className="space-y-3 pt-2" suppressHydrationWarning={true}>
               <button 
                 onClick={() => { handleResetAndClose(); }} 
-                className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                 suppressHydrationWarning={true}
               >
                 Go to Dashboard Overview
@@ -264,12 +263,14 @@ export default function DashboardPage() {
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [reminderNotifs, setReminderNotifs] = useState(true);
 
+  // Added state to control FloatingRobot actions from outside dashboard buttons
   const [robotAction, setRobotAction] = useState<string | null>(null);
 
   const { completion, complete, isLoading: isStreaming } = useCompletion({
     api: '/api/pro-recovery-assistant',
   });
 
+  // Sync clients to localStorage whenever they update from Firebase
   useEffect(() => {
     if (clients && clients.length > 0) {
       localStorage.setItem('dueblink_clients', JSON.stringify(clients));
@@ -284,7 +285,7 @@ export default function DashboardPage() {
       const timer = setTimeout(() => {
         setIsPro(true);
         complete(JSON.stringify({ action: "welcome_pro", clients, history: [] }));
-      }, 500);
+      }, 1000);
 
       return () => clearTimeout(timer);
     }
@@ -393,7 +394,7 @@ export default function DashboardPage() {
       setCancelModalOpen(false);
       
       setSuccessMessage("Your Pro subscription has been successfully cancelled.");
-      setTimeout(() => setSuccessMessage(null), 4000);
+      setTimeout(() => setSuccessMessage(null), 5000);
 
       router.refresh();
       
@@ -467,10 +468,10 @@ export default function DashboardPage() {
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: -5 }}
+      initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/25 transition-colors duration-150" 
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/25 transition-colors duration-200" 
       suppressHydrationWarning={true}
     >
       <AddClientModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} user={user} />
@@ -478,12 +479,11 @@ export default function DashboardPage() {
       {/* --- CUSTOM SUBSCRIPTION CANCELLATION MODAL --- */}
       <AnimatePresence>
         {cancelModalOpen && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" suppressHydrationWarning={true}>
             <motion.div 
-              initial={{ opacity: 0, scale: 0.98, y: 15 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 15 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6"
               suppressHydrationWarning={true}
             >
@@ -522,12 +522,11 @@ export default function DashboardPage() {
 
       <AnimatePresence>
         {clientToDelete && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs" suppressHydrationWarning={true}>
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" suppressHydrationWarning={true}>
             <motion.div 
-              initial={{ opacity: 0, scale: 0.98, y: 15 }}
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 15 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4"
               suppressHydrationWarning={true}
             >
@@ -559,6 +558,7 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
       
+      {/* FLOATING ROBOT - Displays AI responses and listens to dashboard outside button triggers */}
       <FloatingRobot 
         isPro={isPro}
         externalAction={robotAction}
@@ -573,12 +573,12 @@ export default function DashboardPage() {
       />
 
       {/* NAVBAR */}
-      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
+      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-300 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
           
           <motion.div 
-            whileHover={{ scale: 1.02 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
+            whileHover={{ scale: 1.03 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none" 
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
@@ -592,12 +592,12 @@ export default function DashboardPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setActiveTab('overview')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeTab === 'overview' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
+                className={`relative py-2 px-3 transition-colors duration-200 cursor-pointer font-bold group ${activeTab === 'overview' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Dashboard</span>
                 {activeTab === 'overview' && (
-                  <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
+                  <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.25, ease: "easeInOut" }} suppressHydrationWarning={true} />
                 )}
               </motion.button>
 
@@ -605,7 +605,7 @@ export default function DashboardPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => router.push('/pricing')} 
-                className="relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold text-slate-600 hover:text-[#245B92]"
+                className="relative py-2 px-3 transition-colors duration-200 cursor-pointer font-bold text-slate-600 hover:text-[#245B92]"
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Pricing</span>
@@ -615,12 +615,12 @@ export default function DashboardPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setActiveTab('settings')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeTab === 'settings' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
+                className={`relative py-2 px-3 transition-colors duration-200 cursor-pointer font-bold group ${activeTab === 'settings' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Account & Settings</span>
                 {activeTab === 'settings' && (
-                  <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
+                  <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.25, ease: "easeInOut" }} suppressHydrationWarning={true} />
                 )}
               </motion.button>
             </div>
@@ -629,7 +629,7 @@ export default function DashboardPage() {
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.15 }}
+                transition={{ duration: 0.2 }}
                 onClick={handleLogout} 
                 className="text-sm font-bold text-slate-600 hover:text-red-600 cursor-pointer transition py-2 px-3 rounded-xl hover:bg-slate-50" 
                 suppressHydrationWarning={true}
@@ -658,7 +658,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
               className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
               suppressHydrationWarning={true}
             >
@@ -679,13 +679,14 @@ export default function DashboardPage() {
       {/* MAIN CONTENT AREA */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8 sm:space-y-12" suppressHydrationWarning={true}>
         
+        {/* SUCCESS NOTIFICATION TOAST */}
         <AnimatePresence>
           {successMessage && (
             <motion.div 
-              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.98 }}
-              className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl flex items-center justify-between shadow-xs"
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl flex items-center justify-between shadow-sm"
               suppressHydrationWarning={true}
             >
               <div className="flex items-center gap-3">
@@ -700,13 +701,8 @@ export default function DashboardPage() {
         </AnimatePresence>
 
         {activeTab === 'overview' ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-8"
-          >
+          <>
+            {/* PRO STATUS BANNER OR UPGRADE BANNER */}
             {isPro ? (
               <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
                 <div className="space-y-1 text-center sm:text-left flex items-center gap-3" suppressHydrationWarning={true}>
@@ -762,97 +758,81 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <motion.button 
-                whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                whileTap={{ scale: 0.98 }}
+              {/* Outstanding Summary Button - Connected to open Blink panel with results */}
+              <button 
                 onClick={() => {
                   setRobotAction('summarize');
                   handleSummarizeOutstanding();
                 }} 
                 disabled={isStreaming} 
-                className="text-xs font-bold text-white bg-[#0F172A] px-5 py-2.5 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
+                className="text-xs font-bold text-white bg-[#0F172A] px-5 py-2.5 rounded-xl shadow-sm hover:opacity-90 transition cursor-pointer flex items-center gap-2"
                 suppressHydrationWarning={true}
               >
                 {isStreaming ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
                 {isStreaming ? 'Summarizing...' : 'Outstanding Summary'}
-              </motion.button>
+              </button>
             </header>
 
             <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
-              <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Layers size={14} suppressHydrationWarning={true}/> Total Outstanding</div>
                 <p className="text-2xl sm:text-3xl font-black text-slate-900" suppressHydrationWarning={true}>₹{totalOutstanding.toLocaleString()}</p>
-              </motion.div>
-              <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Users size={14} suppressHydrationWarning={true}/> Pending Clients</div>
                 <p className="text-2xl sm:text-3xl font-black text-slate-900" suppressHydrationWarning={true}>{pendingCount} {pendingCount === 1 ? 'Client' : 'Clients'}</p>
-              </motion.div>
-              <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.15 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><TrendingUp size={14} suppressHydrationWarning={true}/> Recovery Rate</div>
                 <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8]" suppressHydrationWarning={true}>{recoveryRateValue}%</p>
-              </motion.div>
+              </div>
             </section>
 
             {recommendation && isPro && (
-              <section className="p-6 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8]" suppressHydrationWarning={true}>
+              <section className="p-6 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-sm border-l-8 border-l-[#2BB6A8]" suppressHydrationWarning={true}>
                 <h2 className="text-[10px] font-black text-[#2BB6A8] uppercase tracking-widest mb-4" suppressHydrationWarning={true}>Today's Recommendation</h2>
                 <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4" suppressHydrationWarning={true}>
                   <div suppressHydrationWarning={true}>
                     <p className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>{recommendation.name}</p>
                     <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>{recommendation.company || recommendation.email} • ₹{recommendation.amount} Outstanding</p>
                   </div>
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                  {/* Generate Follow-up Button - Connected to open Blink panel with results */}
+                  <button 
                     onClick={() => { 
                       setRobotAction('recommend'); 
                       handleProRecovery(recommendation); 
                     }} 
-                    className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xs hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
                     suppressHydrationWarning={true}
                   >
                     Generate Follow-up
-                  </motion.button>
+                  </button>
                 </div>
               </section>
             )}
 
-            <section className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs" suppressHydrationWarning={true}>
+            <section className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm" suppressHydrationWarning={true}>
               <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4" suppressHydrationWarning={true}>
                 <h3 className="font-black uppercase text-xs tracking-widest text-slate-400" suppressHydrationWarning={true}>Recent Clients</h3>
-                <motion.button 
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setIsModalOpen(true)} 
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-xs transition cursor-pointer" 
-                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
-                  suppressHydrationWarning={true}
-                >
+                <button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto flex items-center justify-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg hover:opacity-95 transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
                   <Plus size={16} suppressHydrationWarning={true} /> Add New Client
-                </motion.button>
+                </button>
               </div>
               
               <div className="space-y-4" suppressHydrationWarning={true}>
                 {clients.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="py-16 text-center space-y-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200" 
-                    suppressHydrationWarning={true}
-                  >
+                  <div className="py-16 text-center space-y-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200" suppressHydrationWarning={true}>
                     <p className="text-base font-bold text-slate-700" suppressHydrationWarning={true}>No clients yet</p>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium" suppressHydrationWarning={true}>Start by adding your first client to begin tracking payments.</p>
-                    <motion.button 
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                    <button 
                       onClick={() => setIsModalOpen(true)} 
-                      className="inline-flex items-center gap-2 text-white px-6 py-3 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer" 
+                      className="inline-flex items-center gap-2 text-white px-6 py-3 rounded-xl text-xs font-bold shadow-md hover:opacity-95 transition cursor-pointer" 
                       style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                       suppressHydrationWarning={true}
                     >
-                      <Plus size={14} suppressHydrationWarning={true} /> Add Your First Client
-                    </motion.button>
-                  </motion.div>
+                      <Plus size={14} suppressHydrationWarning={true} /> Add New Client
+                    </button>
+                  </div>
                 ) : (
                   clients.map((c) => {
                     let daysOverdue = 0;
@@ -867,7 +847,7 @@ export default function DashboardPage() {
                     const isExpanded = expandedClientId === c.id;
 
                     return (
-                      <div key={c.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30 transition-all duration-150 space-y-4 cursor-pointer" suppressHydrationWarning={true}>
+                      <div key={c.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:border-slate-200 transition space-y-4" suppressHydrationWarning={true}>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
                           <div className="space-y-1" suppressHydrationWarning={true}>
                             <div className="flex items-center gap-3" suppressHydrationWarning={true}>
@@ -882,7 +862,7 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-3 w-full sm:w-auto" suppressHydrationWarning={true}>
                             <button 
                               onClick={() => setExpandedClientId(isExpanded ? null : c.id)} 
-                              className="flex-1 sm:flex-none text-xs font-bold bg-white border border-slate-200 px-4 py-2 rounded-xl hover:bg-slate-50 shadow-xs transition cursor-pointer text-slate-700 flex items-center justify-center gap-1.5"
+                              className="flex-1 sm:flex-none text-xs font-bold bg-white border border-slate-200 px-4 py-2 rounded-xl hover:bg-slate-50 shadow-sm transition cursor-pointer text-slate-700 flex items-center justify-center gap-1.5"
                               suppressHydrationWarning={true}
                             >
                               <Eye size={14} suppressHydrationWarning={true} /> {isExpanded ? 'Hide Details' : 'View'}
@@ -891,8 +871,8 @@ export default function DashboardPage() {
 
                             {c.status === 'Pending' ? (
                               <button 
-                                onClick={(e) => { e.stopPropagation(); updateDoc(doc(db, 'clients', c.id), { status: 'Paid' }); }} 
-                                className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2 rounded-xl shadow-xs hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5" 
+                                onClick={() => updateDoc(doc(db, 'clients', c.id), { status: 'Paid' })} 
+                                className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2 rounded-xl shadow-sm hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5" 
                                 style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                                 suppressHydrationWarning={true}
                               >
@@ -905,7 +885,7 @@ export default function DashboardPage() {
                             )}
                             
                             <button 
-                              onClick={(e) => { e.stopPropagation(); setClientToDelete(c); }} 
+                              onClick={() => setClientToDelete(c)} 
                               className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
                               title="Delete Client"
                               suppressHydrationWarning={true}
@@ -921,7 +901,6 @@ export default function DashboardPage() {
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
                               exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.15 }}
                               className="overflow-hidden pt-3 border-t border-slate-200/60"
                               suppressHydrationWarning={true}
                             >
@@ -957,14 +936,13 @@ export default function DashboardPage() {
                 )}
               </div>
             </section>
-          </motion.div>
+          </>
         ) : (
           /* SETTINGS TAB VIEW */
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.3 }}
             className="max-w-4xl mx-auto space-y-8"
           >
             <div>
@@ -973,7 +951,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Profile Section */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <User className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Profile</h3>
@@ -991,7 +969,7 @@ export default function DashboardPage() {
             </div>
 
             {/* BILLING & SUBSCRIPTION SECTION */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <Crown className="text-amber-500" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Billing & Subscription</h3>
@@ -1017,7 +995,7 @@ export default function DashboardPage() {
                 ) : (
                   <button 
                     onClick={() => router.push('/pricing')} 
-                    className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-xs hover:opacity-95 transition cursor-pointer"
+                    className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition cursor-pointer"
                   >
                     Upgrade to Pro ✨
                   </button>
@@ -1033,7 +1011,7 @@ export default function DashboardPage() {
             </div>
 
             {/* AI Preferences Section */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <Sparkles className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">AI Preferences</h3>
@@ -1055,7 +1033,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Notifications Section */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <Bell className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Notifications</h3>
@@ -1089,7 +1067,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Security Section */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <Shield className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Security & Password</h3>
@@ -1119,7 +1097,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Help & Support */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
               <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
                 <HelpCircle className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Help & Support</h3>

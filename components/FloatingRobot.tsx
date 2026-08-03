@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -27,9 +27,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
   
-  // Real-time reactive client count state
-  const [savedClientsCount, setSavedClientsCount] = useState(0);
-  
   // State for in-panel AI response display & interactive commands
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
@@ -51,30 +48,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       .replace(/\n{3,}/g, "\n\n")
       .trim();
   };
-
-  // Real-time reactive client count synchronization effect
-  useEffect(() => {
-    const updateClientCount = () => {
-      try {
-        const clients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
-        setSavedClientsCount(clients.length);
-      } catch {
-        setSavedClientsCount(0);
-      }
-    };
-
-    // Initial check on mount
-    updateClientCount();
-
-    // Listen to storage events and custom events for instant updates
-    window.addEventListener('storage', updateClientCount);
-    window.addEventListener('clients-updated', updateClientCount);
-
-    return () => {
-      window.removeEventListener('storage', updateClientCount);
-      window.removeEventListener('clients-updated', updateClientCount);
-    };
-  }, []);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -162,7 +135,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',            // 0
+      'hero',             // 0
       'late-payments',        // 1
       'features',             // 2
       'ai-recovery-assistant',// 3
@@ -309,13 +282,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
     try {
       const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
-      
-      // If no clients exist, instantly stop loading so the empty state card is displayed cleanly
-      if (savedClients.length === 0) {
-        setUiState('idle');
-        return;
-      }
-
       const totalAmount = savedClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
       const targetClient = recommendation ? savedClients.find((c: any) => c.name === recommendation.name) || savedClients[0] : savedClients[0];
 
@@ -383,11 +349,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     } else {
       router.push('/create-account');
     }
-  };
-
-  const handleAddClientRedirect = () => {
-    setIsExpanded(false);
-    window.dispatchEvent(new CustomEvent('open-add-client-modal'));
   };
 
   if (pathname === '/create-account' || !isVisible) return null;
@@ -504,7 +465,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         )}
       </AnimatePresence>
 
-      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT & REACTIVE EMPTY STATES */}
+      {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT */}
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
@@ -520,7 +481,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               <div className="absolute -right-6 -bottom-6 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none" />
               <div className="flex justify-between items-start relative z-10" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2">
-                  {aiResponse || uiState === 'processing' || savedClientsCount === 0 ? (
+                  {aiResponse || uiState === 'processing' ? (
                     <button 
                       onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
                       className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer"
@@ -548,7 +509,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 </button>
               </div>
 
-              {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && (
+              {!aiResponse && uiState !== 'processing' && (
                 <div className="mt-2.5 pt-2 border-t border-white/15 text-left" suppressHydrationWarning={true}>
                   <p className="text-[11px] font-bold text-white/90">{greeting}, {userName}!</p>
                   <p className="text-[10px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
@@ -560,50 +521,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             <div className="p-3.5 overflow-y-auto flex-1 text-xs" suppressHydrationWarning={true}>
               {isLoggedIn ? (
                 isPro ? (
-                  savedClientsCount === 0 && activeActionId ? (
-                    /* REACTIVE EMPTY STATE VIEW PER ACTION WHEN ZERO CLIENTS */
-                    <div className="space-y-3 text-left py-1">
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-black text-[#245B92] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">Blink Guide</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-xs">
-                            {activeActionId === 'recommend' && "No Clients Found"}
-                            {activeActionId === 'priorities' && "Nothing to Review"}
-                            {activeActionId === 'summarize' && "No Payment Data"}
-                            {activeActionId === 'rewrite' && "No Reminder Available"}
-                            {activeActionId === 'overdue' && "No Overdue Clients"}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
-                            {activeActionId === 'recommend' && "You haven't added any clients yet. Blink needs at least one client to generate an AI follow-up."}
-                            {activeActionId === 'priorities' && "You don't have any clients yet. Once you add clients, Blink will automatically identify who needs your attention first."}
-                            {activeActionId === 'summarize' && "There are no clients or invoices to analyze. Your payment insights will appear here after you add your first client."}
-                            {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet. Generate your first AI reminder after adding a client."}
-                            {activeActionId === 'overdue' && "You haven't added any clients yet. Blink will automatically detect overdue payments after client information is added."}
-                          </p>
-                        </div>
-                        <div className="pt-2 border-t border-slate-200/60">
-                          <p className="text-[10px] font-bold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
-                          <p className="text-[11px] text-slate-700 font-semibold mt-0.5">Add your first client to get started.</p>
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={handleAddClientRedirect}
-                        className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5"
-                      >
-                        <UserPlus size={13} /> Add New Client
-                      </button>
-
-                      <button 
-                        onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
-                        className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <ArrowLeft size={12} /> Back
-                      </button>
-                    </div>
-                  ) : aiResponse || uiState === 'processing' ? (
+                  aiResponse || uiState === 'processing' ? (
                     <div className="py-1 space-y-2.5 text-left">
                       {uiState === 'processing' ? (
                         <div className="flex flex-col items-center justify-center py-8 space-y-2 text-slate-400">
