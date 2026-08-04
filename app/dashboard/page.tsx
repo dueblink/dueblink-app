@@ -52,6 +52,9 @@ function AddClientModal({ isOpen, onClose, user }: { isOpen: boolean; onClose: (
         reminderHistory: []
       });
 
+      // Dispatch custom event for real-time live synchronization with Blink
+      window.dispatchEvent(new Event('clients-updated'));
+
       setLoading(false);
       setSuccessStep(true);
       router.refresh();
@@ -271,8 +274,9 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (clients && clients.length > 0) {
+    if (clients && clients.length >= 0) {
       localStorage.setItem('dueblink_clients', JSON.stringify(clients));
+      window.dispatchEvent(new Event('clients-updated'));
     }
   }, [clients]);
 
@@ -348,7 +352,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'clients'), where('userId', '==', user.uid));
-    return onSnapshot(q, (snapshot) => setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    return onSnapshot(q, (snapshot) => {
+      const fetchedClients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setClients(fetchedClients);
+      localStorage.setItem('dueblink_clients', JSON.stringify(fetchedClients));
+      window.dispatchEvent(new Event('clients-updated'));
+    });
   }, [user]);
 
   useEffect(() => {
@@ -409,6 +418,7 @@ export default function DashboardPage() {
     try {
       await deleteDoc(doc(db, 'clients', clientToDelete.id));
       setClientToDelete(null);
+      window.dispatchEvent(new Event('clients-updated'));
     } catch (error) {
       console.error("Error deleting client:", error);
       alert("Failed to delete client.");
@@ -891,7 +901,11 @@ export default function DashboardPage() {
 
                             {c.status === 'Pending' ? (
                               <button 
-                                onClick={(e) => { e.stopPropagation(); updateDoc(doc(db, 'clients', c.id), { status: 'Paid' }); }} 
+                                onClick={async (e) => { 
+                                  e.stopPropagation(); 
+                                  await updateDoc(doc(db, 'clients', c.id), { status: 'Paid' }); 
+                                  window.dispatchEvent(new Event('clients-updated'));
+                                }} 
                                 className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2 rounded-xl shadow-xs hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5" 
                                 style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                                 suppressHydrationWarning={true}
