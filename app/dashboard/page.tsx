@@ -580,6 +580,7 @@ export default function DashboardPage() {
           handleAssistantAction(action);
         }} 
         recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
+        onOpenAddClient={() => setIsModalOpen(true)}
       />
 
       {/* NAVBAR */}
