@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus } from 'lucide-react';
@@ -52,21 +52,20 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       .trim();
   };
 
-  // Real-time reactive client count synchronization effect
-  useEffect(() => {
-    const updateClientCount = () => {
-      try {
-        const clients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
-        setSavedClientsCount(clients.length);
-      } catch {
-        setSavedClientsCount(0);
-      }
-    };
+  // Real-time reactive client count synchronization effect with zero caching
+  const updateClientCount = useCallback(() => {
+    try {
+      const clients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
+      setSavedClientsCount(clients.length);
+    } catch {
+      setSavedClientsCount(0);
+    }
+  }, []);
 
-    // Initial check on mount
+  useEffect(() => {
     updateClientCount();
 
-    // Listen to storage events and custom events for instant updates
+    // Listen to storage events and custom events for instant updates without page refresh
     window.addEventListener('storage', updateClientCount);
     window.addEventListener('clients-updated', updateClientCount);
 
@@ -74,7 +73,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       window.removeEventListener('storage', updateClientCount);
       window.removeEventListener('clients-updated', updateClientCount);
     };
-  }, []);
+  }, [updateClientCount]);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -113,7 +112,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       clearTimeout(timer);
       unsubscribe();
     };
-  }, [pathname, isPro]);
+  }, [pathname, isPro, clickedSectionText]);
 
   // Listen to external actions triggered from outside dashboard buttons
   useEffect(() => {
@@ -127,6 +126,18 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       }
     }
   }, [externalAction, pathname]);
+
+  // Accessibility: ESC closes popup
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsExpanded(false);
+        setShowMessageBubble(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Inactivity Timer
   useEffect(() => {
@@ -157,12 +168,12 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const currentSectionIndexRef = useRef(currentSectionIndex);
   currentSectionIndexRef.current = currentSectionIndex;
 
-  // Use IntersectionObserver for 100% accurate, stutter-free section tracking
+  // Use IntersectionObserver for accurate section tracking
   useEffect(() => {
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',           // 0
+      'hero',          // 0
       'late-payments',        // 1
       'features',             // 2
       'ai-recovery-assistant',// 3
@@ -291,6 +302,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     return "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how to recover payments faster.\n\nNeed help? Click me anytime.";
   };
 
+  // LIVE DATA SYNCHRONIZATION: Always fetch fresh data directly from localStorage on every click
   const handleActionClick = async (actionId: string, actionTitle: string) => {
     if (!isPro) {
       router.push('/pricing');
@@ -308,15 +320,18 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
 
     try {
-      const savedClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
+      // Fetch absolute latest client data dynamically to prevent caching or stale state
+      const freshClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       
-      if (savedClients.length === 0) {
+      if (freshClients.length === 0) {
+        setSavedClientsCount(0);
         setUiState('idle');
         return;
       }
 
-      const totalAmount = savedClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
-      const targetClient = recommendation ? savedClients.find((c: any) => c.name === recommendation.name) || savedClients[0] : savedClients[0];
+      setSavedClientsCount(freshClients.length);
+      const totalAmount = freshClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
+      const targetClient = recommendation ? freshClients.find((c: any) => c.name === recommendation.name) || freshClients[0] : freshClients[0];
 
       const response = await fetch('/api/pro-recovery-assistant', {
         method: 'POST',
@@ -324,7 +339,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         body: JSON.stringify({ 
           action: actionId,
           client: targetClient,
-          clients: savedClients,
+          clients: freshClients,
           total: totalAmount
         })
       });
@@ -350,7 +365,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         cleanResponseText(fullText) ||
         "Analysis complete. No urgent actions needed right now."
       );
-    } catch (err) {
+    } catch {
       setAiResponse("Unable to fetch portfolio analysis right now. Please check your connection and try again.");
     } finally {
       setUiState('idle');
@@ -398,17 +413,17 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       <AnimatePresence>
         {!isExpanded && showMessageBubble && (isPro || pathname !== '/dashboard') && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 max-w-[260px] sm:max-w-[280px] relative text-left"
+            className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 max-w-[260px] sm:max-w-[280px] relative text-left transform-gpu will-change-transform"
             suppressHydrationWarning={true}
           >
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2" suppressHydrationWarning={true}>
               <div className="flex items-center gap-2" suppressHydrationWarning={true}>
                 <div className="relative flex items-center justify-center w-2.5 h-2.5">
-                  <div className="absolute w-2.5 h-2.5 rounded-full bg-[#20B8BE] animate-ping opacity-75" />
+                  <div className="absolute w-2.5 h-2.5 rounded-full bg-[#20B8BE] opacity-75" />
                   <div className="w-2 h-2 rounded-full bg-[#20B8BE]" />
                 </div>
                 <div className="flex flex-col" suppressHydrationWarning={true}>
@@ -420,7 +435,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               </div>
               <button 
                 onClick={(e) => { e.stopPropagation(); setShowMessageBubble(false); setClickedSectionText(null); }} 
-                className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200 px-2 py-0.5 rounded-full cursor-pointer transition flex items-center gap-1"
+                className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200 px-2 py-0.5 rounded-full cursor-pointer transition flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-[#20B8BE]"
+                aria-label="Close message bubble"
                 suppressHydrationWarning={true}
               >
                 <X size={10} /> Close
@@ -434,7 +450,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             {pathname !== '/dashboard' && (isLoggedIn || currentSectionIndex === 0 || currentSectionIndex === 13 || clickedSectionText) && (
               <button 
                 onClick={handleLandingAction} 
-                className="mt-0.5 w-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white py-2 px-3 rounded-xl font-bold text-[11px] shadow-md hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="mt-0.5 w-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white py-2 px-3 rounded-xl font-bold text-[11px] shadow-md hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]"
                 suppressHydrationWarning={true}
               >
                 {isLoggedIn ? "Open Dashboard" : (isPro ? "Open Dashboard" : "Try 5 AI Reminders Free")} <ArrowRight size={12} />
@@ -448,11 +464,11 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       <AnimatePresence>
         {!isExpanded && isLoggedIn && recommendation && showRecommendation && pathname === '/dashboard' && isPro && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 cursor-pointer hover:border-[#20B8BE] transition-all max-w-[260px] sm:max-w-[280px] relative group"
+            className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 cursor-pointer hover:border-[#20B8BE] transition-all max-w-[260px] sm:max-w-[280px] relative group transform-gpu will-change-transform"
             onClick={() => {
               if (!isPro) {
                 router.push('/pricing');
@@ -463,7 +479,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             }}
             suppressHydrationWarning={true}
           >
-            <button onClick={(e) => { e.stopPropagation(); setShowRecommendation(false); }} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition" suppressHydrationWarning={true}>
+            <button onClick={(e) => { e.stopPropagation(); setShowRecommendation(false); }} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition" aria-label="Close recommendation" suppressHydrationWarning={true}>
               <X size={12} />
             </button>
             <div suppressHydrationWarning={true}>
@@ -492,7 +508,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 setIsExpanded(true);
                 handleActionClick('recommend', 'Generate Follow-up'); 
               }} 
-              className="w-full text-white py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer" 
+              className="w-full text-white py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]" 
               style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
               suppressHydrationWarning={true}
             >
@@ -511,7 +527,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[280px] sm:w-[320px] max-h-[80vh] flex flex-col overflow-hidden"
+            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[280px] sm:w-[320px] max-h-[80vh] flex flex-col overflow-hidden transform-gpu will-change-transform"
             suppressHydrationWarning={true}
           >
             {/* Header Banner */}
@@ -522,7 +538,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   {aiResponse || uiState === 'processing' || savedClientsCount === 0 ? (
                     <button 
                       onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
-                      className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer"
+                      className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
+                      aria-label="Back"
                     >
                       <ArrowLeft size={14} className="text-white" />
                     </button>
@@ -534,7 +551,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   <div>
                     <div className="flex items-center gap-1.5">
                       <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">Blink</h3>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       <span className="text-[8px] font-bold text-white/80 uppercase">Online</span>
                     </div>
                     <p className="text-xs font-bold text-white mt-0.5 truncate max-w-[160px]">
@@ -544,7 +561,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 </div>
                 <button 
                   onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }} 
-                  className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition cursor-pointer"
+                  className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
+                  aria-label="Close panel"
                   suppressHydrationWarning={true}
                 >
                   <X size={12} />
@@ -565,7 +583,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 isPro ? (
                   savedClientsCount === 0 && activeActionId ? (
                     /* REACTIVE EMPTY STATE VIEW PER ACTION WHEN ZERO CLIENTS */
-                    <div className="space-y-3 text-left py-1">
+                    <div className="space-y-3 text-left py-1" suppressHydrationWarning={true}>
                       <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[9px] font-black text-[#245B92] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">Blink Guide</span>
@@ -594,7 +612,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
                       <button 
                         onClick={handleAddClientRedirect}
-                        className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5"
+                        className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#245B92]"
                       >
                         <UserPlus size={13} /> Add New Client
                       </button>
@@ -607,7 +625,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                       </button>
                     </div>
                   ) : aiResponse || uiState === 'processing' ? (
-                    <div className="py-1 space-y-2.5 text-left">
+                    <div className="py-1 space-y-2.5 text-left" suppressHydrationWarning={true}>
                       {uiState === 'processing' ? (
                         <div className="flex flex-col items-center justify-center py-8 space-y-2 text-slate-400">
                           <Loader2 size={24} className="animate-spin text-[#20B8BE]" />
@@ -726,7 +744,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                     </div>
                   )
                 ) : (
-                  <div className="py-3 text-center space-y-2.5">
+                  <div className="py-3 text-center space-y-2.5" suppressHydrationWarning={true}>
                     <div className="space-y-1">
                       <h5 className="font-black text-xs text-slate-900">Unlock Pro Assistant</h5>
                       <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
@@ -735,7 +753,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                     </div>
                     <button 
                       onClick={() => { setIsExpanded(false); router.push('/pricing'); }}
-                      className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer"
+                      className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]"
                     >
                       Upgrade to Pro ✨
                     </button>
@@ -749,7 +767,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   <p className="text-[11px] font-bold text-slate-800 mb-3 leading-relaxed" suppressHydrationWarning={true}>
                     {remainingFreeReminders > 0 ? `Hi! You have ${remainingFreeReminders} free reminders remaining.` : "You've used your free reminders. Create an account to continue!"}
                   </p>
-                  <button onClick={handleLandingAction} className="w-full text-white py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer mb-2" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
+                  <button onClick={handleLandingAction} className="w-full text-white py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer mb-2 focus:outline-none focus:ring-2 focus:ring-[#245B92]" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
                     <span>{remainingFreeReminders > 0 ? "Try 5 AI Reminders Free" : "Create Account"}</span> 
                     <ArrowRight size={12} />
                   </button>
@@ -768,7 +786,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         whileHover={{ scale: 1.05 }} 
         whileTap={{ scale: 0.95 }}
         onClick={handleRobotClick}
-        className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform"
+        aria-label="Open Blink AI Assistant"
+        className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform focus:outline-none focus:ring-4 focus:ring-[#20B8BE]/40"
         suppressHydrationWarning={true}
       >
         <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
