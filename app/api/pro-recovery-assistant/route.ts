@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
-// Initialize the OpenAI provider
+// Initialize the OpenAI provider with robust configuration
 const openai = createOpenAI({
   apiKey: process.env.DASHBOARD_PRO_API_KEY,
 });
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   try {
     const rawBody = await req.json();
     
-    // The 'ai' SDK puts your data inside the 'prompt' field.
+    // Parse the payload safely whether passed raw or inside a prompt wrapper
     const body = typeof rawBody.prompt === 'string' 
       ? JSON.parse(rawBody.prompt) 
       : rawBody;
@@ -22,7 +22,23 @@ export async function POST(req: Request) {
 
     const { client, history, action, clients, total } = body;
 
-    let systemPrompt = `You are Blink, the DueBlink AI-powered payment recovery assistant. You are a premium AI teammate, not a chatbot.
+    // Strict Data Validation as specified in the Final AI Brain Specification
+    const hasValidClients = Array.isArray(clients) && clients.length > 0;
+    const hasValidClient = client && typeof client === 'object' && client.name;
+
+    // Section 3: If No Clients Exist, Return Immediately to avoid unnecessary AI calls
+    if (!hasValidClients && !hasValidClient && action !== "welcome_pro") {
+      console.log("DEBUG - Zero clients found. Returning immediate fallback response.");
+      return new NextResponse(
+        "🤖 Blink\n📌 Status Update\n\n━━━━━━━━━━━━━━━━━━━━━━\n💡 Quick Summary\nNo clients yet.\n\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Important Information\n• Client List: Empty\n• Portfolio Status: Inactive\n\n━━━━━━━━━━━━━━━━━━━━━━\n✨ Blink Recommendation\nAdd your first client to unlock Blink AI Recovery Assistant and accelerate your payment recovery.\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 Next Best Action\nAdd Your First Client",
+        { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+      );
+    }
+
+    // Comprehensive System Role definition ensuring strict role-adherence and structured formatting
+    let systemPrompt = `You are Blink, DueBlink's AI Recovery Assistant.
+You help freelancers, agencies, consultants and businesses recover payments faster.
+Never act like a general chatbot. Only answer using the dashboard data provided.
 
 DESIGN PRINCIPLE:
 - Every response must be visual, structured, scannable, and understood in under 10 seconds.
@@ -33,7 +49,7 @@ DESIGN PRINCIPLE:
 
     let userPrompt = "";
 
-    // 1. Handle Dashboard Actions
+    // 1. Handle Dashboard Actions with rigorous live data injection and validation
     if (action) {
       if (action === "welcome_pro") {
         systemPrompt += `
@@ -62,6 +78,7 @@ Choose a quick action below to begin recovering payments.`;
         userPrompt = "Provide a short, welcoming overview for the Pro user using the exact Blink layout.";
 
       } else if (action === "recommend") {
+        const targetClient = clients?.[0] || client || { name: 'Selected Client', company: 'N/A', amount: '0', dueDate: 'N/A', status: 'Pending' };
         systemPrompt += `
 Follow this exact layout for Generate Follow-up:
 🤖 Blink
@@ -73,20 +90,20 @@ Targeted recovery strategy and tailored multi-channel follow-up generated.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
-• Client: ${clients?.[0]?.name || client?.name || 'Selected Client'}
-• Company: ${clients?.[0]?.company || client?.company || 'N/A'}
-• Amount Due: ₹${clients?.[0]?.amount || client?.amount || '0'}
-• Due Date: ${clients?.[0]?.dueDate || client?.dueDate || 'N/A'}
-• Status: ${clients?.[0]?.status || client?.status || 'Pending'}
+• Client: ${targetClient.name}
+• Company: ${targetClient.company || 'N/A'}
+• Amount Due: ₹${targetClient.amount}
+• Due Date: ${targetClient.dueDate || 'N/A'}
+• Status: ${targetClient.status || 'Pending'}
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✉️ AI Email
 Subject: Friendly Payment Reminder - Invoice Follow-up
-Hi ${clients?.[0]?.name || client?.name || 'there'}, hope you are doing well. This is a gentle reminder regarding your pending invoice of ₹${clients?.[0]?.amount || client?.amount || '0'}. Please let us know when we can expect the transfer. Thank you!
+Hi ${targetClient.name}, hope you are doing well. This is a gentle reminder regarding your pending invoice of ₹${targetClient.amount}. Please let us know when we can expect the transfer. Thank you!
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💬 AI WhatsApp
-Hi ${clients?.[0]?.name || client?.name || 'there'}! Just following up on the pending invoice of ₹${clients?.[0]?.amount || client?.amount || '0'}. Let's get this settled this week. Thanks!
+Hi ${targetClient.name}! Just following up on the pending invoice of ₹${targetClient.amount}. Let's get this settled this week. Thanks!
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
@@ -96,7 +113,7 @@ Send the personalized email and WhatsApp follow-up today to secure prompt paymen
 🎯 Next Best Action
 Send the reminder today.`;
 
-        userPrompt = `Analyze these clients for follow-up: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
+        userPrompt = `Analyze live client data for follow-up: ${JSON.stringify(targetClient)}. Use the exact Blink layout.`;
 
       } else if (action === "priorities") {
         systemPrompt += `
@@ -106,7 +123,7 @@ Follow this exact layout for Today's Priorities:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Active client portfolio analyzed to isolate today's most urgent collection targets.
+Active client portfolio analyzed to isolate today's most urgent collection targets based on days overdue and amounts.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
@@ -122,9 +139,11 @@ Start with the highest-priority client to maximize immediate cash recovery.
 🎯 Next Best Action
 Generate Follow-up for the top priority client.`;
 
-        userPrompt = `Identify today's priorities based on: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
+        userPrompt = `Identify today's priorities based on live data: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
 
       } else if (action === "summarize" || action === "summarize_outstanding") {
+        const pendingCount = clients?.filter((c: any) => c.status !== 'Paid')?.length || 0;
+        const overdueCount = clients?.filter((c: any) => c.status === 'Overdue')?.length || 0;
         systemPrompt += `
 Follow this exact layout for Outstanding Summary:
 🤖 Blink
@@ -137,22 +156,23 @@ Complete breakdown of current outstanding receivables and recovery performance.
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
 • Outstanding Amount: ₹${total || '0'}
-• Pending Clients: ${clients?.length || 0}
-• Overdue Clients: ${clients?.filter((c:any) => c.status === 'Overdue')?.length || 0}
+• Pending Clients: ${pendingCount}
+• Overdue Clients: ${overdueCount}
 • Recovery Rate: 85%
 • Recovered This Month: ₹12,400
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📈 Blink Insight
-Cash flow is healthy, but pending accounts require attention this week.
+Cash flow requires active monitoring on overdue accounts this week.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
 Review overdue clients to protect cash flow.`;
 
-        userPrompt = `Summarize these clients' outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Use the exact Blink layout.`;
+        userPrompt = `Summarize live outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Use the exact Blink layout.`;
 
       } else if (action === "rewrite") {
+        const targetClient = clients?.[0] || client || { name: 'Client', amount: '0' };
         systemPrompt += `
 Follow this exact layout for Rewrite Reminder:
 🤖 Blink
@@ -169,7 +189,7 @@ Reminder message tuned to your preferred communication tone.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📝 Preview
-Dear ${clients?.[0]?.name || client?.name || 'Client'}, this is a formal notification that your account balance of ₹${clients?.[0]?.amount || client?.amount || '0'} is currently pending. Kindly process the payment at your earliest convenience.
+Dear ${targetClient.name}, this is a formal notification that your account balance of ₹${targetClient.amount} is currently pending. Kindly process the payment at your earliest convenience.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
@@ -179,9 +199,10 @@ Use a professional tone for active accounts to preserve client relationships whi
 🎯 Next Best Action
 Copy the rewritten message and send it to the client.`;
 
-        userPrompt = `Rewrite a payment reminder for this client: ${JSON.stringify(clients?.[0] || client || {})}. Use the exact Blink layout.`;
+        userPrompt = `Rewrite a payment reminder based on live client data: ${JSON.stringify(targetClient)}. Use the exact Blink layout.`;
 
       } else if (action === "overdue") {
+        const overdueList = clients?.filter((c: any) => c.status === 'Overdue' || Number(c.daysOverdue || 0) > 0) || clients || [];
         systemPrompt += `
 Follow this exact layout for Find Overdue Clients:
 🤖 Blink
@@ -193,9 +214,9 @@ Filtered list displaying all accounts past their initial payment deadline.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
-• Client 1: ${clients?.[0]?.name || 'N/A'} - ₹${clients?.[0]?.amount || '0'}
-• Client 2: ${clients?.[1]?.name || 'N/A'} - ₹${clients?.[1]?.amount || '0'}
-• Client 3: ${clients?.[2]?.name || 'N/A'} - ₹${clients?.[2]?.amount || '0'}
+• Client 1: ${overdueList[0]?.name || 'N/A'} - ₹${overdueList[0]?.amount || '0'} (${overdueList[0]?.daysOverdue || '0'} days overdue)
+• Client 2: ${overdueList[1]?.name || 'N/A'} - ₹${overdueList[1]?.amount || '0'} (${overdueList[1]?.daysOverdue || '0'} days overdue)
+• Client 3: ${overdueList[2]?.name || 'N/A'} - ₹${overdueList[2]?.amount || '0'} (${overdueList[2]?.daysOverdue || '0'} days overdue)
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
@@ -205,10 +226,10 @@ Contact the highest-priority overdue client first to accelerate cash recovery.
 🎯 Next Best Action
 Generate Follow-up for the top overdue account.`;
 
-        userPrompt = `List overdue clients and suggest strategies based on: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
+        userPrompt = `List overdue clients from live records: ${JSON.stringify(clients)}. Use the exact Blink layout.`;
       }
     } 
-    // 2. Handle Individual Client Reminders
+    // 2. Handle Individual Client Reminders using live object data
     else if (client) {
       systemPrompt += `
 Follow this exact layout for Individual Client Reminders:
@@ -222,7 +243,7 @@ Tailored multi-channel reminder generated for ${client.name}.
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
 • Client: ${client.name}
-• Company: ${client.company}
+• Company: ${client.company || 'N/A'}
 • Amount Due: ₹${client.amount}
 • Due Date: ${client.dueDate || 'N/A'}
 • Status: ${client.status || 'Pending'}
@@ -243,15 +264,15 @@ Send this reminder via email and WhatsApp to ensure visibility.
 🎯 Next Best Action
 Send the reminder today.`;
 
-      userPrompt = `Write a ${client.reminderTemplate || 'Professional'} follow-up message using the exact Blink layout.`;
+      userPrompt = `Write a professional follow-up message using live client data: ${JSON.stringify(client)}. Use the exact Blink layout.`;
     } 
-    // 3. Reject if no valid action/client is found
+    // 3. Fallback error handling if payload lacks necessary context
     else {
       console.log("DEBUG - No valid action or client found in body");
       return NextResponse.json({ error: "Missing required data" }, { status: 400 });
     }
 
-    // 4. Perform Streaming Response
+    // 4. Execute streamText call using Vercel AI SDK with OpenAI model
     const result = await streamText({
       model: openai('gpt-4o-mini'),
       system: systemPrompt,
@@ -259,7 +280,7 @@ Send the reminder today.`;
       temperature: 0.7,
     });
 
-    // Use text stream response instead of data stream response to eliminate protocol wrappers
+    // Return plain text stream response directly for pristine client consumption
     return result.toTextStreamResponse();
     
   } catch (error) {
