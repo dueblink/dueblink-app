@@ -15,9 +15,10 @@ interface FloatingRobotProps {
   } | null;
   isPro?: boolean;
   externalAction?: string | null;
+  onOpenAddClient?: () => void;
 }
 
-export default function FloatingRobot({ onTrigger, recommendation, isPro = false, externalAction = null }: FloatingRobotProps) {
+export default function FloatingRobot({ onTrigger, recommendation, isPro = false, externalAction = null, onOpenAddClient }: FloatingRobotProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('User');
@@ -173,7 +174,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',          // 0
+      'hero',           // 0
       'late-payments',        // 1
       'features',             // 2
       'ai-recovery-assistant',// 3
@@ -401,7 +402,11 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   const handleAddClientRedirect = () => {
     setIsExpanded(false);
-    window.dispatchEvent(new CustomEvent('open-add-client-modal'));
+    if (onOpenAddClient) {
+      onOpenAddClient();
+    } else {
+      window.dispatchEvent(new CustomEvent('open-add-client-modal'));
+    }
   };
 
   if (pathname === '/create-account' || !isVisible) return null;
