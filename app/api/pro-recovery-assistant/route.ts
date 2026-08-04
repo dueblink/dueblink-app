@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 
+// Ensure this Next.js route is always dynamic and never cached on the server side
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 // Initialize the OpenAI provider with robust configuration
 const openai = createOpenAI({
   apiKey: process.env.DASHBOARD_PRO_API_KEY,
 });
 
 export async function POST(req: Request) {
-  console.log("--- Pro Recovery Assistant Route Triggered (Streaming) ---");
+  console.log("--- Pro Recovery Assistant Route Triggered (Streaming / Live Sync) ---");
 
   try {
     const rawBody = await req.json();
@@ -20,25 +24,34 @@ export async function POST(req: Request) {
 
     console.log("DEBUG - Parsed body:", body); 
 
-    const { client, history, action, clients, total } = body;
+    let { client, history, action, clients, total } = body;
 
-    // Strict Data Validation as specified in the Final AI Brain Specification
+    // Strict Server-Side Validation: Filter out invalid, empty, or deleted records from live data
+    if (Array.isArray(clients)) {
+      clients = clients.filter((c: any) => {
+        const isValidRecord = c && typeof c === 'object' && Object.keys(c).length > 0;
+        const isNotDeleted = c.status !== 'Deleted' && c.isDeleted !== true;
+        const hasName = Boolean(c.name && c.name.trim() !== '');
+        return isValidRecord && isNotDeleted && hasName;
+      });
+    }
+
     const hasValidClients = Array.isArray(clients) && clients.length > 0;
-    const hasValidClient = client && typeof client === 'object' && client.name;
+    const hasValidClient = client && typeof client === 'object' && client.name && client.status !== 'Deleted';
 
-    // Section 3: If No Clients Exist, Return Immediately to avoid unnecessary AI calls
+    // Section 3: If No Valid Live Clients Exist, Return Immediately to avoid unnecessary AI calls
     if (!hasValidClients && !hasValidClient && action !== "welcome_pro") {
-      console.log("DEBUG - Zero clients found. Returning immediate fallback response.");
+      console.log("DEBUG - Zero valid live clients found. Returning immediate fallback response.");
       return new NextResponse(
         "🤖 Blink\n📌 Status Update\n\n━━━━━━━━━━━━━━━━━━━━━━\n💡 Quick Summary\nNo clients yet.\n\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Important Information\n• Client List: Empty\n• Portfolio Status: Inactive\n\n━━━━━━━━━━━━━━━━━━━━━━\n✨ Blink Recommendation\nAdd your first client to unlock Blink AI Recovery Assistant and accelerate your payment recovery.\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 Next Best Action\nAdd Your First Client",
-        { headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
+        { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
       );
     }
 
-    // Comprehensive System Role definition ensuring strict role-adherence and structured formatting
+    // Comprehensive System Role definition ensuring strict role-adherence and live synchronization
     let systemPrompt = `You are Blink, DueBlink's AI Recovery Assistant.
 You help freelancers, agencies, consultants and businesses recover payments faster.
-Never act like a general chatbot. Only answer using the dashboard data provided.
+Never act like a general chatbot. Only answer using the latest live dashboard data provided. Never use cached or outdated data.
 
 DESIGN PRINCIPLE:
 - Every response must be visual, structured, scannable, and understood in under 10 seconds.
@@ -49,7 +62,7 @@ DESIGN PRINCIPLE:
 
     let userPrompt = "";
 
-    // 1. Handle Dashboard Actions with rigorous live data injection and validation
+    // 1. Handle Dashboard Actions with rigorous live data injection and zero-cache guarantee
     if (action) {
       if (action === "welcome_pro") {
         systemPrompt += `
@@ -69,7 +82,7 @@ Your Pro recovery workspace is fully active with zero limits.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
-Start by analyzing your client portfolio or generating your first priority follow-up.
+Start by analyzing your live client portfolio or generating your first priority follow-up.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
@@ -86,7 +99,7 @@ Follow this exact layout for Generate Follow-up:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Targeted recovery strategy and tailored multi-channel follow-up generated.
+Targeted recovery strategy and tailored multi-channel follow-up generated from live records.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
@@ -123,7 +136,7 @@ Follow this exact layout for Today's Priorities:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Active client portfolio analyzed to isolate today's most urgent collection targets based on days overdue and amounts.
+Active client portfolio analyzed in real-time to isolate today's most urgent collection targets.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
@@ -133,7 +146,7 @@ Active client portfolio analyzed to isolate today's most urgent collection targe
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
-Start with the highest-priority client to maximize immediate cash recovery.
+Start with the highest-priority client from your live portfolio to maximize immediate cash recovery.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
@@ -143,7 +156,9 @@ Generate Follow-up for the top priority client.`;
 
       } else if (action === "summarize" || action === "summarize_outstanding") {
         const pendingCount = clients?.filter((c: any) => c.status !== 'Paid')?.length || 0;
-        const overdueCount = clients?.filter((c: any) => c.status === 'Overdue')?.length || 0;
+        const overdueCount = clients?.filter((c: any) => c.status === 'Overdue' || Number(c.daysOverdue || 0) > 0)?.length || 0;
+        const computedTotal = clients?.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0) || total || '0';
+
         systemPrompt += `
 Follow this exact layout for Outstanding Summary:
 🤖 Blink
@@ -151,11 +166,11 @@ Follow this exact layout for Outstanding Summary:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Complete breakdown of current outstanding receivables and recovery performance.
+Complete breakdown of current outstanding receivables and recovery performance based on live data.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
-• Outstanding Amount: ₹${total || '0'}
+• Outstanding Amount: ₹${computedTotal}
 • Pending Clients: ${pendingCount}
 • Overdue Clients: ${overdueCount}
 • Recovery Rate: 85%
@@ -169,7 +184,7 @@ Cash flow requires active monitoring on overdue accounts this week.
 🎯 Next Best Action
 Review overdue clients to protect cash flow.`;
 
-        userPrompt = `Summarize live outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${total}. Use the exact Blink layout.`;
+        userPrompt = `Summarize live outstanding payments: ${JSON.stringify(clients)}. Total outstanding is ₹${computedTotal}. Use the exact Blink layout.`;
 
       } else if (action === "rewrite") {
         const targetClient = clients?.[0] || client || { name: 'Client', amount: '0' };
@@ -180,7 +195,7 @@ Follow this exact layout for Rewrite Reminder:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Reminder message tuned to your preferred communication tone.
+Reminder message tuned to your preferred communication tone using live client records.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
@@ -202,7 +217,7 @@ Copy the rewritten message and send it to the client.`;
         userPrompt = `Rewrite a payment reminder based on live client data: ${JSON.stringify(targetClient)}. Use the exact Blink layout.`;
 
       } else if (action === "overdue") {
-        const overdueList = clients?.filter((c: any) => c.status === 'Overdue' || Number(c.daysOverdue || 0) > 0) || clients || [];
+        const overdueList = clients?.filter((c: any) => c.status === 'Overdue' || Number(c.daysOverdue || 0) > 0) || [];
         systemPrompt += `
 Follow this exact layout for Find Overdue Clients:
 🤖 Blink
@@ -210,7 +225,7 @@ Follow this exact layout for Find Overdue Clients:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Filtered list displaying all accounts past their initial payment deadline.
+Filtered list displaying all accounts past their initial payment deadline based on live records.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
@@ -280,8 +295,14 @@ Send the reminder today.`;
       temperature: 0.7,
     });
 
-    // Return plain text stream response directly for pristine client consumption
-    return result.toTextStreamResponse();
+    // Return plain text stream response directly with explicit no-cache headers for live synchronization
+    return result.toTextStreamResponse({
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
     
   } catch (error) {
     console.error("Critical Assistant Error:", error);
