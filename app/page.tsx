@@ -987,7 +987,9 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
             <div suppressHydrationWarning={true}>
               <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-[#2BB6A8]" suppressHydrationWarning={true} /> Generate Your Reminder</h3>
-              <p className="text-[11px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>{reminderCount}/{maxLimit} Used {user ? '(Monthly Refill)' : ''}</p>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>
+                {user ? `${reminderCount}/15 Used (Monthly Refill)` : `${reminderCount}/5 Free Reminders Used`}
+              </p>
             </div>
             <span className="self-start sm:self-center text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-full" suppressHydrationWarning={true}>{getStageLabel()}</span>
           </div>
@@ -1059,7 +1061,26 @@ export default function LandingPage() {
           </div>
            
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
-            {result ? (
+            {isGenerating ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0, scale: 0.95 }} 
+                className="py-12 flex flex-col items-center justify-center space-y-4 w-full"
+              >
+                <motion.div 
+                  animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }} 
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }} 
+                  className="w-14 h-14 bg-blue-100/80 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner mx-auto"
+                >
+                  <Brain className="w-7 h-7 animate-pulse text-[#1C2E8F]" />
+                </motion.div>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-slate-900 uppercase tracking-widest">Blink AI is analyzing recovery psychology...</p>
+                  <p className="text-[11px] text-slate-500 font-medium">Drafting multi-channel high-conversion follow-ups</p>
+                </div>
+              </motion.div>
+            ) : result ? (
               <motion.div 
             key={result.email_subject}
             initial={{ opacity: 0, scale: 0.99 }}
