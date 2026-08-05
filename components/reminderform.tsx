@@ -1,18 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Mail, MessageSquare, Copy, Check, Sparkles, RefreshCw, Smartphone, Brain } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase';
+import { Mail, MessageSquare, Copy, Check, Sparkles, RefreshCw, Smartphone, Brain, Lock, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReminderFormProps {
-  onLimitReached: () => void;
+  onLimitReached?: () => void;
+  isPro?: boolean;
 }
 
-export function ReminderForm({ onLimitReached }: ReminderFormProps) {
+export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProps) {
   const [clientName, setClientName] = useState('');
   const [amountDue, setAmountDue] = useState('');
   const [daysOverdue, setDaysOverdue] = useState('');
   const [tone, setTone] = useState('Professional');
+  
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<{ 
     email_subject: string; 
@@ -24,33 +28,98 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
   
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'psychology'>('email');
   const [copied, setCopied] = useState(false);
-  const [reminderCount, setReminderCount] = useState<number>(0);
 
+  // User & Limit Tracking States
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [guestUsage, setGuestUsage] = useState(0);
+  const [freeUserUsage, setFreeUserUsage] = useState(0);
+  const [limitReached, setLimitReached] = useState(false);
+  const [limitType, setLimitType] = useState<'guest' | 'free' | null>(null);
+
+  const router = useRouter();
+
+  // Initialize auth state and check usage counters
   useEffect(() => {
-    const savedCount = localStorage.getItem('dueblink_free_reminders');
-    if (savedCount) {
-      setReminderCount(parseInt(savedCount, 10));
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        // Logged-in user: fetch database usage count
+        fetchUserBackendUsage(user.uid);
+      } else {
+        // Guest user: initialize or read guest ID & local count
+        initGuestTracking();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isPro]);
+
+  const initGuestTracking = () => {
+    let guestId = localStorage.getItem('dueblink_guest_id');
+    if (!guestId) {
+      guestId = 'guest_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem('dueblink_guest_id', guestId);
     }
-  }, []);
+
+    const savedCount = localStorage.getItem('dueblink_free_reminders');
+    const count = savedCount ? parseInt(savedCount, 10) : 0;
+    setGuestUsage(count);
+
+    if (count >= 5) {
+      setLimitReached(true);
+      setLimitType('guest');
+      if (onLimitReached) onLimitReached();
+    }
+  };
+
+  const fetchUserBackendUsage = async (uid: string) => {
+    try {
+      const res = await fetch(`/api/user-usage?uid=${uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        const usageCount = data.aiRemindersUsed || 0;
+        setFreeUserUsage(usageCount);
+        if (!isPro && usageCount >= 15) {
+          setLimitReached(true);
+          setLimitType('free');
+          if (onLimitReached) onLimitReached();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch backend user usage", error);
+    }
+  };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("DEBUG: Form submitted...");
     
     if (!clientName || !amountDue) {
       alert("Please fill in Client Name and Amount.");
       return;
     }
 
-    if (reminderCount >= 5) {
-      onLimitReached();
-      return;
+    // Guard check before calling API
+    if (!isPro) {
+      if (currentUser && freeUserUsage >= 15) {
+        setLimitReached(true);
+        setLimitType('free');
+        if (onLimitReached) onLimitReached();
+        return;
+      }
+      if (!currentUser && guestUsage >= 5) {
+        setLimitReached(true);
+        setLimitType('guest');
+        if (onLimitReached) onLimitReached();
+        return;
+      }
     }
     
     setIsGenerating(true);
+    setResult(null);
 
     try {
-      console.log("DEBUG: Fetching /api/generate-reminder...");
+      const guestId = !currentUser ? localStorage.getItem('dueblink_guest_id') : null;
+
       const response = await fetch('/api/generate-reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,25 +130,50 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
           invoiceRef: '', 
           daysOverdue: daysOverdue || '14',
           tone: tone.toLowerCase(),
+          uid: currentUser?.uid || null,
+          guestId: guestId
         }),
       });
 
       const data = await response.json();
       
       if (!response.ok) {
-        // This will now show the REAL error from the API
-        throw new Error(data.details || 'Failed to generate.');
+        if (response.status === 403) {
+          setLimitReached(true);
+          setLimitType(currentUser ? 'free' : 'guest');
+          if (onLimitReached) onLimitReached();
+          return;
+        }
+        throw new Error(data.details || data.message || 'Failed to generate.');
       }
 
       setResult(data);
-      const nextCount = reminderCount + 1;
-      setReminderCount(nextCount);
-      localStorage.setItem('dueblink_free_reminders', nextCount.toString());
 
-      if (nextCount >= 5) onLimitReached();
-    } catch (error) {
-      console.error("DEBUG: Request failed:", error);
-      alert("AI generation failed. Check browser F12 Console for details.");
+      // Increment tracking state post-success
+      if (!currentUser) {
+        const nextCount = guestUsage + 1;
+        setGuestUsage(nextCount);
+        localStorage.setItem('dueblink_free_reminders', nextCount.toString());
+        if (nextCount >= 5) {
+          setLimitReached(true);
+          setLimitType('guest');
+          if (onLimitReached) onLimitReached();
+        }
+      } else if (!isPro) {
+        setFreeUserUsage((prev) => {
+          const updated = prev + 1;
+          if (updated >= 15) {
+            setLimitReached(true);
+            setLimitType('free');
+            if (onLimitReached) onLimitReached();
+          }
+          return updated;
+        });
+      }
+
+    } catch (error: any) {
+      console.error("AI Generation failed:", error);
+      alert(error.message || "AI generation failed. Please check your connection.");
     } finally {
       setIsGenerating(false);
     }
@@ -103,68 +197,177 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
   };
 
   return (
-    <div className="mx-auto max-w-2xl bg-slate-50 border border-slate-200/60 p-5 sm:p-8 rounded-2xl shadow-md text-left">
-      <h3 className="text-sm font-bold text-[#1C2E8F] mb-6 flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse"></span>
+    <div className="mx-auto max-w-2xl bg-white border border-slate-200/80 p-5 sm:p-8 rounded-3xl shadow-xl text-left relative overflow-hidden">
+      
+      {/* Workspace Header & Live Remaining Count */}
+      <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
+        <span className="flex items-center gap-2 text-xs font-black text-[#1C2E8F] uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-[#2BB6A8] animate-pulse"></span>
           Free Instant Generator Workspace
         </span>
-        <span className="text-xs text-slate-400 font-semibold normal-case">
-          {reminderCount >= 5 ? '0' : 5 - reminderCount} free remaining
-        </span>
-      </h3>
-
-      <form onSubmit={handleGenerate} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-[#475569] uppercase tracking-wider mb-1.5">Client Name</label>
-            <input type="text" required placeholder="e.g., ABC Media Agency" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1C2E8F]/10 focus:border-[#1C2E8F] transition" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-[#475569] uppercase tracking-wider mb-1.5">Amount Due (INR)</label>
-            <input type="number" required placeholder="e.g., 25000" value={amountDue} onChange={(e) => setAmountDue(e.target.value)} className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1C2E8F]/10 focus:border-[#1C2E8F] transition" />
-          </div>
+        <div className="text-right">
+          {isPro ? (
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1">
+              <CheckCircle2 size={12} /> Pro Unlimited
+            </span>
+          ) : currentUser ? (
+            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+              Free Plan: <strong className="text-slate-900">{Math.max(0, 15 - freeUserUsage)}</strong> / 15 left
+            </span>
+          ) : (
+            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
+              Guest Trial: <strong className="text-slate-900">{Math.max(0, 5 - guestUsage)}</strong> / 5 left
+            </span>
+          )}
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-[#475569] uppercase tracking-wider mb-1.5">Days Overdue (Optional)</label>
-            <input type="number" placeholder="e.g., 7" value={daysOverdue} onChange={(e) => setDaysOverdue(e.target.value)} className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1C2E8F]/10 focus:border-[#1C2E8F] transition" />
+      {/* Limit Reached Block Banner */}
+      {limitReached ? (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-2xl p-6 text-center space-y-4 my-2"
+        >
+          <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto text-[#2BB6A8]">
+            <Lock size={20} />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-[#475569] uppercase tracking-wider mb-1.5">Tone Framework</label>
-            <div className="grid grid-cols-3 bg-slate-200/60 p-1 rounded-xl text-xs font-bold text-center">
-              {['Gentle', 'Professional', 'Firm'].map((t) => (
-                <button key={t} type="button" onClick={() => setTone(t)} className={`py-2 rounded-lg transition-all cursor-pointer ${tone === t ? 'bg-white text-[#1C2E8F] shadow-sm' : 'text-[#475569] hover:text-[#0F172A]'}`}>{t}</button>
-              ))}
+          <div className="space-y-1">
+            <h4 className="text-base font-black">
+              {limitType === 'guest' ? "You've used your 5 free guest reminders!" : "Monthly Free Limit Reached (15/15)"}
+            </h4>
+            <p className="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
+              {limitType === 'guest' 
+                ? "Create a free DueBlink account now to unlock up to 15 free monthly AI reminders, or upgrade to Pro for unlimited generation." 
+                : "You have reached your maximum monthly free AI generation limit. Upgrade to DueBlink Pro for unlimited automated debt recovery tools."}
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            {limitType === 'guest' && (
+              <button
+                onClick={() => router.push('/create-account')}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white text-slate-900 font-bold text-xs uppercase tracking-wider hover:bg-slate-100 transition shadow-md cursor-pointer"
+              >
+                Create Free Account
+              </button>
+            )}
+            <button
+              onClick={() => router.push('/pricing')}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] text-white font-bold text-xs uppercase tracking-wider hover:opacity-95 transition shadow-lg cursor-pointer"
+            >
+              Upgrade to Pro — Unlimited
+            </button>
+          </div>
+        </motion.div>
+      ) : (
+        <form onSubmit={handleGenerate} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Client Name</label>
+              <input 
+                type="text" 
+                required 
+                placeholder="e.g., ABC Media Agency" 
+                value={clientName} 
+                onChange={(e) => setClientName(e.target.value)} 
+                className="w-full text-sm px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1C2E8F]/20 focus:border-[#1C2E8F] transition" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Amount Due (INR)</label>
+              <input 
+                type="number" 
+                required 
+                placeholder="e.g., 25000" 
+                value={amountDue} 
+                onChange={(e) => setAmountDue(e.target.value)} 
+                className="w-full text-sm px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1C2E8F]/20 focus:border-[#1C2E8F] transition" 
+              />
             </div>
           </div>
-        </div>
 
-        <button type="submit" disabled={isGenerating} className="w-full font-bold text-sm text-white py-3.5 bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] rounded-xl shadow-sm hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-          {isGenerating ? (
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
-              <RefreshCw className="w-4 h-4" />
-            </motion.div>
-          ) : <Sparkles className="w-4 h-4" />}
-          {isGenerating ? "Processing Recovery Psychology..." : reminderCount >= 5 ? 'Free Limit Reached' : 'Generate Payment Reminders'}
-        </button>
-      </form>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Days Overdue (Optional)</label>
+              <input 
+                type="number" 
+                placeholder="e.g., 7" 
+                value={daysOverdue} 
+                onChange={(e) => setDaysOverdue(e.target.value)} 
+                className="w-full text-sm px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1C2E8F]/20 focus:border-[#1C2E8F] transition" 
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Tone Framework</label>
+              <div className="grid grid-cols-3 bg-slate-100 p-1 rounded-xl text-xs font-bold text-center">
+                {['Gentle', 'Professional', 'Firm'].map((t) => (
+                  <button 
+                    key={t} 
+                    type="button" 
+                    onClick={() => setTone(t)} 
+                    className={`py-2 rounded-lg transition-all cursor-pointer ${tone === t ? 'bg-white text-[#1C2E8F] shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
+          <button 
+            type="submit" 
+            disabled={isGenerating} 
+            className="w-full font-bold text-sm text-white py-3.5 bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] rounded-xl shadow-md hover:opacity-95 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isGenerating ? (
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
+                <RefreshCw className="w-4 h-4" />
+              </motion.div>
+            ) : <Sparkles className="w-4 h-4" />}
+            {isGenerating ? "Processing Recovery Psychology..." : 'Generate Payment Reminders'}
+          </button>
+        </form>
+      )}
+
+      {/* Immersive Generation Animation & Results Workspace */}
       <AnimatePresence mode="wait">
         {isGenerating ? (
-          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-6 p-8 border border-slate-200 rounded-xl bg-white flex flex-col items-center justify-center text-center space-y-4">
-            <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center">
-              <Brain className="w-6 h-6 text-[#1C2E8F]" />
+          <motion.div 
+            key="loading" 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, scale: 0.95 }} 
+            transition={{ duration: 0.2 }}
+            className="mt-6 p-8 border border-slate-200 rounded-2xl bg-slate-50 flex flex-col items-center justify-center text-center space-y-4"
+          >
+            <motion.div 
+              animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }} 
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }} 
+              className="w-14 h-14 bg-blue-100/80 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner"
+            >
+              <Brain className="w-7 h-7 animate-pulse" />
             </motion.div>
-            <p className="text-xs font-bold text-slate-500 animate-pulse uppercase tracking-widest">AI is crafting your strategy...</p>
+            <div className="space-y-1">
+              <p className="text-xs font-black text-slate-900 uppercase tracking-widest">Blink AI is analyzing recovery psychology...</p>
+              <p className="text-[11px] text-slate-500 font-medium">Drafting multi-channel high-conversion follow-ups</p>
+            </div>
           </motion.div>
         ) : result ? (
-          <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <div className="flex border-b border-slate-100 pb-2 mb-4 items-center justify-between gap-2 flex-wrap">
-              <div className="flex gap-4 text-xs font-bold flex-wrap">
+          <motion.div 
+            key="result" 
+            initial={{ opacity: 0, y: 15 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="mt-6 bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm"
+          >
+            <div className="flex border-b border-slate-200/80 pb-3 mb-4 items-center justify-between gap-2 flex-wrap">
+              <div className="flex gap-2 sm:gap-4 text-xs font-bold flex-wrap">
                 {['email', 'whatsapp', 'sms', 'psychology'].map((tab) => (
-                  <button key={tab} onClick={() => setActiveTab(tab as any)} className={`pb-2 flex items-center gap-1.5 border-b-2 transition cursor-pointer ${activeTab === tab ? 'border-[#1C2E8F] text-[#1C2E8F]' : 'border-transparent text-slate-400'}`}>
+                  <button 
+                    key={tab} 
+                    onClick={() => setActiveTab(tab as any)} 
+                    className={`pb-2 flex items-center gap-1.5 border-b-2 transition cursor-pointer ${activeTab === tab ? 'border-[#1C2E8F] text-[#1C2E8F]' : 'border-transparent text-slate-400 hover:text-slate-700'}`}
+                  >
                     {tab === 'email' && <Mail className="w-3.5 h-3.5" />}
                     {tab === 'whatsapp' && <MessageSquare className="w-3.5 h-3.5" />}
                     {tab === 'sms' && <Smartphone className="w-3.5 h-3.5" />}
@@ -173,14 +376,25 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
                   </button>
                 ))}
               </div>
-              <button onClick={() => handleCopy(getCopyableText())} className="text-xs bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 font-bold flex items-center gap-1.5 text-[#1C2E8F] transition cursor-pointer">
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />} {copied ? "Copied" : "Copy Output"}
+              <button 
+                onClick={() => handleCopy(getCopyableText())} 
+                className="text-xs bg-white hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 font-bold flex items-center gap-1.5 text-[#1C2E8F] transition shadow-2xs cursor-pointer"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />} 
+                {copied ? "Copied" : "Copy Output"}
               </button>
             </div>
-            <div className="text-xs sm:text-sm bg-slate-50 text-slate-800 p-3.5 rounded-xl font-mono whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto border border-slate-100">
-              {activeTab === 'email' && <div><span className="font-bold text-slate-400 block mb-2 border-b border-slate-200 pb-1 uppercase tracking-wide text-[10px]">Subject:</span><p className="font-sans font-bold mb-4 text-[#1C2E8F] text-sm">{result.email_subject}</p><span className="font-bold text-slate-400 block mb-2 border-b border-slate-200 pb-1 uppercase tracking-wide text-[10px]">Body:</span><p className="font-sans whitespace-pre-line">{result.email_body}</p></div>}
-              {activeTab === 'whatsapp' && <p className="font-sans">{result.whatsapp_message}</p>}
-              {activeTab === 'sms' && <p className="font-sans">{result.sms_text}</p>}
+            <div className="text-xs sm:text-sm bg-white text-slate-800 p-4 rounded-xl font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto border border-slate-200/60 shadow-inner">
+              {activeTab === 'email' && (
+                <div>
+                  <span className="font-bold text-slate-400 block mb-1 uppercase tracking-wide text-[10px]">Subject:</span>
+                  <p className="font-sans font-bold mb-3 text-[#1C2E8F] text-sm">{result.email_subject}</p>
+                  <span className="font-bold text-slate-400 block mb-1 uppercase tracking-wide text-[10px]">Body:</span>
+                  <p className="font-sans whitespace-pre-line text-slate-700">{result.email_body}</p>
+                </div>
+              )}
+              {activeTab === 'whatsapp' && <p className="font-sans text-slate-700">{result.whatsapp_message}</p>}
+              {activeTab === 'sms' && <p className="font-sans text-slate-700">{result.sms_text}</p>}
               {activeTab === 'psychology' && <p className="font-sans text-slate-600 italic">{result.psychology_note}</p>}
             </div>
           </motion.div>
