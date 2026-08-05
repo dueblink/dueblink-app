@@ -83,7 +83,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   useEffect(() => {
     const checkScrollButtonCollision = () => {
       // Typically scroll-to-top buttons appear after scrolling down a certain amount
-      if (window.scrollY > 400) {
+      if (window.scrollY > 300) {
         setIsShiftedUp(true);
       } else {
         setIsShiftedUp(false);
@@ -436,7 +436,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   return (
     <motion.div 
       animate={{ 
-        y: isShiftedUp ? -72 : 0, // Shifts up smoothly when required
+        y: isShiftedUp ? -100 : 0, // INCREASED SHIFT to avoid tall scroll buttons entirely
       }}
       transition={{ duration: 0.2, ease: "easeInOut" }}
       className={`fixed z-[900] flex flex-col items-end gap-3 ${pathname === '/dashboard' ? 'bottom-5 right-4 sm:bottom-6 sm:right-6' : 'bottom-6 right-4 sm:bottom-8 sm:right-6'}`} 
