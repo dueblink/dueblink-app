@@ -42,13 +42,12 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [clickedSectionText, setClickedSectionText] = useState<string | null>(null);
   
   // Dynamic positioning state to avoid overlapping
-  const [isShiftedUp, setIsShiftedUp] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
-  // Simplified and clean response parser matching the strict text stream format
   const cleanResponseText = (text: string) => {
     return text
       .replace(/\r/g, "")
@@ -56,7 +55,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       .trim();
   };
 
-  // Real-time reactive client count synchronization effect with zero caching
   const updateClientCount = useCallback(() => {
     try {
       const clients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
@@ -68,34 +66,27 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   useEffect(() => {
     updateClientCount();
-
-    // Listen to storage events and custom events for instant updates without page refresh
     window.addEventListener('storage', updateClientCount);
     window.addEventListener('clients-updated', updateClientCount);
-
     return () => {
       window.removeEventListener('storage', updateClientCount);
       window.removeEventListener('clients-updated', updateClientCount);
     };
   }, [updateClientCount]);
 
-  // Handle dynamic positioning to avoid scroll-to-top button collisions
+  // Handle dynamic positioning to clear scroll-to-top buttons / system UI
   useEffect(() => {
-    const checkScrollButtonCollision = () => {
-      // Typically scroll-to-top buttons appear after scrolling down a certain amount
-      if (window.scrollY > 300) {
-        setIsShiftedUp(true);
+    const checkScroll = () => {
+      if (window.scrollY > 150) {
+        setIsScrolled(true);
       } else {
-        setIsShiftedUp(false);
+        setIsScrolled(false);
       }
     };
 
-    window.addEventListener('scroll', checkScrollButtonCollision);
-    checkScrollButtonCollision(); // Initial check
-
-    return () => {
-      window.removeEventListener('scroll', checkScrollButtonCollision);
-    };
+    window.addEventListener('scroll', checkScroll);
+    checkScroll();
+    return () => window.removeEventListener('scroll', checkScroll);
   }, []);
 
   useEffect(() => {
@@ -137,7 +128,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     };
   }, [pathname, isPro, clickedSectionText]);
 
-  // Listen to external actions triggered from outside dashboard buttons
   useEffect(() => {
     if (externalAction && pathname === '/dashboard') {
       setIsExpanded(true);
@@ -150,7 +140,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
   }, [externalAction, pathname]);
 
-  // Accessibility: ESC closes popup
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -191,25 +180,24 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const currentSectionIndexRef = useRef(currentSectionIndex);
   currentSectionIndexRef.current = currentSectionIndex;
 
-  // Use IntersectionObserver for accurate section tracking
   useEffect(() => {
     if (pathname === '/dashboard') return;
 
     const sectionIds = [
-      'hero',           // 0
-      'late-payments',        // 1
-      'features',             // 2
-      'ai-recovery-assistant',// 3
-      'dashboard-preview',    // 4
-      'reminder-generator',   // 5
-      'without-vs-with',      // 6
-      'reminder-examples',    // 7
-      'how-it-works',         // 8
-      'built-for',            // 9
-      'pricing',              // 10
-      'faq',                  // 11
-      'missed-followup',      // 12
-      'final-cta'             // 13
+      'hero',
+      'late-payments',
+      'features',
+      'ai-recovery-assistant',
+      'dashboard-preview',
+      'reminder-generator',
+      'without-vs-with',
+      'reminder-examples',
+      'how-it-works',
+      'built-for',
+      'pricing',
+      'faq',
+      'missed-followup',
+      'final-cta'
     ];
 
     const observerCallback: IntersectionObserverCallback = (entries) => {
@@ -325,7 +313,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     return "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how to recover payments faster.\n\nNeed help? Click me anytime.";
   };
 
-  // LIVE DATA SYNCHRONIZATION: Always fetch fresh data directly from localStorage on every click
   const handleActionClick = async (actionId: string, actionTitle: string) => {
     if (!isPro) {
       router.push('/pricing');
@@ -343,7 +330,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
 
     try {
-      // Fetch absolute latest client data dynamically to prevent caching or stale state
       const freshClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       
       if (freshClients.length === 0) {
@@ -433,13 +419,14 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   if (pathname === '/create-account' || pathname === '/login' || !isVisible) return null;
 
+  // Fully distinct positioning classes depending on scroll state to clear taskbars and scroll buttons completely
+  const positioningClass = isScrolled 
+    ? 'bottom-28 sm:bottom-32 right-6 sm:right-8' 
+    : 'bottom-8 sm:bottom-10 right-6 sm:right-8';
+
   return (
-    <motion.div 
-      animate={{ 
-        y: isShiftedUp ? -100 : 0, // INCREASED SHIFT to avoid tall scroll buttons entirely
-      }}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-      className={`fixed z-[900] flex flex-col items-end gap-3 ${pathname === '/dashboard' ? 'bottom-5 right-4 sm:bottom-6 sm:right-6' : 'bottom-6 right-4 sm:bottom-8 sm:right-6'}`} 
+    <div 
+      className={`fixed z-[900] flex flex-col items-end gap-3 transition-all duration-200 ease-in-out ${positioningClass}`}
       suppressHydrationWarning={true}
     >
       
@@ -616,7 +603,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               {isLoggedIn ? (
                 isPro ? (
                   savedClientsCount === 0 && activeActionId ? (
-                    /* REACTIVE EMPTY STATE VIEW PER ACTION WHEN ZERO CLIENTS */
                     <div className="space-y-3 text-left py-1" suppressHydrationWarning={true}>
                       <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
                         <div className="flex items-center gap-1.5">
@@ -671,7 +657,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                             {aiResponse}
                           </div>
                           
-                          {/* CONTEXTUAL WORKFLOW ACTION BUTTONS */}
                           <div className="grid grid-cols-2 gap-1.5 pt-1">
                             {activeActionId === 'recommend' && (
                               <>
@@ -826,6 +811,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       >
         <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
       </motion.button>
-    </motion.div>
+    </div>
   );
 }
