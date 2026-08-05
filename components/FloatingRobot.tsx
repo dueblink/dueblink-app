@@ -40,6 +40,9 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [showMessageBubble, setShowMessageBubble] = useState(false);
   const [clickedSectionText, setClickedSectionText] = useState<string | null>(null);
+  
+  // Dynamic positioning state to avoid overlapping
+  const [isShiftedUp, setIsShiftedUp] = useState(false);
 
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pathname = usePathname();
@@ -75,6 +78,25 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       window.removeEventListener('clients-updated', updateClientCount);
     };
   }, [updateClientCount]);
+
+  // Handle dynamic positioning to avoid scroll-to-top button collisions
+  useEffect(() => {
+    const checkScrollButtonCollision = () => {
+      // Typically scroll-to-top buttons appear after scrolling down a certain amount
+      if (window.scrollY > 400) {
+        setIsShiftedUp(true);
+      } else {
+        setIsShiftedUp(false);
+      }
+    };
+
+    window.addEventListener('scroll', checkScrollButtonCollision);
+    checkScrollButtonCollision(); // Initial check
+
+    return () => {
+      window.removeEventListener('scroll', checkScrollButtonCollision);
+    };
+  }, []);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -409,10 +431,17 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
   };
 
-  if (pathname === '/create-account' || !isVisible) return null;
+  if (pathname === '/create-account' || pathname === '/login' || !isVisible) return null;
 
   return (
-    <div className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-[900] flex flex-col items-end gap-3" suppressHydrationWarning={true}>
+    <motion.div 
+      animate={{ 
+        y: isShiftedUp ? -72 : 0, // Shifts up smoothly when required
+      }}
+      transition={{ duration: 0.2, ease: "easeInOut" }}
+      className={`fixed z-[900] flex flex-col items-end gap-3 ${pathname === '/dashboard' ? 'bottom-5 right-4 sm:bottom-6 sm:right-6' : 'bottom-6 right-4 sm:bottom-8 sm:right-6'}`} 
+      suppressHydrationWarning={true}
+    >
       
       {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
       <AnimatePresence>
@@ -797,6 +826,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       >
         <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
       </motion.button>
-    </div>
+    </motion.div>
   );
 }
