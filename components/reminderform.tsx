@@ -8,10 +8,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReminderFormProps {
   onLimitReached?: () => void;
-  isPro?: boolean;
 }
 
-export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProps) {
+export function ReminderForm({ onLimitReached }: ReminderFormProps) {
   const [clientName, setClientName] = useState('');
   const [amountDue, setAmountDue] = useState('');
   const [daysOverdue, setDaysOverdue] = useState('');
@@ -29,8 +28,9 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'psychology'>('email');
   const [copied, setCopied] = useState(false);
 
-  // User & Limit Tracking States
+  // User, Pro, & Limit Tracking States
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isPro, setIsPro] = useState(false);
   const [guestUsage, setGuestUsage] = useState(0);
   const [freeUserUsage, setFreeUserUsage] = useState(0);
   const [limitReached, setLimitReached] = useState(false);
@@ -38,23 +38,44 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
 
   const router = useRouter();
 
-  // Initialize auth state and check usage counters
+  // Initialize auth state, instant Pro unlock event listeners, and usage counters
   useEffect(() => {
+    const checkProStatus = () => {
+      const localPro = localStorage.getItem('dueblink_is_pro') === 'true';
+      if (localPro) {
+        setIsPro(true);
+        setLimitReached(false);
+      }
+    };
+
+    checkProStatus();
+
+    const handleProUnlock = () => {
+      checkProStatus();
+    };
+
+    window.addEventListener('pro-status-updated', handleProUnlock);
+    window.addEventListener('storage', handleProUnlock);
+
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
       if (user) {
-        // Logged-in user: fetch database usage count
-        fetchUserBackendUsage(user.uid);
+        fetchUserBackendData(user.uid);
       } else {
-        // Guest user: initialize or read guest ID & local count
         initGuestTracking();
       }
     });
 
-    return () => unsubscribe();
-  }, [isPro]);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('pro-status-updated', handleProUnlock);
+      window.removeEventListener('storage', handleProUnlock);
+    };
+  }, []);
 
   const initGuestTracking = () => {
+    if (localStorage.getItem('dueblink_is_pro') === 'true') return;
+
     let guestId = localStorage.getItem('dueblink_guest_id');
     if (!guestId) {
       guestId = 'guest_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -72,21 +93,28 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
     }
   };
 
-  const fetchUserBackendUsage = async (uid: string) => {
+  const fetchUserBackendData = async (uid: string) => {
     try {
       const res = await fetch(`/api/user-usage?uid=${uid}`);
       if (res.ok) {
         const data = await res.json();
+        
+        if (data.isPro || localStorage.getItem('dueblink_is_pro') === 'true') {
+          setIsPro(true);
+          setLimitReached(false);
+          return;
+        }
+
         const usageCount = data.aiRemindersUsed || 0;
         setFreeUserUsage(usageCount);
-        if (!isPro && usageCount >= 15) {
+        if (usageCount >= 15) {
           setLimitReached(true);
           setLimitType('free');
           if (onLimitReached) onLimitReached();
         }
       }
     } catch (error) {
-      console.error("Failed to fetch backend user usage", error);
+      console.error("Failed to fetch backend user data", error);
     }
   };
 
@@ -98,7 +126,6 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
       return;
     }
 
-    // Guard check before calling API
     if (!isPro) {
       if (currentUser && freeUserUsage >= 15) {
         setLimitReached(true);
@@ -149,26 +176,27 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
 
       setResult(data);
 
-      // Increment tracking state post-success
-      if (!currentUser) {
-        const nextCount = guestUsage + 1;
-        setGuestUsage(nextCount);
-        localStorage.setItem('dueblink_free_reminders', nextCount.toString());
-        if (nextCount >= 5) {
-          setLimitReached(true);
-          setLimitType('guest');
-          if (onLimitReached) onLimitReached();
-        }
-      } else if (!isPro) {
-        setFreeUserUsage((prev) => {
-          const updated = prev + 1;
-          if (updated >= 15) {
+      if (!isPro) {
+        if (!currentUser) {
+          const nextCount = guestUsage + 1;
+          setGuestUsage(nextCount);
+          localStorage.setItem('dueblink_free_reminders', nextCount.toString());
+          if (nextCount >= 5) {
             setLimitReached(true);
-            setLimitType('free');
+            setLimitType('guest');
             if (onLimitReached) onLimitReached();
           }
-          return updated;
-        });
+        } else {
+          setFreeUserUsage((prev) => {
+            const updated = prev + 1;
+            if (updated >= 15) {
+              setLimitReached(true);
+              setLimitType('free');
+              if (onLimitReached) onLimitReached();
+            }
+            return updated;
+          });
+        }
       }
 
     } catch (error: any) {
@@ -199,15 +227,15 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
   return (
     <div className="mx-auto max-w-2xl bg-white border border-slate-200/80 p-5 sm:p-8 rounded-3xl shadow-xl text-left relative overflow-hidden">
       
-      {/* Workspace Header & Live Remaining Count */}
+      {/* Workspace Header & Live Remaining Count / Pro Status */}
       <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
         <span className="flex items-center gap-2 text-xs font-black text-[#1C2E8F] uppercase tracking-wider">
           <span className="w-2 h-2 rounded-full bg-[#2BB6A8] animate-pulse"></span>
-          Free Instant Generator Workspace
+          {isPro ? 'Pro Recovery Workspace' : 'Free Instant Generator Workspace'}
         </span>
         <div className="text-right">
           {isPro ? (
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1">
+            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
               <CheckCircle2 size={12} /> Pro Unlimited
             </span>
           ) : currentUser ? (
@@ -222,8 +250,8 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
         </div>
       </div>
 
-      {/* Limit Reached Block Banner */}
-      {limitReached ? (
+      {/* Limit Reached Block Banner (Hidden if Pro) */}
+      {!isPro && limitReached ? (
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
