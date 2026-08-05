@@ -133,7 +133,7 @@ export default function LoginPage() {
             
             <div className="flex justify-center mb-6 cursor-pointer" onClick={() => router.push('/')}>
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
-                <Image src="/icon.png" alt="DueBlink Icon" width={64} height={64} priority className="w-16 h-16 object-contain" />
+                <Image src="/icon.png" alt="DueBlink Icon" width={112} height={112} priority className="w-28 h-28 object-contain" />
               </div>
             </div>
 
