@@ -419,10 +419,10 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   if (pathname === '/create-account' || pathname === '/login' || !isVisible) return null;
 
-  // Fully distinct positioning classes depending on scroll state to clear taskbars and scroll buttons completely
+  // Raised baseline positioning so it never hides behind the taskbar/system tray even before scrolling
   const positioningClass = isScrolled 
     ? 'bottom-28 sm:bottom-32 right-6 sm:right-8' 
-    : 'bottom-8 sm:bottom-10 right-6 sm:right-8';
+    : 'bottom-20 sm:bottom-24 right-6 sm:right-8';
 
   return (
     <div 
