@@ -122,39 +122,39 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* RIGHT SIDE: MODERN CARD FORM */}
-        <div className="flex flex-col justify-center px-4 sm:px-12 lg:px-20 py-12">
+        {/* RIGHT SIDE: MODERN CARD FORM - OPTIMIZED PADDING TO MATCH CREATE ACCOUNT */}
+        <div className="flex flex-col justify-center px-4 sm:px-12 lg:px-20 py-8">
           <motion.div 
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-2xl shadow-slate-200/50"
+            className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/50"
           >
             
-            <div className="flex justify-center mb-6 cursor-pointer" onClick={() => router.push('/')}>
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
-                <Image src="/icon.png" alt="DueBlink Icon" width={112} height={112} priority className="w-28 h-28 object-contain" />
+            <div className="flex justify-center mb-4 cursor-pointer" onClick={() => router.push('/')}>
+              <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
+                <Image src="/icon.png" alt="DueBlink Icon" width={96} height={96} priority className="w-20 h-20 object-contain" />
               </div>
             </div>
 
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
-              <p className="text-xs text-slate-500 font-medium mt-1">Enter your credentials to access your workspace</p>
+            <div className="text-center mb-5">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Welcome Back</h2>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">Enter your credentials to access your workspace</p>
             </div>
 
-            <form className="space-y-5" onSubmit={handleLoginSubmit}>
+            <form className="space-y-3.5" onSubmit={handleLoginSubmit}>
               {error && (
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3.5 rounded-2xl text-center shadow-2xs"
+                  className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-2xl text-center shadow-2xs"
                 >
                   {error}
                 </motion.div>
               )}
               
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-slate-500 tracking-wider text-left">Email Address</label>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Email Address</label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Mail className="w-4 h-4" />
@@ -164,14 +164,14 @@ export default function LoginPage() {
                     required 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
                     placeholder="name@company.com" 
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-slate-500 tracking-wider text-left">Password</label>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Password</label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Lock className="w-4 h-4" />
@@ -181,7 +181,7 @@ export default function LoginPage() {
                     required 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-2xl pl-11 pr-11 py-3.5 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-11 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
                     placeholder="••••••••" 
                   />
                   <button 
@@ -198,7 +198,7 @@ export default function LoginPage() {
               <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full py-4 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-2xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-1 disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -211,7 +211,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="text-center text-xs font-semibold text-slate-500 mt-8 pt-6 border-t border-slate-100">
+            <div className="text-center text-xs font-semibold text-slate-500 mt-5 pt-4 border-t border-slate-100">
               New to DueBlink?{' '}
               <Link href="/create-account" className="font-bold text-[#245B92] hover:text-[#20B8BE] transition underline underline-offset-4">
                 Create an account
