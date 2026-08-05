@@ -26,16 +26,13 @@ export default function RegisterPage() {
     setError('');
     
     try {
-      // Firebase Sign Up
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Update Firebase Auth profile with full name
       if (fullName) {
         await updateProfile(user, { displayName: fullName });
       }
 
-      // Initialize User Document in Firestore
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
@@ -44,7 +41,6 @@ export default function RegisterPage() {
         createdAt: serverTimestamp(),
       });
       
-      // Mark user as authenticated
       localStorage.setItem('has_created_account', 'true');
       localStorage.setItem('user_authenticated', 'true');
       
@@ -98,7 +94,7 @@ export default function RegisterPage() {
       {/* --- MAIN SPLIT CONTAINER --- */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2">
         
-        {/* LEFT SIDE: BRANDED HIGHLIGHT PANEL MATCHING LOGIN & LANDING AESTHETIC */}
+        {/* LEFT SIDE: BRANDED HIGHLIGHT PANEL */}
         <div className="hidden lg:flex bg-gradient-to-br from-[#1C2E8F] via-[#245B92] to-[#2BB6A8] p-12 flex-col justify-between text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/10 blur-3xl pointer-events-none -mr-20 -mt-20"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full bg-[#20B8BE]/20 blur-3xl pointer-events-none -ml-20 -mb-20"></div>
@@ -145,38 +141,38 @@ export default function RegisterPage() {
         </div>
 
         {/* RIGHT SIDE: MODERN CARD FORM */}
-        <div className="flex flex-col justify-center px-4 sm:px-12 lg:px-20 py-12">
+        <div className="flex flex-col justify-center px-4 sm:px-12 lg:px-20 py-8">
           <motion.div 
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-8 sm:p-10 shadow-2xl shadow-slate-200/50"
+            className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/50"
           >
             
-            <div className="flex justify-center mb-6 cursor-pointer" onClick={() => router.push('/')}>
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
-                <Image src="/icon.png" alt="DueBlink Icon" width={112} height={112} priority className="w-28 h-28 object-contain" />
+            <div className="flex justify-center mb-4 cursor-pointer" onClick={() => router.push('/')}>
+              <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
+                <Image src="/icon.png" alt="DueBlink Icon" width={96} height={96} priority className="w-20 h-20 object-contain" />
               </div>
             </div>
             
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Get Started Free</h2>
-              <p className="text-xs text-slate-500 font-medium mt-1">Set up your workspace in seconds</p>
+            <div className="text-center mb-5">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">Get Started Free</h2>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">Set up your workspace in seconds</p>
             </div>
 
-            <form className="space-y-4" onSubmit={handleSignupSubmit}>
+            <form className="space-y-3.5" onSubmit={handleSignupSubmit}>
               {error && (
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3.5 rounded-2xl text-center shadow-2xs"
+                  className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-2xl text-center shadow-2xs"
                 >
                   {error}
                 </motion.div>
               )}
               
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-slate-500 tracking-wider text-left">Full Name</label>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Full Name</label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <User className="w-4 h-4" />
@@ -186,14 +182,14 @@ export default function RegisterPage() {
                     required 
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
                     placeholder="John Doe" 
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-slate-500 tracking-wider text-left">Email Address</label>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Email Address</label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Mail className="w-4 h-4" />
@@ -203,14 +199,14 @@ export default function RegisterPage() {
                     required 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
                     placeholder="name@company.com" 
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase text-slate-500 tracking-wider text-left">Password</label>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Password</label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Lock className="w-4 h-4" />
@@ -220,7 +216,7 @@ export default function RegisterPage() {
                     required 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-2xl pl-11 pr-11 py-3.5 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-11 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
                     placeholder="••••••••" 
                   />
                   <button 
@@ -237,7 +233,7 @@ export default function RegisterPage() {
               <button 
                 type="submit" 
                 disabled={loading}
-                className="w-full py-4 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-2xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-2 disabled:opacity-70 flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-1 disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -250,7 +246,7 @@ export default function RegisterPage() {
               </button>
             </form>
 
-            <div className="text-center text-xs font-semibold text-slate-500 mt-8 pt-6 border-t border-slate-100">
+            <div className="text-center text-xs font-semibold text-slate-500 mt-5 pt-4 border-t border-slate-100">
               Already have an account?{' '}
               <Link href="/login" className="font-bold text-[#245B92] hover:text-[#20B8BE] transition underline underline-offset-4">
                 Login
