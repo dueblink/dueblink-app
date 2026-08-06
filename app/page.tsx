@@ -17,23 +17,41 @@ export default function LandingPage() {
   const router = useRouter();
   const pathname = usePathname();
   
-  // Auth State
+  // Auth & Pro State
   const [user, setUser] = useState<any>(null);
+  const [isPro, setIsPro] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // Sync pro status from localStorage and event listeners
   useEffect(() => {
     setMounted(true);
+    const checkProStatus = () => {
+      const proStatus = localStorage.getItem('dueblink_is_pro') === 'true';
+      setIsPro(proStatus);
+    };
+    checkProStatus();
+
+    const handleProUpdate = () => {
+      checkProStatus();
+    };
+
+    window.addEventListener('pro-status-updated', handleProUpdate);
+    window.addEventListener('storage', handleProUpdate);
+
+    return () => {
+      window.removeEventListener('pro-status-updated', handleProUpdate);
+      window.removeEventListener('storage', handleProUpdate);
+    };
   }, []);
 
   // App Tracker Memory State
   const [reminderCount, setReminderCount] = useState<number>(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   
-  // Dynamic limit: 15 for logged-in users, 5 for non-logged-in/guests
-  const maxLimit = user ? 15 : 5;
-  const limitReached = reminderCount >= maxLimit;
+  // Dynamic limit: 15 for logged-in users, 5 for non-logged-in/guests. Unlimited if Pro.
+  const maxLimit = isPro ? 999999 : (user ? 15 : 5);
+  const limitReached = !isPro && reminderCount >= maxLimit;
 
-  const [isPro, setIsPro] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
 
@@ -105,6 +123,11 @@ export default function LandingPage() {
 
     const handleStorageChange = () => {
       checkAuth();
+      if (localStorage.getItem('dueblink_is_pro') === 'true') {
+        setIsPro(true);
+      } else {
+        setIsPro(false);
+      }
     };
     window.addEventListener('storage', handleStorageChange);
 
@@ -178,12 +201,10 @@ export default function LandingPage() {
   };
 
   const handleAssistantCta = () => {
-    if (!user) {
-      router.push('/login');
-    } else if (!isPro) {
-      router.push('/pricing');
-    } else {
+    if (isPro || user) {
       router.push('/dashboard');
+    } else {
+      router.push('/pricing');
     }
   };
 
@@ -225,9 +246,11 @@ export default function LandingPage() {
       }
 
       setResult(data);
-      const nextCount = reminderCount + 1;
-      setReminderCount(nextCount);
-      localStorage.setItem('dueblink_free_reminders', nextCount.toString());
+      if (!isPro) {
+        const nextCount = reminderCount + 1;
+        setReminderCount(nextCount);
+        localStorage.setItem('dueblink_free_reminders', nextCount.toString());
+      }
     } catch (error) {
       console.error("AI GENERATION ERROR:", error);
       alert("AI generation failed. Check F12 console for the specific error.");
@@ -363,7 +386,7 @@ export default function LandingPage() {
                     style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                     suppressHydrationWarning={true}
                   >
-                    Dashboard
+                    {isPro ? 'Pro Active — Open Dashboard' : 'Dashboard'}
                   </motion.button>
                   <div className="relative group py-2">
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} className={`flex items-center gap-1.5 text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/account' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-700 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>
@@ -446,7 +469,7 @@ export default function LandingPage() {
                     onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
                     className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition"
                   >
-                    Dashboard
+                    {isPro ? 'Pro Active — Open Dashboard' : 'Dashboard'}
                   </button>
                   <button 
                     onClick={() => { signOut(auth); setMobileMenuOpen(false); }}
@@ -489,9 +512,9 @@ export default function LandingPage() {
       >
         <div className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70" suppressHydrationWarning={true}></div>
         <div className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60" suppressHydrationWarning={true}></div>
-         
+          
         <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8" suppressHydrationWarning={true}>
-             
+            
         <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden" suppressHydrationWarning={true}>
             <span className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse shrink-0" suppressHydrationWarning={true} />
             <span className="text-[#0F172A] font-bold whitespace-nowrap" suppressHydrationWarning={true}>
@@ -502,21 +525,21 @@ export default function LandingPage() {
             <span className="animate-pulse ml-0.5 border-r-2 border-[#2BB6A8] h-3 inline-block" suppressHydrationWarning={true} />
         </span>
       </div>
-             
+            
       <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-[#0F172A] uppercase leading-[1.1] sm:leading-[1.02]" suppressHydrationWarning={true}>
         STOP CHASING CLIENTS. <br />
         <span className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent" suppressHydrationWarning={true}>GET PAID FASTER.</span>
       </h1>
-             
+            
       <div className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600" suppressHydrationWarning={true}>
         <p className="text-slate-400 font-medium lowercase" suppressHydrationWarning={true}>Stop using spreadsheets. Stop forgetting follow-ups.</p>
         <p className="text-base sm:text-lg text-[#1C2E8F] font-bold" suppressHydrationWarning={true}>Start getting paid faster.</p>
       </div>
-             
+            
       <p className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2" suppressHydrationWarning={true}>
         Generate professional payment reminders, track unpaid invoices, and recover payments faster with AI.
       </p>
-             
+            
       <div className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4" suppressHydrationWarning={true}>
         <motion.button 
           whileHover={{ scale: 1.02 }}
@@ -526,7 +549,7 @@ export default function LandingPage() {
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-8 sm:px-10 py-4 rounded-xl transition shadow-xs cursor-pointer" 
           suppressHydrationWarning={true}
         >
-          {user ? 'Open Dashboard' : 'Try 5 AI Reminders Free'}
+          {isPro ? 'Pro Active — Open Dashboard' : user ? 'Open Dashboard' : 'Try 5 AI Reminders Free'}
         </motion.button>
            
         {!user && (
@@ -557,7 +580,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-8 sm:space-y-10" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight uppercase" suppressHydrationWarning={true}>
@@ -565,7 +588,7 @@ export default function LandingPage() {
           <span className="bg-gradient-to-r from-red-600 to-amber-600 bg-clip-text text-transparent" suppressHydrationWarning={true}>
         They Kill Cash Flow.
           </span>
-      </h2>
+        </h2>
       <p className="text-sm sm:text-base text-slate-500 font-medium max-w-2xl mx-auto px-2" suppressHydrationWarning={true}>
         You finished the work. You delivered the project. You sent the invoice. Now you're wondering...
       </p>
@@ -614,7 +637,7 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-         
+        
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
         <motion.span 
@@ -631,7 +654,7 @@ export default function LandingPage() {
         </motion.span>
         ))}
       </div>
-         
+        
       <div className="space-y-3 pt-4 text-sm font-semibold text-slate-600 border-t border-slate-200/60 max-w-xl mx-auto" suppressHydrationWarning={true}>
         <p className="text-slate-700 font-medium" suppressHydrationWarning={true}>
         Small follow-up mistakes become big cash flow problems.
@@ -650,7 +673,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-         
+        
 </div>
     </motion.section>
 
@@ -665,7 +688,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>One place to recover payments.</h2>
@@ -771,7 +794,7 @@ export default function LandingPage() {
             style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
             suppressHydrationWarning={true}
           >
-            {!user ? 'Create Free Account' : !isPro ? 'Upgrade to Pro' : 'Open AI Recovery Assistant'} <ArrowRight size={16} />
+            {isPro ? 'Pro Active — Open Dashboard' : !user ? 'Create Free Account' : 'Upgrade to Pro'} <ArrowRight size={16} />
           </motion.button>
         </div>
         </div>
@@ -878,11 +901,11 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
         >
           <Sparkles className="w-3.5 h-3.5" suppressHydrationWarning={true} /> 
-          <span>{user ? 'Go to Dashboard' : 'Generate Reminder'}</span>
+          <span>{isPro ? 'Pro Active — Open Dashboard' : user ? 'Go to Dashboard' : 'Generate Reminder'}</span>
           <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider">AI Powered</span>
         </motion.button>
           </div>
-           
+            
           <div className="divide-y divide-slate-100 min-w-[300px]" suppressHydrationWarning={true}>
         <div className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0" suppressHydrationWarning={true}>
           <div className="flex items-center gap-3" suppressHydrationWarning={true}>
@@ -932,7 +955,7 @@ export default function LandingPage() {
       <div className="space-y-2" suppressHydrationWarning={true}>
         <div className="text-3xl sm:text-4xl select-none mb-1" suppressHydrationWarning={true}>🤖</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-          {user ? 'Generate AI Reminder — Member Edition (15 Monthly Free)' : 'Generate Your First AI Reminder — Free'}
+          {isPro ? 'Generate AI Reminder — Pro Unlimited Edition' : user ? 'Generate AI Reminder — Member Edition (15 Monthly Free)' : 'Generate Your First AI Reminder — Free'}
         </h2>
         <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Create professional Email & WhatsApp payment reminders in seconds.</p>
       </div>
@@ -988,7 +1011,7 @@ export default function LandingPage() {
             <div suppressHydrationWarning={true}>
               <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-[#2BB6A8]" suppressHydrationWarning={true} /> Generate Your Reminder</h3>
               <p className="text-[11px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>
-                {user ? `${reminderCount}/15 Used (Monthly Refill)` : `${reminderCount}/5 Free Reminders Used`}
+                {isPro ? 'Pro Plan — Unlimited Generations' : user ? `${reminderCount}/15 Used (Monthly Refill)` : `${reminderCount}/5 Free Reminders Used`}
               </p>
             </div>
             <span className="self-start sm:self-center text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-full" suppressHydrationWarning={true}>{getStageLabel()}</span>
@@ -1188,7 +1211,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-5xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-3.5" suppressHydrationWarning={true}>
         <div className="flex justify-center select-none" suppressHydrationWarning={true}>
           <Target className="w-11 h-11 text-rose-500" suppressHydrationWarning={true} />
@@ -1398,7 +1421,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-amber-400 mx-auto fill-amber-400" suppressHydrationWarning={true} />
@@ -1561,7 +1584,7 @@ export default function LandingPage() {
         className="w-full py-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-50 transition cursor-pointer text-sm"
         suppressHydrationWarning={true}
           >
-        {user ? 'Current Plan' : 'Start Free'}
+        {!isPro && user ? 'Current Plan' : 'Start Free'}
           </button>
         </motion.div>
 
@@ -1606,7 +1629,7 @@ export default function LandingPage() {
         className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
         suppressHydrationWarning={true}
           >
-        {user ? (isPro ? 'Current Plan ✓' : 'Upgrade to Pro') : 'Upgrade to Pro'}
+        {isPro ? 'Pro Active ✓' : 'Upgrade to Pro'}
           </button>
         </motion.div>
       </motion.div>
@@ -1624,7 +1647,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
@@ -1706,7 +1729,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           Every missed follow-up costs money.
         </h2>
-           
+            
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1731,7 +1754,7 @@ export default function LandingPage() {
         </motion.div>
           ))}
         </motion.div>
-           
+            
         <p className="text-sm sm:text-base text-slate-600 font-medium px-2" suppressHydrationWarning={true}>
           Every missed follow-up delays cash flow. DueBlink keeps every client, reminder, and payment organized so nothing slips through the cracks.
         </p>
@@ -1755,7 +1778,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           {user ? (isPro ? 'Everything is ready. Recover payments with confidence.' : 'Welcome back. Ready to recover more payments?') : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
-           
+            
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1790,7 +1813,7 @@ export default function LandingPage() {
         suppressHydrationWarning={true}
           >
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
-        {user ? 'Open Dashboard' : 'Generate Reminder Free'}
+        {isPro ? 'Pro Active — Open Dashboard' : user ? 'Open Dashboard' : 'Generate Reminder Free'}
           </motion.button>
            
           {user && !isPro && (
@@ -1806,7 +1829,7 @@ export default function LandingPage() {
         </motion.button>
           )}
         </div>
-           
+            
         {!user && (
           <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
@@ -1824,7 +1847,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-         
+        
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -1840,14 +1863,14 @@ export default function LandingPage() {
         <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
         <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
       </div>
-           
+            
       <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
         <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
           support@dueblink.com
         </a>
         <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
       </div>
-           
+            
     </div>
     </motion.footer>
 
