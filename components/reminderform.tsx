@@ -8,9 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ReminderFormProps {
   onLimitReached?: () => void;
+  isPro?: boolean;
 }
 
-export function ReminderForm({ onLimitReached }: ReminderFormProps) {
+export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProps) {
   const [clientName, setClientName] = useState('');
   const [amountDue, setAmountDue] = useState('');
   const [daysOverdue, setDaysOverdue] = useState('');
@@ -28,9 +29,9 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'psychology'>('email');
   const [copied, setCopied] = useState(false);
 
-  // User, Pro, & Limit Tracking States
+  // User & Limit Tracking States
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isPro, setIsPro] = useState(false);
+  const [effectiveIsPro, setEffectiveIsPro] = useState(isPro);
   const [guestUsage, setGuestUsage] = useState(0);
   const [freeUserUsage, setFreeUserUsage] = useState(0);
   const [limitReached, setLimitReached] = useState(false);
@@ -38,13 +39,15 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
 
   const router = useRouter();
 
-  // Initialize auth state, instant Pro unlock event listeners, and usage counters
+  // Sync internal pro state with props and localStorage events
   useEffect(() => {
     const checkProStatus = () => {
       const localPro = localStorage.getItem('dueblink_is_pro') === 'true';
-      if (localPro) {
-        setIsPro(true);
+      if (isPro || localPro) {
+        setEffectiveIsPro(true);
         setLimitReached(false);
+      } else {
+        setEffectiveIsPro(false);
       }
     };
 
@@ -71,10 +74,10 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
       window.removeEventListener('pro-status-updated', handleProUnlock);
       window.removeEventListener('storage', handleProUnlock);
     };
-  }, []);
+  }, [isPro]);
 
   const initGuestTracking = () => {
-    if (localStorage.getItem('dueblink_is_pro') === 'true') return;
+    if (isPro || localStorage.getItem('dueblink_is_pro') === 'true') return;
 
     let guestId = localStorage.getItem('dueblink_guest_id');
     if (!guestId) {
@@ -99,8 +102,8 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
       if (res.ok) {
         const data = await res.json();
         
-        if (data.isPro || localStorage.getItem('dueblink_is_pro') === 'true') {
-          setIsPro(true);
+        if (isPro || data.isPro || localStorage.getItem('dueblink_is_pro') === 'true') {
+          setEffectiveIsPro(true);
           setLimitReached(false);
           return;
         }
@@ -126,7 +129,8 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
       return;
     }
 
-    if (!isPro) {
+    // Bypass all usage restrictions completely if Pro is active
+    if (!effectiveIsPro) {
       if (currentUser && freeUserUsage >= 15) {
         setLimitReached(true);
         setLimitType('free');
@@ -165,7 +169,7 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        if (response.status === 403) {
+        if (response.status === 403 && !effectiveIsPro) {
           setLimitReached(true);
           setLimitType(currentUser ? 'free' : 'guest');
           if (onLimitReached) onLimitReached();
@@ -176,7 +180,8 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
 
       setResult(data);
 
-      if (!isPro) {
+      // Only increment usage counters if the user is NOT Pro
+      if (!effectiveIsPro) {
         if (!currentUser) {
           const nextCount = guestUsage + 1;
           setGuestUsage(nextCount);
@@ -231,10 +236,10 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
       <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
         <span className="flex items-center gap-2 text-xs font-black text-[#1C2E8F] uppercase tracking-wider">
           <span className="w-2 h-2 rounded-full bg-[#2BB6A8] animate-pulse"></span>
-          {isPro ? 'Pro Recovery Workspace' : 'Free Instant Generator Workspace'}
+          {effectiveIsPro ? 'Pro Recovery Workspace' : 'Free Instant Generator Workspace'}
         </span>
         <div className="text-right">
-          {isPro ? (
+          {effectiveIsPro ? (
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
               <CheckCircle2 size={12} /> Pro Unlimited
             </span>
@@ -251,7 +256,7 @@ export function ReminderForm({ onLimitReached }: ReminderFormProps) {
       </div>
 
       {/* Limit Reached Block Banner (Hidden if Pro) */}
-      {!isPro && limitReached ? (
+      {!effectiveIsPro && limitReached ? (
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
