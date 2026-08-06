@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 export default function PricingPage() {
@@ -22,6 +22,10 @@ export default function PricingPage() {
 
   useEffect(() => {
     setMounted(true);
+    // Sync initial pro status from localStorage
+    if (localStorage.getItem('dueblink_is_pro') === 'true' || localStorage.getItem('dueblink_pro_active') === 'true') {
+      setIsUserPro(true);
+    }
   }, []);
 
   // Close mobile menu on route change
@@ -37,7 +41,7 @@ export default function PricingPage() {
         localStorage.setItem('user_authenticated', 'true');
         
         // Instant check using local backup flag
-        if (localStorage.getItem('dueblink_pro_active') === 'true') {
+        if (localStorage.getItem('dueblink_is_pro') === 'true' || localStorage.getItem('dueblink_pro_active') === 'true') {
           setIsUserPro(true);
         }
 
@@ -51,17 +55,21 @@ export default function PricingPage() {
                 const expires = data.proExpiresAt.toDate();
                 if (new Date() < expires) {
                   setIsUserPro(true);
+                  localStorage.setItem('dueblink_is_pro', 'true');
                   localStorage.setItem('dueblink_pro_active', 'true');
                 } else {
                   setIsUserPro(false);
+                  localStorage.removeItem('dueblink_is_pro');
                   localStorage.removeItem('dueblink_pro_active');
                 }
               } else {
                 setIsUserPro(true);
+                localStorage.setItem('dueblink_is_pro', 'true');
                 localStorage.setItem('dueblink_pro_active', 'true');
               }
             } else {
               setIsUserPro(false);
+              localStorage.removeItem('dueblink_is_pro');
               localStorage.removeItem('dueblink_pro_active');
             }
           }
@@ -82,6 +90,8 @@ export default function PricingPage() {
       await signOut(auth);
       localStorage.removeItem('user_authenticated');
       localStorage.removeItem('has_created_account');
+      localStorage.removeItem('dueblink_is_pro');
+      localStorage.removeItem('dueblink_pro_active');
       setUser(null);
       setIsUserPro(false);
       router.push('/');
@@ -144,14 +154,19 @@ export default function PricingPage() {
                 cancelledAt: null
               });
 
+              // CRITICAL FIX: Set both storage flags and fire event so landing page & generators update instantly
+              localStorage.setItem('dueblink_is_pro', 'true');
               localStorage.setItem('dueblink_pro_active', 'true');
               localStorage.setItem('just_upgraded', 'true');
+              window.dispatchEvent(new Event('pro-status-updated'));
               setIsUserPro(true);
             }
           } catch (err) {
             console.error("Error activating Pro subscription:", err);
+            localStorage.setItem('dueblink_is_pro', 'true');
             localStorage.setItem('dueblink_pro_active', 'true');
             localStorage.setItem('just_upgraded', 'true');
+            window.dispatchEvent(new Event('pro-status-updated'));
             setIsUserPro(true);
           }
 
@@ -385,7 +400,7 @@ export default function PricingPage() {
                 <p className="text-slate-400 text-sm mb-6 font-medium" suppressHydrationWarning={true}>Start recovering payments</p>
                 <div className="text-5xl font-black mb-8 text-[#0F172A]" suppressHydrationWarning={true}>₹0</div>
                 <ul className="space-y-4 mb-8 flex-grow" suppressHydrationWarning={true}>
-                  {["5 AI Reminders per month", "Email Reminders", "WhatsApp Reminders", "Tone Selection", "Basic Tracking"].map(text => (
+                  {["15 Free Monthly Reminders (Auto-refills)", "Email Reminders", "WhatsApp Reminders", "Tone Selection", "Basic Tracking"].map(text => (
                     <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
                       <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center" suppressHydrationWarning={true}>
                         <Check className="w-3 h-3 text-slate-400" strokeWidth={4} suppressHydrationWarning={true} />
