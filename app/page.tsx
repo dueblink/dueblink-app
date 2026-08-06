@@ -25,10 +25,14 @@ export default function LandingPage() {
   // Sync pro status from localStorage and event listeners
   useEffect(() => {
     setMounted(true);
+    
     const checkProStatus = () => {
-      const proStatus = localStorage.getItem('dueblink_is_pro') === 'true';
-      setIsPro(proStatus);
+      const isProActive = 
+        localStorage.getItem('dueblink_is_pro') === 'true' || 
+        localStorage.getItem('dueblink_pro_active') === 'true';
+      setIsPro(isProActive);
     };
+    
     checkProStatus();
 
     const handleProUpdate = () => {
