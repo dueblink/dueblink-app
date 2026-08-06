@@ -27,6 +27,13 @@ export default function LandingPage() {
     setMounted(true);
     
     const checkProStatus = () => {
+      // Check if user is authenticated either via Firebase state or persistent storage flag
+      const isAuthed = localStorage.getItem('user_authenticated') === 'true' || auth.currentUser !== null;
+      if (!isAuthed) {
+        setIsPro(false);
+        return;
+      }
+
       const isProActive = 
         localStorage.getItem('dueblink_is_pro') === 'true' || 
         localStorage.getItem('dueblink_pro_active') === 'true';
@@ -103,6 +110,11 @@ export default function LandingPage() {
     const checkAuth = () => {
       const currentAuthUser = auth.currentUser;
       setUser(currentAuthUser);
+      if (!currentAuthUser && localStorage.getItem('user_authenticated') !== 'true') {
+        setIsPro(false);
+        localStorage.removeItem('dueblink_is_pro');
+        localStorage.removeItem('dueblink_pro_active');
+      }
     };
     checkAuth();
 
@@ -112,6 +124,9 @@ export default function LandingPage() {
         localStorage.setItem('user_authenticated', 'true');
       } else {
         localStorage.removeItem('user_authenticated');
+        localStorage.removeItem('dueblink_is_pro');
+        localStorage.removeItem('dueblink_pro_active');
+        setIsPro(false);
       }
     });
 
@@ -127,7 +142,13 @@ export default function LandingPage() {
 
     const handleStorageChange = () => {
       checkAuth();
-      if (localStorage.getItem('dueblink_is_pro') === 'true') {
+      const isAuthed = auth.currentUser !== null || localStorage.getItem('user_authenticated') === 'true';
+      if (!isAuthed) {
+        setIsPro(false);
+        return;
+      }
+
+      if (localStorage.getItem('dueblink_is_pro') === 'true' || localStorage.getItem('dueblink_pro_active') === 'true') {
         setIsPro(true);
       } else {
         setIsPro(false);
@@ -140,6 +161,21 @@ export default function LandingPage() {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem('user_authenticated');
+      localStorage.removeItem('dueblink_is_pro');
+      localStorage.removeItem('dueblink_pro_active');
+      setUser(null);
+      setIsPro(false);
+      router.push('/');
+      router.refresh();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
 
   // Effect: Scroll Tracking & Active Section detection with clean boundary checks
   useEffect(() => {
@@ -293,7 +329,7 @@ export default function LandingPage() {
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
-           
+            
           {/* LOGO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
@@ -400,7 +436,7 @@ export default function LandingPage() {
                       )}
                     </motion.button>
                     <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 hidden group-hover:block z-50">
-                      <button onClick={() => signOut(auth)} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
                     </div>
                   </div>
                 </div>
@@ -476,7 +512,7 @@ export default function LandingPage() {
                     {isPro ? 'Pro Active — Open Dashboard' : 'Dashboard'}
                   </button>
                   <button 
-                    onClick={() => { signOut(auth); setMobileMenuOpen(false); }}
+                    onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
                     className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
                   >
                     Logout
@@ -516,9 +552,9 @@ export default function LandingPage() {
       >
         <div className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70" suppressHydrationWarning={true}></div>
         <div className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60" suppressHydrationWarning={true}></div>
-          
+           
         <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8" suppressHydrationWarning={true}>
-            
+             
         <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden" suppressHydrationWarning={true}>
             <span className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse shrink-0" suppressHydrationWarning={true} />
             <span className="text-[#0F172A] font-bold whitespace-nowrap" suppressHydrationWarning={true}>
@@ -529,21 +565,21 @@ export default function LandingPage() {
             <span className="animate-pulse ml-0.5 border-r-2 border-[#2BB6A8] h-3 inline-block" suppressHydrationWarning={true} />
         </span>
       </div>
-            
+             
       <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-[#0F172A] uppercase leading-[1.1] sm:leading-[1.02]" suppressHydrationWarning={true}>
         STOP CHASING CLIENTS. <br />
         <span className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent" suppressHydrationWarning={true}>GET PAID FASTER.</span>
       </h1>
-            
+             
       <div className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600" suppressHydrationWarning={true}>
         <p className="text-slate-400 font-medium lowercase" suppressHydrationWarning={true}>Stop using spreadsheets. Stop forgetting follow-ups.</p>
         <p className="text-base sm:text-lg text-[#1C2E8F] font-bold" suppressHydrationWarning={true}>Start getting paid faster.</p>
       </div>
-            
+             
       <p className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2" suppressHydrationWarning={true}>
         Generate professional payment reminders, track unpaid invoices, and recover payments faster with AI.
       </p>
-            
+             
       <div className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4" suppressHydrationWarning={true}>
         <motion.button 
           whileHover={{ scale: 1.02 }}
@@ -584,7 +620,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-8 sm:space-y-10" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight uppercase" suppressHydrationWarning={true}>
@@ -641,7 +677,7 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-        
+         
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
         <motion.span 
@@ -658,7 +694,7 @@ export default function LandingPage() {
         </motion.span>
         ))}
       </div>
-        
+         
       <div className="space-y-3 pt-4 text-sm font-semibold text-slate-600 border-t border-slate-200/60 max-w-xl mx-auto" suppressHydrationWarning={true}>
         <p className="text-slate-700 font-medium" suppressHydrationWarning={true}>
         Small follow-up mistakes become big cash flow problems.
@@ -677,7 +713,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-        
+         
 </div>
     </motion.section>
 
@@ -692,7 +728,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>One place to recover payments.</h2>
@@ -909,7 +945,7 @@ export default function LandingPage() {
           <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider">AI Powered</span>
         </motion.button>
           </div>
-            
+             
           <div className="divide-y divide-slate-100 min-w-[300px]" suppressHydrationWarning={true}>
         <div className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0" suppressHydrationWarning={true}>
           <div className="flex items-center gap-3" suppressHydrationWarning={true}>
@@ -1215,7 +1251,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-5xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-3.5" suppressHydrationWarning={true}>
         <div className="flex justify-center select-none" suppressHydrationWarning={true}>
           <Target className="w-11 h-11 text-rose-500" suppressHydrationWarning={true} />
@@ -1425,7 +1461,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-amber-400 mx-auto fill-amber-400" suppressHydrationWarning={true} />
@@ -1651,7 +1687,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
@@ -1733,7 +1769,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           Every missed follow-up costs money.
         </h2>
-            
+           
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1758,7 +1794,7 @@ export default function LandingPage() {
         </motion.div>
           ))}
         </motion.div>
-            
+           
         <p className="text-sm sm:text-base text-slate-600 font-medium px-2" suppressHydrationWarning={true}>
           Every missed follow-up delays cash flow. DueBlink keeps every client, reminder, and payment organized so nothing slips through the cracks.
         </p>
@@ -1782,7 +1818,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           {user ? (isPro ? 'Everything is ready. Recover payments with confidence.' : 'Welcome back. Ready to recover more payments?') : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
-            
+           
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1833,7 +1869,7 @@ export default function LandingPage() {
         </motion.button>
           )}
         </div>
-            
+           
         {!user && (
           <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
@@ -1851,7 +1887,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-        
+         
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -1867,14 +1903,14 @@ export default function LandingPage() {
         <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
         <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
       </div>
-            
+           
       <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
         <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
           support@dueblink.com
         </a>
         <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
       </div>
-            
+           
     </div>
     </motion.footer>
 
