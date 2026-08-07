@@ -29,4 +29,4 @@ export const db = getFirestore(app);
 // Safely initialize analytics only in the browser and if supported
 export const analytics = (typeof window !== 'undefined') 
   ? isSupported().then(supported => supported ? getAnalytics(app) : null) 
-  : null
+  : null;
