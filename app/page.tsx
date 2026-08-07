@@ -27,7 +27,6 @@ export default function LandingPage() {
     setMounted(true);
     
     const checkProStatus = () => {
-      // Check if user is authenticated either via Firebase state or persistent storage flag
       const isAuthed = localStorage.getItem('user_authenticated') === 'true' || auth.currentUser !== null;
       if (!isAuthed) {
         setIsPro(false);
@@ -426,7 +425,8 @@ export default function LandingPage() {
                     style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                     suppressHydrationWarning={true}
                   >
-                    {isPro ? 'Pro Active — Open Dashboard' : 'Dashboard'}
+                    Open Dashboard 
+                    {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider ml-1">PRO</span>}
                   </motion.button>
                   <div className="relative group py-2">
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} className={`flex items-center gap-1.5 text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/account' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-700 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>
@@ -507,9 +507,9 @@ export default function LandingPage() {
                 <>
                   <button 
                     onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
-                    className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition"
+                    className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition flex items-center justify-center gap-2"
                   >
-                    {isPro ? 'Pro Active — Open Dashboard' : 'Dashboard'}
+                    Open Dashboard {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider">PRO</span>}
                   </button>
                   <button 
                     onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
@@ -589,7 +589,13 @@ export default function LandingPage() {
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-8 sm:px-10 py-4 rounded-xl transition shadow-xs cursor-pointer" 
           suppressHydrationWarning={true}
         >
-          {isPro ? 'Pro Active — Open Dashboard' : user ? 'Open Dashboard' : 'Try 5 AI Reminders Free'}
+          {isPro ? (
+            <>Open Dashboard <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs uppercase font-extrabold tracking-wider ml-1">PRO</span></>
+          ) : user ? (
+            'Open Dashboard'
+          ) : (
+            'Try 5 AI Reminders Free'
+          )}
         </motion.button>
            
         {!user && (
@@ -834,7 +840,7 @@ export default function LandingPage() {
             style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
             suppressHydrationWarning={true}
           >
-            {isPro ? 'Pro Active — Open Dashboard' : !user ? 'Create Free Account' : 'Upgrade to Pro'} <ArrowRight size={16} />
+            {isPro ? 'Open Dashboard' : !user ? 'Create Free Account' : 'Upgrade to Pro'} <ArrowRight size={16} />
           </motion.button>
         </div>
         </div>
@@ -941,8 +947,7 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
         >
           <Sparkles className="w-3.5 h-3.5" suppressHydrationWarning={true} /> 
-          <span>{isPro ? 'Pro Active — Open Dashboard' : user ? 'Go to Dashboard' : 'Generate Reminder'}</span>
-          <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded uppercase font-extrabold tracking-wider">AI Powered</span>
+          <span>Open Dashboard</span>
         </motion.button>
           </div>
              
@@ -1585,94 +1590,116 @@ export default function LandingPage() {
         <p className="text-slate-500 font-medium" suppressHydrationWarning={true}>Choose the plan that fits your recovery needs.</p>
       </div>
 
-      <motion.div 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-50px" }}
-        variants={{
-          visible: { transition: { staggerChildren: 0.1 } }
-        }}
-        className="grid md:grid-cols-2 gap-8 text-left items-stretch"
-        suppressHydrationWarning={true}
-      >
-        {/* Free Plan */}
+      {isPro ? (
         <motion.div 
-          variants={{
-        hidden: { opacity: 0, scale: 0.99 },
-        visible: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 flex flex-col justify-between"
-          suppressHydrationWarning={true}
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-xl mx-auto bg-gradient-to-br from-slate-900 to-[#1e293b] p-8 sm:p-12 rounded-3xl border border-slate-800 text-white text-center space-y-6 shadow-2xl"
         >
-          <div>
-        <h3 className="font-black text-lg" suppressHydrationWarning={true}>Free</h3>
-        <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Start recovering payments</p>
-        <div className="text-5xl font-black mb-8" suppressHydrationWarning={true}>₹0</div>
-        <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
-          {["15 Free Monthly Reminders (Auto-refills)", "Email Reminders", "WhatsApp Reminders", "Tone Selection", "Basic Tracking"].map(text => (
-            <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
-              <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
-            <Check className="w-3 h-3 text-slate-400" strokeWidth={4} suppressHydrationWarning={true} />
-              </div>
-              {text}
-            </li>
-          ))}
-        </ul>
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-black tracking-tight">Your Pro Plan is Active</h3>
+            <p className="text-xs text-slate-300 font-medium">You have full access to unlimited AI reminders, the AI Recovery Assistant, and priority workflows.</p>
           </div>
           <button 
-        onClick={() => router.push('/pricing')} 
-        className="w-full py-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-50 transition cursor-pointer text-sm"
-        suppressHydrationWarning={true}
+            onClick={() => router.push('/dashboard')}
+            className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-md"
           >
-        {!isPro && user ? 'Current Plan' : 'Start Free'}
+            Open Dashboard
           </button>
         </motion.div>
+      ) : (
+        <motion.div 
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={{
+            visible: { transition: { staggerChildren: 0.1 } }
+          }}
+          className="grid md:grid-cols-2 gap-8 text-left items-stretch"
+          suppressHydrationWarning={true}
+        >
+          {/* Free Plan */}
+          <motion.div 
+            variants={{
+          hidden: { opacity: 0, scale: 0.99 },
+          visible: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: "easeOut" } }
+            }}
+            className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 flex flex-col justify-between"
+            suppressHydrationWarning={true}
+          >
+            <div>
+          <h3 className="font-black text-lg" suppressHydrationWarning={true}>Free</h3>
+          <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Start recovering payments</p>
+          <div className="text-5xl font-black mb-8" suppressHydrationWarning={true}>₹0</div>
+          <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
+            {["15 Free Monthly Reminders (Auto-refills)", "Email Reminders", "WhatsApp Reminders", "Tone Selection", "Basic Tracking"].map(text => (
+              <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
+                <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
+              <Check className="w-3 h-3 text-slate-400" strokeWidth={4} suppressHydrationWarning={true} />
+                </div>
+                {text}
+              </li>
+            ))}
+          </ul>
+            </div>
+            <button 
+          onClick={() => router.push('/pricing')} 
+          className="w-full py-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-50 transition cursor-pointer text-sm"
+          suppressHydrationWarning={true}
+            >
+          {user ? 'Current Plan' : 'Start Free'}
+            </button>
+          </motion.div>
 
-        {/* Pro Plan */}
-        <motion.div 
-          variants={{
-        hidden: { opacity: 0, scale: 0.99 },
-        visible: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          whileHover={{ scale: 1.01 }}
-          className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-[#20B8BE] shadow-xl relative flex flex-col justify-between"
-          suppressHydrationWarning={true}
-        >
-          <div>
-        <div className="absolute top-4 right-4 bg-[#20B8BE] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider" suppressHydrationWarning={true}>MOST POPULAR</div>
-        <h3 className="font-black text-lg" suppressHydrationWarning={true}>Pro</h3>
-        <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Everything you need to recover payments faster.</p>
-        <div className="text-4xl sm:text-5xl font-black mb-1" suppressHydrationWarning={true}>₹499 <span className="text-xs sm:text-sm font-bold text-slate-400" suppressHydrationWarning={true}>/ month</span></div>
-        <p className="text-xs font-bold text-slate-400 mb-2" suppressHydrationWarning={true}>or ₹4,999 / year</p>
-        <p className="text-[11px] text-slate-400 font-medium mb-8">Cancel anytime • Secure payments</p>
-        <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
-          {[
-            "Unlimited AI Reminders",
-            "Floating AI Recovery Assistant",
-            "AI Smart Recommendations",
-            "AI Follow-up Generator",
-            "Reminder Rewriter",
-            "Payment Tracking & History",
-            "Unlimited Clients"
-          ].map(text => (
-            <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
-              <div className="w-5 h-5 rounded-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
-            <Check className="w-3 h-3 text-white" strokeWidth={4} suppressHydrationWarning={true} />
-              </div>
-              {text}
-            </li>
-          ))}
-        </ul>
-          </div>
-          <button 
-        onClick={() => router.push('/pricing')} 
-        className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
-        suppressHydrationWarning={true}
+          {/* Pro Plan */}
+          <motion.div 
+            variants={{
+          hidden: { opacity: 0, scale: 0.99 },
+          visible: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: "easeOut" } }
+            }}
+            whileHover={{ scale: 1.01 }}
+            className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-[#20B8BE] shadow-xl relative flex flex-col justify-between"
+            suppressHydrationWarning={true}
           >
-        {isPro ? 'Pro Active ✓' : 'Upgrade to Pro'}
-          </button>
+            <div>
+          <div className="absolute top-4 right-4 bg-[#20B8BE] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider" suppressHydrationWarning={true}>MOST POPULAR</div>
+          <h3 className="font-black text-lg" suppressHydrationWarning={true}>Pro</h3>
+          <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Everything you need to recover payments faster.</p>
+          <div className="text-4xl sm:text-5xl font-black mb-1" suppressHydrationWarning={true}>₹499 <span className="text-xs sm:text-sm font-bold text-slate-400" suppressHydrationWarning={true}>/ month</span></div>
+          <p className="text-xs font-bold text-slate-400 mb-2" suppressHydrationWarning={true}>or ₹4,999 / year</p>
+          <p className="text-[11px] text-slate-400 font-medium mb-8">Cancel anytime • Secure payments</p>
+          <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
+            {[
+              "Unlimited AI Reminders",
+              "Floating AI Recovery Assistant",
+              "AI Smart Recommendations",
+              "AI Follow-up Generator",
+              "Reminder Rewriter",
+              "Payment Tracking & History",
+              "Unlimited Clients"
+            ].map(text => (
+              <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
+                <div className="w-5 h-5 rounded-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
+              <Check className="w-3 h-3 text-white" strokeWidth={4} suppressHydrationWarning={true} />
+                </div>
+                {text}
+              </li>
+            ))}
+          </ul>
+            </div>
+            <button 
+          onClick={() => router.push('/pricing')} 
+          className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
+          suppressHydrationWarning={true}
+            >
+          Upgrade to Pro
+            </button>
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
     </div>
     </motion.section>
 
@@ -1816,7 +1843,7 @@ export default function LandingPage() {
       <div className="bg-gradient-to-br from-[#245B92] to-[#20B8BE] rounded-[32px] p-6 sm:p-12 text-center text-white relative shadow-lg overflow-hidden" suppressHydrationWarning={true}>
         <div className="text-4xl mb-6" suppressHydrationWarning={true}>🏆</div>
         <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
-          {user ? (isPro ? 'Everything is ready. Recover payments with confidence.' : 'Welcome back. Ready to recover more payments?') : 'Stop Chasing Clients. Get Paid Faster.'}
+          {isPro ? 'Welcome back! Your Pro features are ready.' : user ? 'Welcome back. Ready to recover more payments?' : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
            
         <motion.div 
@@ -1853,7 +1880,7 @@ export default function LandingPage() {
         suppressHydrationWarning={true}
           >
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
-        {isPro ? 'Pro Active — Open Dashboard' : user ? 'Open Dashboard' : 'Generate Reminder Free'}
+        Open Dashboard
           </motion.button>
            
           {user && !isPro && (
@@ -1969,9 +1996,9 @@ export default function LandingPage() {
     <button
     onClick={() => {
       if (isAtTop) {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        window.scrollTo({ top: document.body.scrollHeight, height: 'smooth' } as any);
       } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, height: 'smooth' } as any);
       }
     }}
       className="fixed bottom-6 right-6 z-[90] bg-[#0F172A] text-white p-3 rounded-full shadow-lg hover:bg-[#245B92] hover:scale-105 transition-all duration-150 cursor-pointer border border-white/10"
