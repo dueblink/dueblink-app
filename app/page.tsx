@@ -542,78 +542,179 @@ export default function LandingPage() {
     </nav>
 
     {/* --- SECTION 1: HERO ZONE WITH SMOOTH REVEAL --- */}
-    <motion.section 
-      id="hero"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
+<motion.section
+  id="hero"
+  initial={{ opacity: 0, y: 10 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.3, ease: "easeOut" }}
+  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
+  suppressHydrationWarning={true}
+>
+  <div
+    className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70"
+    suppressHydrationWarning={true}
+  />
+
+  <div
+    className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60"
+    suppressHydrationWarning={true}
+  />
+
+  <div
+    className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
+    suppressHydrationWarning={true}
+  >
+
+    {/* HERO BADGE */}
+    <div
+      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden"
       suppressHydrationWarning={true}
     >
-      <div className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70" suppressHydrationWarning={true}></div>
-      <div className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60" suppressHydrationWarning={true}></div>
-          
-      <div className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8" suppressHydrationWarning={true}>
-          
-      <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden" suppressHydrationWarning={true}>
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse shrink-0" suppressHydrationWarning={true} />
-            <span className="text-[#0F172A] font-bold whitespace-nowrap" suppressHydrationWarning={true}>
-            🚀 DueBlink · 
-            </span>
-            <span className="text-[#2BB6A8] font-bold truncate max-w-[180px] sm:max-w-none text-left" suppressHydrationWarning={true}>
-            {displayedText}
-            <span className="animate-pulse ml-0.5 border-r-2 border-[#2BB6A8] h-3 inline-block" suppressHydrationWarning={true} />
-        </span>
-      </div>
-          
-      <h1 className="text-3xl sm:text-5xl lg:text-7xl font-black tracking-tight text-[#0F172A] uppercase leading-[1.1] sm:leading-[1.02]" suppressHydrationWarning={true}>
-        STOP CHASING CLIENTS. <br />
-        <span className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent" suppressHydrationWarning={true}>GET PAID FASTER.</span>
-      </h1>
-          
-      <div className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600" suppressHydrationWarning={true}>
-        <p className="text-slate-400 font-medium lowercase" suppressHydrationWarning={true}>Stop using spreadsheets. Stop forgetting follow-ups.</p>
-        <p className="text-base sm:text-lg text-[#1C2E8F] font-bold" suppressHydrationWarning={true}>Start getting paid faster.</p>
-      </div>
-          
-      <p className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2" suppressHydrationWarning={true}>
-        Generate professional payment reminders, track unpaid invoices, and recover payments faster with AI.
-      </p>
-          
-      <div className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4" suppressHydrationWarning={true}>
-        <motion.button 
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => (isPro || user) ? router.push('/dashboard') : handleScrollToGenerator()} 
-          style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-8 sm:px-10 py-4 rounded-xl transition shadow-xs cursor-pointer" 
-          suppressHydrationWarning={true}
+      <span
+        className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse shrink-0"
+        suppressHydrationWarning={true}
+      />
+
+      <span
+        className="text-[#0F172A] font-bold whitespace-nowrap"
+        suppressHydrationWarning={true}
       >
-          {isPro ? (
-            <>Open Dashboard <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs uppercase font-extrabold tracking-wider ml-1">PRO</span></>
-          ) : user ? (
-            'Open Dashboard'
-          ) : (
-            'Try 5 AI Reminders Free'
-          )}
+         DueBlink ·
+      </span>
+
+      <span
+        className="text-[#2BB6A8] font-bold truncate max-w-[180px] sm:max-w-none text-left"
+        suppressHydrationWarning={true}
+      >
+        {displayedText}
+
+        <span
+          className="animate-pulse ml-0.5 border-r-2 border-[#2BB6A8] h-3 inline-block"
+          suppressHydrationWarning={true}
+        />
+      </span>
+    </div>
+
+    {/* HERO HEADING */}
+    <h1
+      className="text-3xl sm:text-5xl lg:text-7xl font-[800] tracking-[-0.025em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
+      suppressHydrationWarning={true}
+    >
+      STOP CHASING CLIENTS. <br />
+
+      <span
+        className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent"
+        suppressHydrationWarning={true}
+      >
+        GET PAID FASTER.
+      </span>
+    </h1>
+
+    {/* SUPPORTING HEADLINE */}
+    <div
+      className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600"
+      suppressHydrationWarning={true}
+    >
+      <p
+        className="text-slate-400 font-medium lowercase"
+        suppressHydrationWarning={true}
+      >
+        Stop using spreadsheets. Stop forgetting follow-ups.
+      </p>
+
+      <p
+        className="text-base sm:text-lg text-[#1C2E8F] font-bold"
+        suppressHydrationWarning={true}
+      >
+        Start getting paid faster.
+      </p>
+    </div>
+
+    {/* DESCRIPTION */}
+    <p
+      className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
+      suppressHydrationWarning={true}
+    >
+      Generate professional payment reminders, track unpaid invoices, and recover payments faster with AI.
+    </p>
+
+    {/* CTA */}
+    <div
+      className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4"
+      suppressHydrationWarning={true}
+    >
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() =>
+          (isPro || user)
+            ? router.push("/dashboard")
+            : handleScrollToGenerator()
+        }
+        style={{
+          background: "linear-gradient(to right, #245B92, #20B8BE)",
+        }}
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-8 sm:px-10 py-4 rounded-xl transition shadow-xs cursor-pointer"
+        suppressHydrationWarning={true}
+      >
+        {isPro ? (
+          <>
+            Open Dashboard
+
+            <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs uppercase font-extrabold tracking-wider ml-1">
+              PRO
+            </span>
+          </>
+        ) : user ? (
+          "Open Dashboard"
+        ) : (
+          "Try 5 AI Reminders Free"
+        )}
       </motion.button>
-           
+
+      {/* TRUST POINTS */}
       {!user && (
-        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-2 text-xs font-bold text-[#475569] uppercase tracking-wider" suppressHydrationWarning={true}>
-        <span className="flex items-center gap-1.5" suppressHydrationWarning={true}>
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]" suppressHydrationWarning={true} /> No Credit Card Required
-        </span>
-        <span className="flex items-center gap-1.5" suppressHydrationWarning={true}>
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]" suppressHydrationWarning={true} /> 5 Free AI Reminders
-        </span>
-        <span className="flex items-center gap-1.5" suppressHydrationWarning={true}>
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]" suppressHydrationWarning={true} /> Email + WhatsApp
-        </span>
+        <div
+          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-2 text-xs font-bold text-[#475569] uppercase tracking-wider"
+          suppressHydrationWarning={true}
+        >
+          <span
+            className="flex items-center gap-1.5"
+            suppressHydrationWarning={true}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]"
+              suppressHydrationWarning={true}
+            />
+            No Credit Card Required
+          </span>
+
+          <span
+            className="flex items-center gap-1.5"
+            suppressHydrationWarning={true}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]"
+              suppressHydrationWarning={true}
+            />
+            5 Free AI Reminders
+          </span>
+
+          <span
+            className="flex items-center gap-1.5"
+            suppressHydrationWarning={true}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]"
+              suppressHydrationWarning={true}
+            />
+            Email + WhatsApp
+          </span>
         </div>
       )}
-      </div>
     </div>
-    </motion.section>
+  </div>
+</motion.section>
 
     {/* --- SECTION 2: EXPLAINER PAIN POINTS WITH PREMIUM ANIMATION --- */}
     <motion.section 
