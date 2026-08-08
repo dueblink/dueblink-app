@@ -88,6 +88,12 @@
     /* Prevent browser-generated synthetic bold/italic */
     font-synthesis: none;
 
+    /* Prevent browser-specific optical sizing differences */
+    font-optical-sizing: none;
+
+    /* Consistent kerning */
+    font-kerning: normal;
+
     /* Consistent text rendering */
     text-rendering: optimizeLegibility;
 
@@ -113,6 +119,27 @@
     display: block;
     max-width: 100%;
   }
+
+  /* =========================================
+     GLOBAL TEXT RENDERING CONSISTENCY
+  ========================================= */
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  span,
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    font-synthesis: none;
+    font-optical-sizing: none;
+  }
 }
 
 /* =========================================
@@ -127,6 +154,9 @@
 
   body {
     font-synthesis: none;
+    font-optical-sizing: none;
+    font-kerning: normal;
+
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -145,5 +175,6 @@
   textarea,
   select {
     font-synthesis: none;
+    font-optical-sizing: none;
   }
 }
