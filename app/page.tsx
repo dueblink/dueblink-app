@@ -576,11 +576,12 @@ export default function LandingPage() {
       />
 
       <span
-        className="text-[#0F172A] font-bold whitespace-nowrap"
-        suppressHydrationWarning={true}
-      >
-         DueBlink ·
-      </span>
+  className="text-[#0F172A] font-bold whitespace-nowrap"
+  suppressHydrationWarning={true}
+>
+  🚀 DueBlink ·
+</span>
+
 
       <span
         className="text-[#2BB6A8] font-bold truncate max-w-[180px] sm:max-w-none text-left"
