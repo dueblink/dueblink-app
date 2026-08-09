@@ -1,3 +1,119 @@
+@import "tailwindcss";
+@theme {
+  /* FONT — KEEP INTER CONSISTENT */
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+
+  /* BRAND COLORS */
+  --color-brand-blue: #1C2E8F;
+  --color-brand-teal: #2BB6A8;
+  --color-brand-dark: #0F172A;
+  --color-brand-muted: #475569;
+
+  /* STATUS COLORS */
+  --color-system-success: #22C55E;
+  --color-system-warning: #F59E0B;
+  --color-system-error: #EF4444;
+
+  /* BRAND GRADIENT */
+  --bg-image-brand-gradient: linear-gradient(
+    135deg,
+    #1C2E8F 0%,
+    #2BB6A8 100%
+  );
+
+  /* ANIMATIONS */
+  --animate-wobble: wobble 2s ease-in-out infinite;
+  --animate-pop-in: pop-in 0.5s ease-out;
+
+  @keyframes wobble {
+    0%, 75%, 100% {
+      transform: rotate(0deg);
+    }
+
+    15% {
+      transform: rotate(-10deg);
+    }
+
+    30% {
+      transform: rotate(10deg);
+    }
+
+    45% {
+      transform: rotate(-5deg);
+    }
+
+    60% {
+      transform: rotate(5deg);
+    }
+  }
+
+  @keyframes pop-in {
+    0% {
+      transform: scale(0.96);
+      opacity: 0;
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+/* =========================================
+   GLOBAL BROWSER CONSISTENCY
+========================================= */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
+
+    font-synthesis: none;
+
+    text-rendering: optimizeLegibility;
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+
+    background: #ffffff;
+    color: #0F172A;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+  }
+
+  img,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+}
+
+/* =========================================
+   MOBILE BROWSER TEXT CONSISTENCY
+========================================= */
+
 @media (max-width: 767px) {
   html {
     -webkit-text-size-adjust: 100%;
@@ -24,19 +140,5 @@
   textarea,
   select {
     font-synthesis: none;
-  }
-}
-
-/* =========================================
-   CONSISTENT SAAS HEADINGS
-========================================= */
-
-@layer utilities {
-  .heading-tight {
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    line-height: 1.05;
-    font-synthesis: none;
-    font-kerning: normal;
   }
 }
