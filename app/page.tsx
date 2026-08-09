@@ -717,25 +717,33 @@ export default function LandingPage() {
 </motion.section>
 
     {/* --- SECTION 2: EXPLAINER PAIN POINTS WITH PREMIUM ANIMATION --- */}
-    <motion.section 
-    id="late-payments"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-4xl mx-auto text-center space-y-8 sm:space-y-10" suppressHydrationWarning={true}>
-          
-      <div className="space-y-3" suppressHydrationWarning={true}>
-        <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
-        <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight uppercase" suppressHydrationWarning={true}>
-          Late Payments Don't Just Delay Money.<br />
-          <span className="bg-gradient-to-r from-red-600 to-amber-600 bg-clip-text text-transparent" suppressHydrationWarning={true}>
-        They Kill Cash Flow.
-          </span>
-        </h2>
+<motion.section 
+  id="late-payments"
+  initial={{ opacity: 0, y: 15 }}
+  whileInView={{ opacity: 1, y: 0 }}
+  viewport={{ once: true, margin: "-50px" }}
+  transition={{ duration: 0.3, ease: "easeOut" }}
+  className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4"
+  suppressHydrationWarning={true}
+>
+  <div className="max-w-4xl mx-auto text-center space-y-8 sm:space-y-10" suppressHydrationWarning={true}>
+        
+    <div className="space-y-3" suppressHydrationWarning={true}>
+      <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
+
+      <h2
+        className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-normal uppercase"
+        suppressHydrationWarning={true}
+      >
+        Late Payments Don't Just Delay Money.<br />
+        <span
+          className="bg-gradient-to-r from-red-600 to-amber-600 bg-clip-text text-transparent"
+          suppressHydrationWarning={true}
+        >
+          They Kill Cash Flow.
+        </span>
+      </h2>
+
       <p className="text-sm sm:text-base text-slate-500 font-medium max-w-2xl mx-auto px-2" suppressHydrationWarning={true}>
         You finished the work. You delivered the project. You sent the invoice. Now you're wondering...
       </p>
@@ -758,18 +766,18 @@ export default function LandingPage() {
         "What should I do next?"
       ].map((question, qIdx) => (
         <motion.div 
-        key={qIdx}
-        variants={{
-          hidden: { opacity: 0, y: 10 },
-          visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-        }}
-        className="flex items-center gap-3.5 bg-white border border-slate-200/85 rounded-2xl p-4 shadow-3xs transition hover:border-amber-300 hover:shadow-xs group"
-        suppressHydrationWarning={true}
+          key={qIdx}
+          variants={{
+            hidden: { opacity: 0, y: 10 },
+            visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
+          }}
+          className="flex items-center gap-3.5 bg-white border border-slate-200/85 rounded-2xl p-4 shadow-3xs transition hover:border-amber-300 hover:shadow-xs group"
+          suppressHydrationWarning={true}
         >
-        <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0 group-hover:bg-amber-100/60 transition" suppressHydrationWarning={true}>
-          <AlertTriangle className="w-4 h-4" suppressHydrationWarning={true} />
-        </div>
-        <span className="text-sm font-semibold text-slate-700 tracking-wide" suppressHydrationWarning={true}>{question}</span>
+          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0 group-hover:bg-amber-100/60 transition" suppressHydrationWarning={true}>
+            <AlertTriangle className="w-4 h-4" suppressHydrationWarning={true} />
+          </div>
+          <span className="text-sm font-semibold text-slate-700 tracking-wide" suppressHydrationWarning={true}>{question}</span>
         </motion.div>
       ))}
     </motion.div>
@@ -784,45 +792,46 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-          
+        
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
-        <motion.span 
-          key={tool}
-          whileHover={{ scale: 1.02 }}
-          className="px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-3xs text-xs font-bold text-slate-600 flex items-center gap-2 cursor-default"
-          suppressHydrationWarning={true}
-        >
-          {i === 0 && <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" suppressHydrationWarning={true} />}
-          {i === 1 && <MessageCircle className="w-3.5 h-3.5 text-green-500" suppressHydrationWarning={true} />}
-          {i === 2 && <Mail className="w-3.5 h-3.5 text-blue-500" suppressHydrationWarning={true} />}
-          {i === 3 && <Brain className="w-3.5 h-3.5 text-purple-500" suppressHydrationWarning={true} />}
-          {tool}
-        </motion.span>
+          <motion.span 
+            key={tool}
+            whileHover={{ scale: 1.02 }}
+            className="px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-3xs text-xs font-bold text-slate-600 flex items-center gap-2 cursor-default"
+            suppressHydrationWarning={true}
+          >
+            {i === 0 && <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" suppressHydrationWarning={true} />}
+            {i === 1 && <MessageCircle className="w-3.5 h-3.5 text-green-500" suppressHydrationWarning={true} />}
+            {i === 2 && <Mail className="w-3.5 h-3.5 text-blue-500" suppressHydrationWarning={true} />}
+            {i === 3 && <Brain className="w-3.5 h-3.5 text-purple-500" suppressHydrationWarning={true} />}
+            {tool}
+          </motion.span>
         ))}
       </div>
-          
+        
       <div className="space-y-3 pt-4 text-sm font-semibold text-slate-600 border-t border-slate-200/60 max-w-xl mx-auto" suppressHydrationWarning={true}>
         <p className="text-slate-700 font-medium" suppressHydrationWarning={true}>
-        Small follow-up mistakes become big cash flow problems.
+          Small follow-up mistakes become big cash flow problems.
         </p>
         <p className="text-[#0F172A] font-medium leading-relaxed" suppressHydrationWarning={true}>
-        DueBlink keeps every payment organized, every reminder on time, and every client accounted for.
+          DueBlink keeps every payment organized, every reminder on time, and every client accounted for.
         </p>
         <div className="pt-4 flex flex-col items-center justify-center gap-3 text-xs font-bold" suppressHydrationWarning={true}>
-        <div className="w-full max-w-md px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-500 shadow-3xs flex items-center justify-center gap-2" suppressHydrationWarning={true}>
-          <span>Excel + WhatsApp + Memory = Confusion</span>
-        </div>
-        <div className="text-[#2BB6A8] text-base font-black" suppressHydrationWarning={true}>↓</div>
-        <div className="w-full max-w-md px-4 py-3 rounded-xl bg-white border border-[#2BB6A8]/40 text-[#245B92] shadow-3xs flex items-center justify-center gap-2 text-center" suppressHydrationWarning={true}>
-          <span>One place to track clients, reminders, and payments.</span>
-        </div>
+          <div className="w-full max-w-md px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-500 shadow-3xs flex items-center justify-center gap-2" suppressHydrationWarning={true}>
+            <span>Excel + WhatsApp + Memory = Confusion</span>
+          </div>
+          <div className="text-[#2BB6A8] text-base font-black" suppressHydrationWarning={true}>↓</div>
+          <div className="w-full max-w-md px-4 py-3 rounded-xl bg-white border border-[#2BB6A8]/40 text-[#245B92] shadow-3xs flex items-center justify-center gap-2 text-center" suppressHydrationWarning={true}>
+            <span>One place to track clients, reminders, and payments.</span>
+          </div>
         </div>
       </div>
     </motion.div>
-          
-</div>
-    </motion.section>
+        
+  </div>
+</motion.section>
+
 
     {/* --- SECTION 3: VALUE PROP 6-GRID WITH PREMIUM ANIMATION --- */}
     <motion.section 
