@@ -1,5 +1,4 @@
 @import "tailwindcss";
-
 @theme {
   /* FONT — KEEP INTER CONSISTENT */
   --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, sans-serif;
@@ -141,19 +140,5 @@
   textarea,
   select {
     font-synthesis: none;
-  }
-}
-
-/* =========================================
-   CONSISTENT SAAS HEADINGS
-========================================= */
-
-@layer utilities {
-  .heading-tight {
-    font-weight: 800;
-    letter-spacing: -0.025em;
-    line-height: 1.05;
-    font-synthesis: none;
-    font-kerning: normal;
   }
 }
