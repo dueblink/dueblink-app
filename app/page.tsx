@@ -732,7 +732,7 @@ export default function LandingPage() {
       <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
 
       <h2
-        className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-normal uppercase"
+        className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight uppercase"
         suppressHydrationWarning={true}
       >
         Late Payments Don't Just Delay Money.<br />
