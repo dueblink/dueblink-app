@@ -445,7 +445,7 @@ export default function LandingPage() {
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/login')} className={`text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/login' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-600 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>Login</motion.button>
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
               </>
-            )}
+          )}
           </div>
         </div>
 
@@ -500,45 +500,45 @@ export default function LandingPage() {
               >
                 Contact
               </button>
-            </div>
+          </div>
 
-            <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
-              {user ? (
-                <>
-                  <button 
-                    onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
-                    className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition flex items-center justify-center gap-2"
-                  >
-                    Open Dashboard {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider">PRO</span>}
-                  </button>
-                  <button 
-                    onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
-                    className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button 
-                    onClick={() => { router.push('/login'); setMobileMenuOpen(false); }}
-                    className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition"
-                  >
-                    Login
-                  </button>
-                  <button 
-                    onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }}
-                    className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition"
-                    style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                  >
-                    Create Account
-                  </button>
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+            {user ? (
+              <>
+                <button 
+                  onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
+                  className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition flex items-center justify-center gap-2"
+                >
+                  Open Dashboard {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider">PRO</span>}
+                </button>
+                <button 
+                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
+                  className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => { router.push('/login'); setMobileMenuOpen(false); }}
+                  className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition"
+                >
+                  Login
+                </button>
+                <button 
+                  onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }}
+                  className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition"
+                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                >
+                  Create Account
+                </button>
+              </>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
     </nav>
 
     {/* --- SECTION 1: HERO ZONE WITH SMOOTH REVEAL --- */}
@@ -712,7 +712,7 @@ export default function LandingPage() {
           </span>
         </div>
       )}
-    </div>
+  </div>
   </div>
 </motion.section>
 
@@ -903,7 +903,7 @@ export default function LandingPage() {
     <div className="max-w-5xl mx-auto" suppressHydrationWarning={true}>
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-14 shadow-xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center" suppressHydrationWarning={true}>
             
-        <div className="space-y-6" suppressHydrationWarning={true}>
+      <div className="space-y-6" suppressHydrationWarning={true}>
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider shadow-3xs" suppressHydrationWarning={true}>
           <Bot size={14} /> AI RECOVERY ASSISTANT (PRO)
         </div>
@@ -953,9 +953,9 @@ export default function LandingPage() {
             {isPro ? 'Open Dashboard' : !user ? 'Create Free Account' : 'Upgrade to Pro'} <ArrowRight size={16} />
           </motion.button>
         </div>
-        </div>
+      </div>
 
-        <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl border border-slate-800 space-y-6" suppressHydrationWarning={true}>
+      <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl border border-slate-800 space-y-6" suppressHydrationWarning={true}>
         <div className="flex items-center justify-between border-b border-slate-800 pb-4" suppressHydrationWarning={true}>
           <div className="flex items-center gap-2.5" suppressHydrationWarning={true}>
             <div className="w-3 h-3 rounded-full bg-[#2BB6A8] animate-pulse" suppressHydrationWarning={true} />
@@ -982,11 +982,11 @@ export default function LandingPage() {
             <Sparkles size={13} /> Generate Follow-up
           </div>
         </div>
-        </div>
-
       </div>
+
     </div>
-    </section>
+  </div>
+  </section>
 
     {/* --- SECTION 4: WORKSPACE DASHBOARD VIEW WITH ANIMATION --- */}
     <motion.section 
@@ -1092,8 +1092,8 @@ export default function LandingPage() {
           </div>
         </motion.div>
       </div>
-    </div>
-    </motion.section>
+  </div>
+  </motion.section>
 
     {/* --- SECTION 5: SPLIT APP GENERATOR CONSOLE WITH ANIMATION --- */}
     <motion.section 
@@ -1160,7 +1160,7 @@ export default function LandingPage() {
             )}
           </div>
           </div>
-             ) : (
+               ) : (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
               <div suppressHydrationWarning={true}>
@@ -1220,7 +1220,7 @@ export default function LandingPage() {
               </motion.button>
             </form>
           </div>
-             )}
+               )}
         </div>
       </motion.div>
 
@@ -1237,7 +1237,7 @@ export default function LandingPage() {
             <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
             <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS • AI Strategy</p>
           </div>
-              
+            
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
             {isGenerating ? (
               <motion.div 
@@ -1352,8 +1352,8 @@ export default function LandingPage() {
         </div>
       </motion.div>
     </div>
-    </div>
-    </motion.section>
+  </div>
+  </motion.section>
 
     {/* --- SECTION 6: NEVER LOSE TRACK OF AN UNPAID CLIENT WITH ANIMATION --- */}
     <motion.section 
@@ -1366,7 +1366,6 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-5xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-          
       <div className="space-y-3.5" suppressHydrationWarning={true}>
         <div className="flex justify-center select-none" suppressHydrationWarning={true}>
           <Target className="w-11 h-11 text-rose-500" suppressHydrationWarning={true} />
@@ -1388,68 +1387,68 @@ export default function LandingPage() {
         }}
         className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 text-left max-w-4xl mx-auto pt-4"
        suppressHydrationWarning={true}
-      >
-        {/* WITHOUT DUEBLINK */}
-        <motion.div 
-          variants={{
-        hidden: { opacity: 0, x: -10 },
-        visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          className="bg-[#FAFBFD] border border-slate-200/60 rounded-[20px] p-6 sm:p-8 space-y-6"
-          suppressHydrationWarning={true}
-        >
-          <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest block" suppressHydrationWarning={true}>WITHOUT DUEBLINK</span>
-          <ul className="space-y-4" suppressHydrationWarning={true}>
-        {["Invoices get buried", "Messages get lost", "Clients promise to pay later", "Follow-ups are forgotten"].map((item, index) => (
-          <li key={index} className="flex items-center gap-4 text-sm sm:text-[15px] font-semibold text-slate-600" suppressHydrationWarning={true}>
-            <div className="w-5 h-5 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-500 shrink-0" suppressHydrationWarning={true}>
-              <AlertTriangle className="w-3 h-3" suppressHydrationWarning={true} />
-            </div>
-            {item}
-          </li>
-        ))}
-          </ul>
-        </motion.div>
-
-        {/* WITH DUEBLINK */}
-        <motion.div 
-          variants={{
-        hidden: { opacity: 0, x: 10 },
-        visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          className="bg-white border-2 border-[#20B8BE]/40 rounded-[20px] p-6 sm:p-8 space-y-6 shadow-3xs"
-          suppressHydrationWarning={true}
-        >
-          <span className="text-[11px] font-bold text-[#1C2E8F] uppercase tracking-widest block" suppressHydrationWarning={true}>WITH DUEBLINK</span>
-          <ul className="space-y-4" suppressHydrationWarning={true}>
-        {["Know who owes you money", "Track every follow-up", "See payment status instantly", "Know exactly what to do next"].map((item, index) => (
-          <li key={index} className="flex items-center gap-4 text-sm sm:text-[15px] font-bold text-slate-800" suppressHydrationWarning={true}>
-            <div style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-3xs" suppressHydrationWarning={true}>
-              <Check className="w-2.5 h-2.5 text-white" strokeWidth={3.5} suppressHydrationWarning={true} />
-            </div>
-            {item}
-          </li>
-        ))}
-          </ul>
-        </motion.div>
-      </motion.div>
-
+    >
+      {/* WITHOUT DUEBLINK */}
       <motion.div 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.3 }}
-        className="space-y-2 pt-6 max-w-xl mx-auto text-center px-4"
+        variants={{
+      hidden: { opacity: 0, x: -10 },
+      visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } }
+        }}
+        className="bg-[#FAFBFD] border border-slate-200/60 rounded-[20px] p-6 sm:p-8 space-y-6"
         suppressHydrationWarning={true}
       >
-        <p className="text-sm sm:text-[15px] font-bold text-slate-700" suppressHydrationWarning={true}>
-          Everything you need to recover payments—<br />organized in one simple workspace.
-        </p>
-        <p className="text-xs sm:text-[13px] font-medium text-slate-400 italic leading-relaxed" suppressHydrationWarning={true}>
-          Because getting paid isn't just about sending reminders. <br />It's about staying consistent until payment arrives.
-        </p>
+        <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest block" suppressHydrationWarning={true}>WITHOUT DUEBLINK</span>
+        <ul className="space-y-4" suppressHydrationWarning={true}>
+      {["Invoices get buried", "Messages get lost", "Clients promise to pay later", "Follow-ups are forgotten"].map((item, index) => (
+        <li key={index} className="flex items-center gap-4 text-sm sm:text-[15px] font-semibold text-slate-600" suppressHydrationWarning={true}>
+          <div className="w-5 h-5 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-500 shrink-0" suppressHydrationWarning={true}>
+            <AlertTriangle className="w-3 h-3" suppressHydrationWarning={true} />
+          </div>
+          {item}
+        </li>
+      ))}
+        </ul>
       </motion.div>
-    </div>
-    </motion.section>
+
+      {/* WITH DUEBLINK */}
+      <motion.div 
+        variants={{
+      hidden: { opacity: 0, x: 10 },
+      visible: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } }
+        }}
+        className="bg-white border-2 border-[#20B8BE]/40 rounded-[20px] p-6 sm:p-8 space-y-6 shadow-3xs"
+        suppressHydrationWarning={true}
+      >
+        <span className="text-[11px] font-bold text-[#1C2E8F] uppercase tracking-widest block" suppressHydrationWarning={true}>WITH DUEBLINK</span>
+        <ul className="space-y-4" suppressHydrationWarning={true}>
+      {["Know who owes you money", "Track every follow-up", "See payment status instantly", "Know exactly what to do next"].map((item, index) => (
+        <li key={index} className="flex items-center gap-4 text-sm sm:text-[15px] font-bold text-slate-800" suppressHydrationWarning={true}>
+          <div style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-3xs" suppressHydrationWarning={true}>
+            <Check className="w-2.5 h-2.5 text-white" strokeWidth={3.5} suppressHydrationWarning={true} />
+          </div>
+          {item}
+        </li>
+      ))}
+        </ul>
+      </motion.div>
+    </motion.div>
+
+    <motion.div 
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      transition={{ delay: 0.2, duration: 0.3 }}
+      className="space-y-2 pt-6 max-w-xl mx-auto text-center px-4"
+      suppressHydrationWarning={true}
+    >
+      <p className="text-sm sm:text-[15px] font-bold text-slate-700" suppressHydrationWarning={true}>
+        Everything you need to recover payments—<br />organized in one simple workspace.
+      </p>
+      <p className="text-xs sm:text-[13px] font-medium text-slate-400 italic leading-relaxed" suppressHydrationWarning={true}>
+        Because getting paid isn't just about sending reminders. <br />It's about staying consistent until payment arrives.
+      </p>
+    </motion.div>
+  </div>
+  </motion.section>
 
     {/* --- SECTION 7: REAL REMINDER EXAMPLES WITH PREMIUM ANIMATION --- */}
     <motion.section 
@@ -1477,93 +1476,93 @@ export default function LandingPage() {
         }}
         className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left max-w-5xl mx-auto"
        suppressHydrationWarning={true}
+    >
+      {/* CARD 1: GENTLE */}
+      <motion.div 
+        variants={{
+      hidden: { opacity: 0, y: 10 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
+        }}
+        whileHover={{ y: -2 }}
+        className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
+        suppressHydrationWarning={true}
       >
-        {/* CARD 1: GENTLE */}
-        <motion.div 
-          variants={{
-        hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          whileHover={{ y: -2 }}
-          className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
-          suppressHydrationWarning={true}
-        >
-          <div style={{ height: '4px', background: '#2BB6A8' }} suppressHydrationWarning={true} />
-          <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
-        <div suppressHydrationWarning={true}>
-          <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-            <span className="text-[10px] font-bold text-[#147D75] bg-[#E6F7F5] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Gentle</span>
-            <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>3 days overdue</span>
-          </div>
-          <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>ABC Marketing Team</h4>
-          <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-            <p suppressHydrationWarning={true}>Hi ABC Marketing Team,</p>
-            <p suppressHydrationWarning={true}>Just a friendly reminder that invoice #1234 for ₹25,000 is due.</p>
-            <p suppressHydrationWarning={true}>Could you please confirm when payment is expected?</p>
-            <p suppressHydrationWarning={true}>Thank you.</p>
-          </div>
+        <div style={{ height: '4px', background: '#2BB6A8' }} suppressHydrationWarning={true} />
+        <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
+      <div suppressHydrationWarning={true}>
+        <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
+          <span className="text-[10px] font-bold text-[#147D75] bg-[#E6F7F5] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Gentle</span>
+          <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>3 days overdue</span>
         </div>
-          </div>
-        </motion.div>
-
-        {/* CARD 2: PROFESSIONAL */}
-        <motion.div 
-          variants={{
-        hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          whileHover={{ y: -2 }}
-          className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
-          suppressHydrationWarning={true}
-        >
-          <div style={{ height: '4px', background: '#245B92' }} suppressHydrationWarning={true} />
-          <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
-        <div suppressHydrationWarning={true}>
-          <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-            <span className="text-[10px] font-bold text-[#1E4A75] bg-[#EEF4FA] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Professional</span>
-            <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>10 days overdue</span>
-          </div>
-          <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Growthify Solutions</h4>
-          <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-            <p suppressHydrationWarning={true}>Hi Growthify Solutions,</p>
-            <p suppressHydrationWarning={true}>I wanted to follow up regarding invoice #1234 for ₹25,000, which is now 10 days past due.</p>
-            <p suppressHydrationWarning={true}>Please let me know when payment is expected.</p>
-            <p suppressHydrationWarning={true}>Thank you.</p>
-          </div>
+        <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>ABC Marketing Team</h4>
+        <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
+          <p suppressHydrationWarning={true}>Hi ABC Marketing Team,</p>
+          <p suppressHydrationWarning={true}>Just a friendly reminder that invoice #1234 for ₹25,000 is due.</p>
+          <p suppressHydrationWarning={true}>Could you please confirm when payment is expected?</p>
+          <p suppressHydrationWarning={true}>Thank you.</p>
         </div>
-          </div>
-        </motion.div>
-
-        {/* CARD 3: FIRM */}
-        <motion.div 
-          variants={{
-        hidden: { opacity: 0, y: 10 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          whileHover={{ y: -2 }}
-          className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
-          suppressHydrationWarning={true}
-        >
-          <div style={{ height: '4px', background: '#FF6A5A' }} suppressHydrationWarning={true} />
-          <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
-        <div suppressHydrationWarning={true}>
-          <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-            <span className="text-[10px] font-bold text-[#C24133] bg-[#FFF0EF] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Firm</span>
-            <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>20+ days overdue</span>
-          </div>
-          <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>BrightLabs Agency</h4>
-          <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-            <p suppressHydrationWarning={true}>Hi BrightLabs Agency,</p>
-            <p suppressHydrationWarning={true}>This is my third follow-up regarding invoice #1234 for ₹25,000, now over 20 days overdue.</p>
-            <p className="font-bold text-[#99261A] bg-[#FFE4E2] p-2 rounded-lg text-[13px]" suppressHydrationWarning={true}>Please process payment within the next 3 business days.</p>
-            <p suppressHydrationWarning={true}>Thank you.</p>
-          </div>
+      </div>
         </div>
-          </div>
-        </motion.div>
       </motion.div>
-    </div>
-    </motion.section>
+
+      {/* CARD 2: PROFESSIONAL */}
+      <motion.div 
+        variants={{
+      hidden: { opacity: 0, y: 10 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
+        }}
+        whileHover={{ y: -2 }}
+        className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
+        suppressHydrationWarning={true}
+      >
+        <div style={{ height: '4px', background: '#245B92' }} suppressHydrationWarning={true} />
+        <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
+      <div suppressHydrationWarning={true}>
+        <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
+          <span className="text-[10px] font-bold text-[#1E4A75] bg-[#EEF4FA] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Professional</span>
+          <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>10 days overdue</span>
+        </div>
+        <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Growthify Solutions</h4>
+        <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
+          <p suppressHydrationWarning={true}>Hi Growthify Solutions,</p>
+          <p suppressHydrationWarning={true}>I wanted to follow up regarding invoice #1234 for ₹25,000, which is now 10 days past due.</p>
+          <p suppressHydrationWarning={true}>Please let me know when payment is expected.</p>
+          <p suppressHydrationWarning={true}>Thank you.</p>
+        </div>
+      </div>
+        </div>
+      </motion.div>
+
+      {/* CARD 3: FIRM */}
+      <motion.div 
+        variants={{
+      hidden: { opacity: 0, y: 10 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
+        }}
+        whileHover={{ y: -2 }}
+        className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
+        suppressHydrationWarning={true}
+      >
+        <div style={{ height: '4px', background: '#FF6A5A' }} suppressHydrationWarning={true} />
+        <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
+      <div suppressHydrationWarning={true}>
+        <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
+          <span className="text-[10px] font-bold text-[#C24133] bg-[#FFF0EF] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Firm</span>
+          <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>20+ days overdue</span>
+        </div>
+        <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>BrightLabs Agency</h4>
+        <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
+          <p suppressHydrationWarning={true}>Hi BrightLabs Agency,</p>
+          <p suppressHydrationWarning={true}>This is my third follow-up regarding invoice #1234 for ₹25,000, now over 20 days overdue.</p>
+          <p className="font-bold text-[#99261A] bg-[#FFE4E2] p-2 rounded-lg text-[13px]" suppressHydrationWarning={true}>Please process payment within the next 3 business days.</p>
+          <p suppressHydrationWarning={true}>Thank you.</p>
+        </div>
+      </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  </div>
+  </motion.section>
 
     {/* --- SECTION 8: HOW IT WORKS & BUILT FOR WITH ANIMATION --- */}
     <motion.section 
@@ -1576,7 +1575,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-          
+        
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-amber-400 mx-auto fill-amber-400" suppressHydrationWarning={true} />
@@ -1677,9 +1676,9 @@ export default function LandingPage() {
         </motion.div>
           ))}
         </motion.div>
-      </div>
     </div>
-    </motion.section>
+  </div>
+  </motion.section>
 
     {/* --- PRICING SECTION WITH PREMIUM ANIMATION --- */}
     <motion.section 
@@ -1824,7 +1823,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-          
+        
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
@@ -1886,9 +1885,9 @@ export default function LandingPage() {
         </motion.div>
           ))}
         </motion.div>
-      </div>
     </div>
-    </motion.section>
+  </div>
+  </motion.section>
 
     {/* --- IMPACT SECTION WITH PREMIUM ANIMATION --- */}
     <motion.section 
@@ -1936,8 +1935,8 @@ export default function LandingPage() {
           Every missed follow-up delays cash flow. DueBlink keeps every client, reminder, and payment organized so nothing slips through the cracks.
         </p>
       </div>
-    </div>
-    </motion.section>
+  </div>
+  </motion.section>
 
     {/* --- FINAL CTA CONVERSION CONTAINER WITH PREMIUM ANIMATION --- */}
     <motion.section 
@@ -1990,7 +1989,7 @@ export default function LandingPage() {
         suppressHydrationWarning={true}
           >
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
-        Open Dashboard
+        {user ? 'Open Dashboard' : 'Generate Free Reminder'}
           </motion.button>
             
           {user && !isPro && (
@@ -2011,8 +2010,8 @@ export default function LandingPage() {
           <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
       </div>
-    </div>
-    </motion.section>
+  </div>
+  </motion.section>
 
     {/* --- GLOBAL FOOTER WITH ANIMATION --- */}
     <motion.footer 
@@ -2024,7 +2023,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-          
+        
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -2110,11 +2109,11 @@ export default function LandingPage() {
       } else {
         window.scrollTo({ top: 0, height: 'smooth' } as any);
       }
-    }}
+  }}
       className="fixed bottom-6 right-6 z-[90] bg-[#0F172A] text-white p-3 rounded-full shadow-lg hover:bg-[#245B92] hover:scale-105 transition-all duration-150 cursor-pointer border border-white/10"
       aria-label="Toggle scroll position"
       suppressHydrationWarning={true}
-    >
+  >
       <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isAtTop ? '' : 'rotate-180'}`} suppressHydrationWarning={true} />
     </button>
 
