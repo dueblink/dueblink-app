@@ -111,6 +111,11 @@ export default function PricingPage() {
       return;
     }
 
+    if (!isIndia) {
+      alert("International payments are coming soon! Please use the Indian version (₹ INR) for now.");
+      return;
+    }
+
     // PRO Plan Flow with Razorpay
     if (!user) {
       router.push('/create-account?redirect=checkout');
@@ -120,11 +125,8 @@ export default function PricingPage() {
     setIsProcessing(true);
 
     try {
-      const amountInPaise = isIndia 
-        ? (billingCycle === 'monthly' ? 49900 : 499900) 
-        : (billingCycle === 'monthly' ? 900 : 8900);
-
-      const currency = isIndia ? 'INR' : 'USD';
+      const amountInPaise = billingCycle === 'monthly' ? 49900 : 499900;
+      const currency = 'INR';
 
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
@@ -154,7 +156,6 @@ export default function PricingPage() {
                 cancelledAt: null
               });
 
-              // CRITICAL FIX: Set both storage flags and fire event so landing page & generators update instantly
               localStorage.setItem('dueblink_is_pro', 'true');
               localStorage.setItem('dueblink_pro_active', 'true');
               localStorage.setItem('just_upgraded', 'true');
@@ -355,9 +356,10 @@ export default function PricingPage() {
               </button>
               <button 
                 onClick={() => setIsIndia(false)} 
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer ${!isIndia ? 'bg-[#0F172A] text-white shadow-3xs' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${!isIndia ? 'bg-[#0F172A] text-white shadow-3xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
-                🌍 International ($ USD)
+                <span>🌍 International ($ USD)</span>
+                <span className="text-[9px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-md">Coming Soon</span>
               </button>
             </div>
 
@@ -384,6 +386,12 @@ export default function PricingPage() {
       <section className="bg-white py-20 border-b border-slate-100" suppressHydrationWarning={true}>
         <div className="max-w-5xl mx-auto px-4 text-center space-y-12" suppressHydrationWarning={true}>
           
+          {!isIndia && (
+            <div className="max-w-md mx-auto bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs font-bold">
+              ⚠️ International checkout is currently <strong>Coming Soon</strong>. Please select India (₹ INR) to upgrade right now.
+            </div>
+          )}
+
           <div className="grid md:grid-cols-2 gap-8 text-left items-stretch max-w-4xl mx-auto" suppressHydrationWarning={true}>
             
             {/* Free Plan */}
@@ -442,7 +450,9 @@ export default function PricingPage() {
                   </span>
                 </div>
                 <p className="text-xs font-bold text-teal-600 mb-8" suppressHydrationWarning={true}>
-                  {billingCycle === 'yearly' ? '✨ Best value: Save 15% annually' : 'Billed monthly · Cancel anytime'}
+                  {isIndia 
+                    ? (billingCycle === 'yearly' ? '✨ Best value: Save 15% annually' : 'Billed monthly · Cancel anytime')
+                    : '🚧 Coming Soon'}
                 </p>
 
                 <ul className="space-y-4 mb-8 flex-grow" suppressHydrationWarning={true}>
@@ -471,12 +481,14 @@ export default function PricingPage() {
                     handleUpgradeClick('pro');
                   }
                 }} 
-                disabled={isProcessing}
-                className="w-full py-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer shadow-xs flex items-center justify-center gap-2"
+                disabled={isProcessing || !isIndia}
+                className={`w-full py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 ${!isIndia ? 'bg-slate-400 cursor-not-allowed opacity-75' : 'bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95'}`}
                 suppressHydrationWarning={true}
               >
                 {isProcessing ? (
                   <><Zap className="w-4 h-4 animate-spin" /> Connecting Gateway...</>
+                ) : !isIndia ? (
+                  <>Coming Soon</>
                 ) : isUserPro ? (
                   <><Sparkles className="w-4 h-4" /> You are Pro ✨ (Go to Dashboard)</>
                 ) : (
