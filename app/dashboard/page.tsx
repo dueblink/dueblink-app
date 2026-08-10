@@ -282,7 +282,6 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
   );
 }
 
-// Custom Dropdown Component matching the App UI/UX
 function CustomSelectDropdown({ 
   value, 
   options, 
@@ -373,7 +372,6 @@ export default function DashboardPage() {
   
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
 
-  // Search, Filter, and Sort states
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Overdue' | 'Paid'>('All');
   const [sortBy, setSortBy] = useState<'dueDate' | 'amount' | 'name'>('dueDate');
@@ -382,6 +380,8 @@ export default function DashboardPage() {
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const [aiTone, setAiTone] = useState('Professional');
   const [emailNotifs, setEmailNotifs] = useState(true);
@@ -571,8 +571,7 @@ export default function DashboardPage() {
 
   const handleAssistantAction = async (action: string) => {
     if (!isPro) {
-      alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
-      router.push('/pricing');
+      setUpgradeModalOpen(true);
       return;
     }
     await complete(JSON.stringify({ action, clients, history: [] }));
@@ -580,8 +579,7 @@ export default function DashboardPage() {
 
   const handleProRecovery = async (client: any) => {
     if (!isPro) {
-      alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
-      router.push('/pricing');
+      setUpgradeModalOpen(true);
       return;
     }
     await complete(JSON.stringify({ client, history: client.reminderHistory || [] }));
@@ -589,8 +587,7 @@ export default function DashboardPage() {
 
   const handleSummarizeOutstanding = async () => {
     if (!isPro) {
-      alert("Upgrade to DueBlink Pro to unlock Pro Recovery Assistant.");
-      router.push('/pricing');
+      setUpgradeModalOpen(true);
       return;
     }
     setRobotAction('summarize');
@@ -604,7 +601,6 @@ export default function DashboardPage() {
 
   const recommendation = clients.filter(c => c.status === 'Pending').sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0)).pop();
 
-  // Filter & Sort clients logic
   const filteredAndSortedClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -656,6 +652,60 @@ export default function DashboardPage() {
         clientToEdit={clientToEdit}
       />
       
+      <AnimatePresence>
+        {upgradeModalOpen && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 15 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6 relative text-slate-900"
+              suppressHydrationWarning={true}
+            >
+              <button 
+                onClick={() => setUpgradeModalOpen(false)} 
+                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-full bg-slate-50 transition"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="w-16 h-16 bg-blue-50 text-[#245B92] rounded-2xl flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
+                <Sparkles size={32} />
+              </div>
+
+              <div className="space-y-2" suppressHydrationWarning={true}>
+                <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>Upgrade to DueBlink Pro</h3>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
+                  Upgrade to DueBlink Pro to unlock the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and accelerate your cash collection.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2" suppressHydrationWarning={true}>
+                <button 
+                  onClick={() => setUpgradeModalOpen(false)} 
+                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-3xs"
+                  suppressHydrationWarning={true}
+                >
+                  Maybe Later
+                </button>
+                <button 
+                  onClick={() => {
+                    setUpgradeModalOpen(false);
+                    router.push('/pricing');
+                  }} 
+                  className="flex-1 py-3.5 rounded-xl text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 hover:opacity-95"
+                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                  suppressHydrationWarning={true}
+                >
+                  Upgrade Now 🚀
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {cancelModalOpen && (
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
@@ -744,7 +794,7 @@ export default function DashboardPage() {
         externalAction={robotAction}
         onTrigger={(action) => {
           if (!isPro) {
-            router.push('/pricing');
+            setUpgradeModalOpen(true);
             return;
           }
           handleAssistantAction(action);
@@ -916,7 +966,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Automate follow-ups, analyze payment trends, and recover money faster.</p>
                 </div>
                 <button 
-                  onClick={() => router.push('/pricing')}
+                  onClick={() => setUpgradeModalOpen(true)}
                   className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition cursor-pointer whitespace-nowrap"
                   suppressHydrationWarning={true}
                 >
@@ -944,16 +994,20 @@ export default function DashboardPage() {
               <motion.button 
                 whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  setRobotAction('summarize');
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!isPro) {
+                    setUpgradeModalOpen(true);
+                    return;
+                  }
                   handleSummarizeOutstanding();
                 }} 
-                disabled={isStreaming} 
+                disabled={isStreaming && isPro} 
                 className="text-xs font-bold text-white bg-[#0F172A] px-5 py-3 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
                 suppressHydrationWarning={true}
               >
-                {isStreaming ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
-                {isStreaming ? 'Summarizing...' : 'View Recovery Summary'}
+                {isStreaming && isPro ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
+                {isStreaming && isPro ? 'Summarizing...' : 'View Recovery Summary'}
               </motion.button>
             </header>
 
@@ -999,13 +1053,11 @@ export default function DashboardPage() {
               </section>
             )}
 
-            {/* Clients Section with Custom Dropdowns */}
             <section className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6" suppressHydrationWarning={true}>
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4" suppressHydrationWarning={true}>
                 <h3 className="font-black uppercase text-xs tracking-widest text-slate-400" suppressHydrationWarning={true}>Client Management</h3>
                 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  {/* Search Input */}
                   <div className="relative flex-1 sm:w-64">
                     <Search className="absolute left-3 top-3 text-slate-400" size={16} />
                     <input 
@@ -1017,7 +1069,6 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  {/* Custom Sort Dropdown */}
                   <CustomSelectDropdown
                     value={sortBy}
                     onChange={(val) => setSortBy(val as any)}
@@ -1042,7 +1093,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Status Filter Tabs */}
               <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-100 text-xs font-bold">
                 {(['All', 'Pending', 'Overdue', 'Paid'] as const).map((tab) => {
                   const count = clients.filter(c => {
@@ -1135,8 +1185,8 @@ export default function DashboardPage() {
                                 c.status === 'Paid' 
                                   ? 'bg-emerald-50 text-emerald-600' 
                                   : isOverdue 
-                                    ? 'bg-rose-50 text-rose-600' 
-                                    : 'bg-amber-50 text-amber-600'
+                                  ? 'bg-rose-50 text-rose-600' 
+                                  : 'bg-amber-50 text-amber-600'
                               }`} suppressHydrationWarning={true}>
                                 {c.status === 'Paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Pending'}
                               </span>
@@ -1401,9 +1451,19 @@ export default function DashboardPage() {
                 <HelpCircle className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Help & Support</h3>
               </div>
-              <div className="flex flex-wrap gap-4 text-xs font-bold">
-                <a href="mailto:support@dueblink.com" className="px-5 py-3 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition">Contact Support</a>
-                <a href="/pricing" className="px-5 py-3 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition">FAQ & Pricing</a>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
+                <a href="/contact" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+                  <span>Contact Support</span>
+                  <span className="text-[#245B92]">→</span>
+                </a>
+                <a href="/#faq" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+                  <span>FAQ</span>
+                  <span className="text-[#245B92]">→</span>
+                </a>
+                <a href="/pricing" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+                  <span>Pricing & Plans</span>
+                  <span className="text-[#245B92]">→</span>
+                </a>
               </div>
             </div>
           </motion.div>
