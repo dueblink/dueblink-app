@@ -102,96 +102,265 @@ export default function PricingPage() {
   };
 
   const handleUpgradeClick = async (plan: 'free' | 'pro') => {
-    if (plan === 'free') {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/create-account');
-      }
-      return;
+  if (plan === 'free') {
+    if (user) {
+      router.push('/dashboard');
+    } else {
+      router.push('/create-account');
     }
+    return;
+  }
 
-    if (!isIndia) {
-      alert("International payments are coming soon! Please use the Indian version (₹ INR) for now.");
-      return;
-    }
+  if (!isIndia) {
+    alert(
+      "International payments are coming soon! Please use the Indian version (₹ INR) for now."
+    );
+    return;
+  }
 
-    // PRO Plan Flow with Razorpay
-    if (!user) {
-      router.push('/create-account?redirect=checkout');
-      return;
-    }
+  // User must be logged in
+  if (!user) {
+    router.push('/create-account?redirect=checkout');
+    return;
+  }
 
-    setIsProcessing(true);
+  setIsProcessing(true);
 
-    try {
-      const amountInPaise = billingCycle === 'monthly' ? 49900 : 499900;
-      const currency = 'INR';
+  try {
+    // ======================================================
+    // 1. Calculate amount
+    // ======================================================
+    const amountInPaise =
+      billingCycle === 'monthly' ? 49900 : 499900;
 
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+    // ======================================================
+    // 2. Create Razorpay Order on SERVER
+    // ======================================================
+    const orderResponse = await fetch('/api/create-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         amount: amountInPaise,
-        currency: currency,
-        name: "DueBlink",
-        description: `Pro Subscription (${billingCycle})`,
-        image: "/logo.png",
-        handler: async function (response: any) {
-          console.log("Payment ID:", response.razorpay_payment_id);
-          
-          try {
-            if (user?.uid) {
-              const expiresAt = new Date();
-              if (billingCycle === 'yearly') {
-                expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-              } else {
-                expiresAt.setMonth(expiresAt.getMonth() + 1);
-              }
+        currency: 'INR',
+        userId: user.uid,
+        billingCycle,
+      }),
+    });
 
-              const userRef = doc(db, 'users', user.uid);
-              await updateDoc(userRef, {
-                isPro: true,
-                billingCycle: billingCycle,
-                proExpiresAt: expiresAt,
-                razorpayPaymentId: response.razorpay_payment_id,
-                cancelledAt: null
-              });
+    const orderData = await orderResponse.json();
 
-              localStorage.setItem('dueblink_is_pro', 'true');
-              localStorage.setItem('dueblink_pro_active', 'true');
-              localStorage.setItem('just_upgraded', 'true');
-              window.dispatchEvent(new Event('pro-status-updated'));
-              setIsUserPro(true);
+    if (!orderResponse.ok || !orderData.success) {
+      console.error('Order creation failed:', orderData);
+
+      throw new Error(
+        orderData.message || 'Failed to create Razorpay order'
+      );
+    }
+
+    console.log(
+      'Razorpay Order Created:',
+      orderData.orderId
+    );
+
+    // ======================================================
+    // 3. Open Razorpay Checkout
+    // ======================================================
+    const RazorpayConstructor = (window as any).Razorpay;
+
+    if (!RazorpayConstructor) {
+      throw new Error(
+        'Razorpay SDK is not loaded'
+      );
+    }
+
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+
+      amount: orderData.amount,
+      currency: orderData.currency,
+
+      name: 'DueBlink',
+      description: `DueBlink Pro (${billingCycle})`,
+      image: '/logo.png',
+
+      // IMPORTANT:
+      // This connects the Checkout payment to
+      // the server-created Razorpay order.
+      order_id: orderData.orderId,
+
+      prefill: {
+        email: user.email || '',
+        name: user.displayName || 'DueBlink User',
+      },
+
+      theme: {
+        color: '#245B92',
+      },
+
+      // ====================================================
+      // 4. Payment successful
+      // ====================================================
+      handler: async function (response: any) {
+        console.log(
+          'Razorpay Payment ID:',
+          response.razorpay_payment_id
+        );
+
+        console.log(
+          'Razorpay Order ID:',
+          response.razorpay_order_id
+        );
+
+        console.log(
+          'Razorpay Signature:',
+          response.razorpay_signature
+        );
+
+        try {
+          // ==================================================
+          // 5. Verify payment on SERVER
+          // ==================================================
+          const verifyResponse = await fetch(
+            '/api/verify-payment',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                razorpay_order_id:
+                  response.razorpay_order_id,
+
+                razorpay_payment_id:
+                  response.razorpay_payment_id,
+
+                razorpay_signature:
+                  response.razorpay_signature,
+
+                userId: user.uid,
+
+                billingCycle,
+              }),
             }
-          } catch (err) {
-            console.error("Error activating Pro subscription:", err);
-            localStorage.setItem('dueblink_is_pro', 'true');
-            localStorage.setItem('dueblink_pro_active', 'true');
-            localStorage.setItem('just_upgraded', 'true');
-            window.dispatchEvent(new Event('pro-status-updated'));
-            setIsUserPro(true);
+          );
+
+          const verifyData = await verifyResponse.json();
+
+          if (!verifyResponse.ok || !verifyData.success) {
+            console.error(
+              'Payment verification failed:',
+              verifyData
+            );
+
+            alert(
+              'Payment was received, but verification failed. Please contact support.'
+            );
+
+            return;
           }
 
+          // ==================================================
+          // 6. Payment verified successfully
+          // ==================================================
+          console.log(
+            'Payment verified successfully'
+          );
+
+          // Keep your existing Pro state behavior
+          localStorage.setItem(
+            'dueblink_is_pro',
+            'true'
+          );
+
+          localStorage.setItem(
+            'dueblink_pro_active',
+            'true'
+          );
+
+          localStorage.setItem(
+            'just_upgraded',
+            'true'
+          );
+
+          window.dispatchEvent(
+            new Event('pro-status-updated')
+          );
+
+          setIsUserPro(true);
+
+          // ==================================================
+          // 7. Show existing success modal
+          // ==================================================
           setPaymentSuccessModal(true);
-        },
-        prefill: {
-          email: user?.email || "",
-          name: user?.displayName || "DueBlink User",
-        },
-        theme: {
-          color: "#245B92",
-        },
-      };
 
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
+        } catch (verifyError) {
+          console.error(
+            'Payment verification error:',
+            verifyError
+          );
 
-    } catch (error) {
-      console.error("Payment error:", error);
-      alert("Something went wrong with checkout. Please try again.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+          alert(
+            'Payment verification failed. Please contact support if money was deducted.'
+          );
+        }
+      },
+
+      // ======================================================
+      // Payment modal closed
+      // ======================================================
+      modal: {
+        ondismiss: function () {
+          console.log(
+            'Razorpay checkout closed'
+          );
+        },
+      },
+    };
+
+    // ======================================================
+    // 8. Create Razorpay instance
+    // ======================================================
+    const rzp = new RazorpayConstructor(options);
+
+    // ======================================================
+    // 9. Handle failed payment
+    // ======================================================
+    rzp.on(
+      'payment.failed',
+      function (response: any) {
+        console.error(
+          'Razorpay payment failed:',
+          response.error
+        );
+
+        alert(
+          response.error?.description ||
+            'Payment failed. Please try again.'
+        );
+      }
+    );
+
+    // ======================================================
+    // 10. Open Razorpay
+    // ======================================================
+    rzp.open();
+
+  } catch (error) {
+    console.error(
+      'Razorpay checkout error:',
+      error
+    );
+
+    alert(
+      'Something went wrong with checkout. Please try again.'
+    );
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
