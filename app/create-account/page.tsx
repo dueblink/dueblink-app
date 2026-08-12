@@ -41,6 +41,26 @@ export default function RegisterPage() {
         createdAt: serverTimestamp(),
       });
       
+      // Send automated SaaS welcome email through the server API endpoint
+      try {
+        const emailResponse = await fetch("/api/send-welcome", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email || email,
+            userName: fullName || "there",
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          console.error("Failed to send welcome email.");
+        }
+      } catch (emailErr) {
+        console.error("Welcome email request failed:", emailErr);
+      }
+      
       localStorage.setItem('has_created_account', 'true');
       localStorage.setItem('user_authenticated', 'true');
       
