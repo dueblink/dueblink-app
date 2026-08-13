@@ -3,15 +3,11 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const {
-      amount,
-      currency = 'INR',
       userId,
       billingCycle,
     } = await req.json();
 
     console.log('=== DUEBLINK CREATE ORDER ===');
-    console.log('Amount:', amount);
-    console.log('Currency:', currency);
     console.log('User ID exists:', !!userId);
     console.log('Billing Cycle:', billingCycle);
 
@@ -19,7 +15,7 @@ export async function POST(req: Request) {
     // 1. Validate request
     // --------------------------------------------------
 
-    if (!amount || !userId || !billingCycle) {
+    if (!userId || !billingCycle) {
       return NextResponse.json(
         {
           success: false,
@@ -42,23 +38,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const numericAmount = Number(amount);
+    // --------------------------------------------------
+    // 2. SERVER-CONTROLLED PRICING
+    // --------------------------------------------------
 
-    if (
-      !Number.isInteger(numericAmount) ||
-      numericAmount < 100
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid Razorpay amount',
-        },
-        { status: 400 }
-      );
-    }
+    const currency = 'INR';
+
+    const numericAmount =
+      billingCycle === 'monthly'
+        ? 49900
+        : 499900;
+
+    console.log(
+      'Server calculated amount:',
+      numericAmount
+    );
+
+    console.log(
+      'Currency:',
+      currency
+    );
 
     // --------------------------------------------------
-    // 2. Get Razorpay credentials
+    // 3. Get Razorpay credentials
     // --------------------------------------------------
 
     const keyId = process.env.RAZORPAY_KEY_ID;
@@ -66,15 +68,22 @@ export async function POST(req: Request) {
 
     // SAFE diagnostic logs
     // NEVER log the actual secret.
-    console.log('Razorpay Key ID:', keyId);
+
+    console.log(
+      'Razorpay Key ID exists:',
+      !!keyId
+    );
+
     console.log(
       'Razorpay Key ID length:',
       keyId?.length
     );
+
     console.log(
       'Razorpay Secret exists:',
       !!keySecret
     );
+
     console.log(
       'Razorpay Secret length:',
       keySecret?.length
@@ -92,13 +101,13 @@ export async function POST(req: Request) {
     }
 
     // --------------------------------------------------
-    // 3. Create unique receipt
+    // 4. Create unique receipt
     // --------------------------------------------------
 
     const receipt = `db_${Date.now()}`;
 
     // --------------------------------------------------
-    // 4. Create Basic Authentication
+    // 5. Create Basic Authentication
     // --------------------------------------------------
 
     const authToken = Buffer.from(
@@ -106,7 +115,7 @@ export async function POST(req: Request) {
     ).toString('base64');
 
     // --------------------------------------------------
-    // 5. Call Razorpay Orders API directly
+    // 6. Call Razorpay Orders API directly
     // --------------------------------------------------
 
     const razorpayResponse = await fetch(
@@ -134,7 +143,7 @@ export async function POST(req: Request) {
     );
 
     // --------------------------------------------------
-    // 6. Read Razorpay response
+    // 7. Read Razorpay response
     // --------------------------------------------------
 
     const razorpayData =
@@ -151,7 +160,7 @@ export async function POST(req: Request) {
     );
 
     // --------------------------------------------------
-    // 7. Handle Razorpay error
+    // 8. Handle Razorpay error
     // --------------------------------------------------
 
     if (!razorpayResponse.ok) {
@@ -174,7 +183,7 @@ export async function POST(req: Request) {
     }
 
     // --------------------------------------------------
-    // 8. Success
+    // 9. Success
     // --------------------------------------------------
 
     console.log(
@@ -191,6 +200,7 @@ export async function POST(req: Request) {
       },
       { status: 200 }
     );
+
   } catch (error: any) {
     console.error(
       'CREATE ORDER SERVER ERROR:',
@@ -200,6 +210,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
+
         message:
           error?.message ||
           'Internal server error while creating Razorpay order',

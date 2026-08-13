@@ -134,35 +134,34 @@ export default function PricingPage() {
       billingCycle === 'monthly' ? 49900 : 499900;
 
     // ======================================================
-    // 2. Create Razorpay Order on SERVER
-    // ======================================================
-    const orderResponse = await fetch('/api/create-order', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        amount: amountInPaise,
-        currency: 'INR',
-        userId: user.uid,
-        billingCycle,
-      }),
-    });
+    //  2. Create Razorpay Order on SERVER
+// ======================================================
+const orderResponse = await fetch('/api/create-order', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    userId: user.uid,
+    billingCycle,
+  }),
+});
 
-    const orderData = await orderResponse.json();
+const orderData = await orderResponse.json();
 
-    if (!orderResponse.ok || !orderData.success) {
-      console.error('Order creation failed:', orderData);
+if (!orderResponse.ok || !orderData.success) {
+  console.error('Order creation failed:', orderData);
 
-      throw new Error(
-        orderData.message || 'Failed to create Razorpay order'
-      );
-    }
+  throw new Error(
+    orderData.message || 'Failed to create Razorpay order'
+  );
+}
 
-    console.log(
-      'Razorpay Order Created:',
-      orderData.orderId
-    );
+console.log(
+  'Razorpay Order Created:',
+  orderData.orderId
+);
+
 
     // ======================================================
     // 3. Open Razorpay Checkout
