@@ -12,6 +12,7 @@ import {
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
+import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -565,6 +566,9 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
   >
 
+    {/* SEASONAL LANDING ACCENT */}
+    <SeasonalLandingAccent />
+
     {/* HERO BADGE */}
     <div
       className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden"
@@ -1083,7 +1087,7 @@ export default function LandingPage() {
           </div>
           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}><span className="w-1 h-1 rounded-full bg-emerald-500" suppressHydrationWarning={true} /> Paid</span>
         </div>
-        </div>
+      </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 text-center text-xs font-bold text-slate-500" suppressHydrationWarning={true}>
         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No spreadsheets.</div>
@@ -1265,7 +1269,7 @@ export default function LandingPage() {
               animate={{ opacity: 1, scale: 1 }}
               className="w-full space-y-4 text-left"
               suppressHydrationWarning={true}
-              >
+            >
             <div className="flex flex-wrap gap-2 border-b pb-2 mb-4 items-center justify-between" suppressHydrationWarning={true}>
               <div className="flex flex-wrap gap-1 sm:gap-2">
                 {[
@@ -1302,8 +1306,8 @@ export default function LandingPage() {
                 <div className="space-y-3 font-sans text-xs text-slate-700">
                   <div className="font-black text-slate-900 border-b pb-1 mb-2 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#20B8BE]" /> AI Recovery Action Plan
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
+                </div>
+                <div className="grid grid-cols-1 gap-2">
                 <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
                   <span className="font-semibold text-slate-500">Best tone:</span>
                   <span className="font-bold text-slate-800 uppercase text-[11px] bg-teal-50 text-[#147D75] px-2 py-0.5 rounded">Professional</span>
@@ -1320,8 +1324,8 @@ export default function LandingPage() {
                   <span className="font-black text-[#147D75] uppercase text-[10px] block">AI Recommendation</span>
                   <p className="font-medium">Send a follow-up today via WhatsApp for highest response rate.</p>
                 </div>
-                  </div>
-                </div>
+              </div>
+              </div>
               )}
             </div>
 
@@ -1346,8 +1350,8 @@ export default function LandingPage() {
             <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-11 h-11 rounded-full flex items-center justify-center text-white mb-3 shadow-xs mx-auto" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} /></div>
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
             <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
-              </div>
-            )}
+            </div>
+          )}
           </div>
         </div>
       </motion.div>
@@ -2088,9 +2092,9 @@ export default function LandingPage() {
           </button>
           {!user && (
         <button 
-           onClick={() => { setIsModalOpen(false); router.push('/create-account'); }} 
-           className="w-full py-3 bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition hover:bg-slate-200 cursor-pointer" 
-           suppressHydrationWarning={true}
+             onClick={() => { setIsModalOpen(false); router.push('/create-account'); }} 
+            className="w-full py-3 bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition hover:bg-slate-200 cursor-pointer" 
+            suppressHydrationWarning={true}
         >
            Create Account Free
         </button>

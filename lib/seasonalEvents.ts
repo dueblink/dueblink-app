@@ -104,7 +104,7 @@ export function getSeasonalEvent(
 
   if (
     month === 8 &&
-    (day === 14 || day === 15)
+    (day === 14|| day === 15)
   ) {
     return {
       id: `independence-${year}`,
