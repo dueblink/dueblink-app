@@ -8,6 +8,7 @@ import { onAuthStateChanged, signOut, sendPasswordResetEmail } from 'firebase/au
 import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
+import SeasonalBanner from '@/components/SeasonalBanner';
 import { useCompletion } from 'ai/react';
 
 function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: { isOpen: boolean; onClose: () => void; user: any; clientToEdit?: any; onClientSaved?: () => void }) {
@@ -936,6 +937,8 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
             className="space-y-6 sm:space-y-8"
           >
+            <SeasonalBanner />
+
             {isPro ? (
               <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
                 <div className="space-y-1 text-center sm:text-left flex items-center gap-3" suppressHydrationWarning={true}>
