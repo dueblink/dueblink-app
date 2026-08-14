@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSeasonalPricing } from '@/lib/seasonalPricing';
 
 export async function POST(req: Request) {
   try {
@@ -44,14 +45,35 @@ export async function POST(req: Request) {
 
     const currency = 'INR';
 
+    const seasonalPricing =
+      getSeasonalPricing();
+
+    const amountInRupees = seasonalPricing
+      ? billingCycle === 'monthly'
+        ? seasonalPricing.monthlyPrice
+        : seasonalPricing.yearlyPrice
+      : billingCycle === 'monthly'
+        ? 499
+        : 4999;
+
     const numericAmount =
-      billingCycle === 'monthly'
-        ? 49900
-        : 499900;
+      amountInRupees * 100;
+
+    console.log(
+      'Seasonal offer:',
+      seasonalPricing?.name || 'None'
+    );
+
+    console.log(
+      'Server calculated price:',
+      amountInRupees,
+      'INR'
+    );
 
     console.log(
       'Server calculated amount:',
-      numericAmount
+      numericAmount,
+      'paise'
     );
 
     console.log(
@@ -63,8 +85,11 @@ export async function POST(req: Request) {
     // 3. Get Razorpay credentials
     // --------------------------------------------------
 
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const keyId =
+      process.env.RAZORPAY_KEY_ID;
+
+    const keySecret =
+      process.env.RAZORPAY_KEY_SECRET;
 
     // SAFE diagnostic logs
     // NEVER log the actual secret.
@@ -104,43 +129,53 @@ export async function POST(req: Request) {
     // 4. Create unique receipt
     // --------------------------------------------------
 
-    const receipt = `db_${Date.now()}`;
+    const receipt =
+      `db_${Date.now()}`;
 
     // --------------------------------------------------
     // 5. Create Basic Authentication
     // --------------------------------------------------
 
-    const authToken = Buffer.from(
-      `${keyId}:${keySecret}`
-    ).toString('base64');
+    const authToken =
+      Buffer.from(
+        `${keyId}:${keySecret}`
+      ).toString('base64');
 
     // --------------------------------------------------
     // 6. Call Razorpay Orders API directly
     // --------------------------------------------------
 
-    const razorpayResponse = await fetch(
-      'https://api.razorpay.com/v1/orders',
-      {
-        method: 'POST',
+    const razorpayResponse =
+      await fetch(
+        'https://api.razorpay.com/v1/orders',
+        {
+          method: 'POST',
 
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${authToken}`,
-        },
+          headers: {
+            'Content-Type':
+              'application/json',
 
-        body: JSON.stringify({
-          amount: numericAmount,
-          currency,
-          receipt,
-
-          notes: {
-            userId: String(userId),
-            billingCycle,
-            product: 'DueBlink Pro',
+            Authorization:
+              `Basic ${authToken}`,
           },
-        }),
-      }
-    );
+
+          body: JSON.stringify({
+            amount: numericAmount,
+            currency,
+            receipt,
+
+            notes: {
+              userId: String(userId),
+              billingCycle,
+              product: 'DueBlink Pro',
+
+              seasonalOffer:
+                seasonalPricing?.id ||
+                'none',
+            },
+          }),
+        }
+      );
 
     // --------------------------------------------------
     // 7. Read Razorpay response
@@ -169,7 +204,8 @@ export async function POST(req: Request) {
           success: false,
 
           message:
-            razorpayData?.error?.description ||
+            razorpayData?.error
+              ?.description ||
             razorpayData?.error?.reason ||
             'Razorpay order creation failed',
 
@@ -177,7 +213,8 @@ export async function POST(req: Request) {
             razorpayData?.error || null,
         },
         {
-          status: razorpayResponse.status,
+          status:
+            razorpayResponse.status,
         }
       );
     }
@@ -196,7 +233,11 @@ export async function POST(req: Request) {
         success: true,
         orderId: razorpayData.id,
         amount: razorpayData.amount,
-        currency: razorpayData.currency,
+        currency:
+          razorpayData.currency,
+        seasonalOffer:
+          seasonalPricing?.name ||
+          null,
       },
       { status: 200 }
     );

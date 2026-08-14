@@ -7,6 +7,9 @@ import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import {
+  getSeasonalPricing,
+} from '@/lib/seasonalPricing';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -19,6 +22,8 @@ export default function PricingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paymentSuccessModal, setPaymentSuccessModal] = useState(false);
   const [isUserPro, setIsUserPro] = useState(false);
+
+  const seasonalPricing = getSeasonalPricing();
 
   useEffect(() => {
     setMounted(true);
@@ -128,14 +133,9 @@ export default function PricingPage() {
 
   try {
     // ======================================================
-    // 1. Calculate amount
-    // ======================================================
-    const amountInPaise =
-      billingCycle === 'monthly' ? 49900 : 499900;
-
-    // ======================================================
-    //  2. Create Razorpay Order on SERVER
+// 1. Create Razorpay Order on SERVER
 // ======================================================
+
 const orderResponse = await fetch('/api/create-order', {
   method: 'POST',
   headers: {
@@ -162,207 +162,232 @@ console.log(
   orderData.orderId
 );
 
+console.log(
+  'Razorpay Amount:',
+  orderData.amount
+);
 
-    // ======================================================
-    // 3. Open Razorpay Checkout
-    // ======================================================
-    const RazorpayConstructor = (window as any).Razorpay;
+// ======================================================
+// 2. Open Razorpay Checkout
+// ======================================================
 
-    if (!RazorpayConstructor) {
-      throw new Error(
-        'Razorpay SDK is not loaded'
-      );
-    }
+const RazorpayConstructor = (window as any).Razorpay;
 
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+if (!RazorpayConstructor) {
+  throw new Error(
+    'Razorpay SDK is not loaded'
+  );
+}
 
-      amount: orderData.amount,
-      currency: orderData.currency,
+const options = {
+  key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
 
-      name: 'DueBlink',
-      description: `DueBlink Pro (${billingCycle})`,
-      image: '/logo.png',
+  // IMPORTANT:
+  // Amount comes ONLY from the server-created order.
+  amount: orderData.amount,
+  currency: orderData.currency,
 
-      // IMPORTANT:
-      // This connects the Checkout payment to
-      // the server-created Razorpay order.
-      order_id: orderData.orderId,
+  name: 'DueBlink',
+  description: `DueBlink Pro (${billingCycle})`,
+  image: '/logo.png',
 
-      prefill: {
-        email: user.email || '',
-        name: user.displayName || 'DueBlink User',
-      },
+  // Connect checkout to the server-created Razorpay order.
+  order_id: orderData.orderId,
 
-      theme: {
-        color: '#245B92',
-      },
+  prefill: {
+    email: user.email || '',
+    name: user.displayName || 'DueBlink User',
+  },
 
-      // ====================================================
-      // 4. Payment successful
-      // ====================================================
-      handler: async function (response: any) {
-        console.log(
-          'Razorpay Payment ID:',
-          response.razorpay_payment_id
-        );
+  theme: {
+    color: '#245B92',
+  },
 
-        console.log(
-          'Razorpay Order ID:',
-          response.razorpay_order_id
-        );
+  // ====================================================
+  // 3. Payment successful
+  // ====================================================
 
-        console.log(
-          'Razorpay Signature:',
-          response.razorpay_signature
-        );
+  handler: async function (response: any) {
+    console.log(
+      'Razorpay Payment ID:',
+      response.razorpay_payment_id
+    );
 
-        try {
-          // ==================================================
-          // 5. Verify payment on SERVER
-          // ==================================================
-          const verifyResponse = await fetch(
-            '/api/verify-payment',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                razorpay_order_id:
-                  response.razorpay_order_id,
+    console.log(
+      'Razorpay Order ID:',
+      response.razorpay_order_id
+    );
 
-                razorpay_payment_id:
-                  response.razorpay_payment_id,
+    console.log(
+      'Razorpay Signature:',
+      response.razorpay_signature
+    );
 
-                razorpay_signature:
-                  response.razorpay_signature,
+    try {
+      // ==================================================
+      // 4. Verify payment on SERVER
+      // ==================================================
 
-                userId: user.uid,
+      const verifyResponse = await fetch(
+        '/api/verify-payment',
+        {
+          method: 'POST',
 
-                billingCycle,
-              }),
-            }
-          );
+          headers: {
+            'Content-Type': 'application/json',
+          },
 
-          const verifyData = await verifyResponse.json();
+          body: JSON.stringify({
+            razorpay_order_id:
+              response.razorpay_order_id,
 
-          if (!verifyResponse.ok || !verifyData.success) {
-            console.error(
-              'Payment verification failed:',
-              verifyData
-            );
+            razorpay_payment_id:
+              response.razorpay_payment_id,
 
-            alert(
-              'Payment was received, but verification failed. Please contact support.'
-            );
+            razorpay_signature:
+              response.razorpay_signature,
 
-            return;
-          }
+            userId: user.uid,
 
-          // ==================================================
-          // 6. Payment verified successfully
-          // ==================================================
-          console.log(
-            'Payment verified successfully'
-          );
-
-          // Keep your existing Pro state behavior
-          localStorage.setItem(
-            'dueblink_is_pro',
-            'true'
-          );
-
-          localStorage.setItem(
-            'dueblink_pro_active',
-            'true'
-          );
-
-          localStorage.setItem(
-            'just_upgraded',
-            'true'
-          );
-
-          window.dispatchEvent(
-            new Event('pro-status-updated')
-          );
-
-          setIsUserPro(true);
-
-          // ==================================================
-          // 7. Show existing success modal
-          // ==================================================
-          setPaymentSuccessModal(true);
-
-        } catch (verifyError) {
-          console.error(
-            'Payment verification error:',
-            verifyError
-          );
-
-          alert(
-            'Payment verification failed. Please contact support if money was deducted.'
-          );
+            billingCycle,
+          }),
         }
-      },
+      );
 
-      // ======================================================
-      // Payment modal closed
-      // ======================================================
-      modal: {
-        ondismiss: function () {
-          console.log(
-            'Razorpay checkout closed'
-          );
-        },
-      },
-    };
+      const verifyData =
+        await verifyResponse.json();
 
-    // ======================================================
-    // 8. Create Razorpay instance
-    // ======================================================
-    const rzp = new RazorpayConstructor(options);
-
-    // ======================================================
-    // 9. Handle failed payment
-    // ======================================================
-    rzp.on(
-      'payment.failed',
-      function (response: any) {
+      if (
+        !verifyResponse.ok ||
+        !verifyData.success
+      ) {
         console.error(
-          'Razorpay payment failed:',
-          response.error
+          'Payment verification failed:',
+          verifyData
         );
 
         alert(
-          response.error?.description ||
-            'Payment failed. Please try again.'
+          'Payment was received, but verification failed. Please contact support.'
         );
+
+        return;
       }
-    );
 
-    // ======================================================
-    // 10. Open Razorpay
-    // ======================================================
-    rzp.open();
+      // ==================================================
+      // 5. Payment verified successfully
+      // ==================================================
 
-  } catch (error) {
+      console.log(
+        'Payment verified successfully'
+      );
+
+      // Keep existing Pro state behavior
+
+      localStorage.setItem(
+        'dueblink_is_pro',
+        'true'
+      );
+
+      localStorage.setItem(
+        'dueblink_pro_active',
+        'true'
+      );
+
+      localStorage.setItem(
+        'just_upgraded',
+        'true'
+      );
+
+      window.dispatchEvent(
+        new Event('pro-status-updated')
+      );
+
+      setIsUserPro(true);
+
+      // ==================================================
+      // 6. Show existing success modal
+      // ==================================================
+
+      setPaymentSuccessModal(true);
+
+    } catch (verifyError) {
+      console.error(
+        'Payment verification error:',
+        verifyError
+      );
+
+      alert(
+        'Payment verification failed. Please contact support if money was deducted.'
+      );
+    }
+  },
+
+  // ======================================================
+  // Payment modal closed
+  // ======================================================
+
+  modal: {
+    ondismiss: function () {
+      console.log(
+        'Razorpay checkout closed'
+      );
+    },
+  },
+};
+
+// ======================================================
+// 7. Create Razorpay instance
+// ======================================================
+
+const rzp =
+  new RazorpayConstructor(options);
+
+// ======================================================
+// 8. Handle failed payment
+// ======================================================
+
+rzp.on(
+  'payment.failed',
+  function (response: any) {
     console.error(
-      'Razorpay checkout error:',
-      error
+      'Razorpay payment failed:',
+      response.error
     );
 
     alert(
-      'Something went wrong with checkout. Please try again.'
+      response.error?.description ||
+        'Payment failed. Please try again.'
     );
-  } finally {
-    setIsProcessing(false);
   }
+);
+
+// ======================================================
+// 9. Open Razorpay
+// ======================================================
+
+rzp.open();
+
+} catch (error) {
+  console.error(
+    'Razorpay checkout error:',
+    error
+  );
+
+  alert(
+    'Something went wrong with checkout. Please try again.'
+  );
+
+} finally {
+  setIsProcessing(false);
+}
 };
 
+return (
+  <div
+    className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20"
+    suppressHydrationWarning={true}
+  >
 
-  return (
-    <div className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
       
       {/* NAVBAR */}
       <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
@@ -610,17 +635,41 @@ console.log(
                 <p className="text-slate-400 text-sm mb-6 font-medium" suppressHydrationWarning={true}>Unlock full potential</p>
                 
                 <div className="text-5xl font-black mb-1 text-[#0F172A]" suppressHydrationWarning={true}>
-                  {isIndia 
-                    ? (billingCycle === 'monthly' ? '₹499' : '₹4,999') 
-                    : (billingCycle === 'monthly' ? '$9' : '$89')} 
+                  {isIndia
+                    ? (
+                        seasonalPricing
+                          ? `₹${
+                              billingCycle === 'monthly'
+                                ? seasonalPricing.monthlyPrice.toLocaleString('en-IN')
+                                : seasonalPricing.yearlyPrice.toLocaleString('en-IN')
+                            }`
+                          : (
+                              billingCycle === 'monthly'
+                                ? '₹499'
+                                : '₹4,999'
+                            )
+                      )
+                    : (
+                        billingCycle === 'monthly'
+                          ? '$9'
+                          : '$89'
+                      )} 
                   <span className="text-sm font-bold text-slate-400" suppressHydrationWarning={true}>
                     {billingCycle === 'monthly' ? ' / month' : ' / year'}
                   </span>
                 </div>
                 <p className="text-xs font-bold text-teal-600 mb-8" suppressHydrationWarning={true}>
-                  {isIndia 
-                    ? (billingCycle === 'yearly' ? '✨ Best value: Save 15% annually' : 'Billed monthly · Cancel anytime')
-                    : '🚧 Coming Soon'}
+                  {isIndia
+                    ? (
+                        seasonalPricing
+                          ? `${seasonalPricing.name} · Limited time`
+                          : (
+                              billingCycle === 'yearly'
+                                ? ' Best value: Save 15% annually'
+                                : 'Billed monthly · Cancel anytime'
+                            )
+                      )
+                    : ' Coming Soon'}
                 </p>
 
                 <ul className="space-y-4 mb-8 flex-grow" suppressHydrationWarning={true}>

@@ -13,6 +13,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
+import { getSeasonalPricing } from '@/lib/seasonalPricing';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export default function LandingPage() {
   const [user, setUser] = useState<any>(null);
   const [isPro, setIsPro] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  const seasonalPricing = getSeasonalPricing();
 
   // Sync pro status from localStorage and event listeners
   useEffect(() => {
@@ -408,50 +411,50 @@ export default function LandingPage() {
                   <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-150 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
                 )}
               </motion.button>
-          </div>
+            </div>
 
-          <div className="flex items-center gap-4" suppressHydrationWarning={true}>
-            {pathname === '/login' ? (
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
-            ) : !mounted ? (
-              <div className="h-9 w-32" suppressHydrationWarning={true} />
-            ) : user ? (
-              <div className="flex items-center gap-4">
-                <motion.button 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ duration: 0.15 }}
-                  onClick={() => router.push('/dashboard')} 
-                  className="relative px-4 py-2 text-sm font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 text-white hover:opacity-95"
-                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                  suppressHydrationWarning={true}
-                >
-                  Open Dashboard 
-                  {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider ml-1">PRO</span>}
-                </motion.button>
-                <div className="relative group py-2">
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} className={`flex items-center gap-1.5 text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/account' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-700 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>
-                    Account <ChevronDown size={14} />
-                    {pathname === '/account' && (
-                      <div className="absolute bottom-1 left-3 right-3 h-0.5 bg-[#245B92] rounded-full" />
-                    )}
+            <div className="flex items-center gap-4" suppressHydrationWarning={true}>
+              {pathname === '/login' ? (
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
+              ) : !mounted ? (
+                <div className="h-9 w-32" suppressHydrationWarning={true} />
+              ) : user ? (
+                <div className="flex items-center gap-4">
+                  <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    onClick={() => router.push('/dashboard')} 
+                    className="relative px-4 py-2 text-sm font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 text-white hover:opacity-95"
+                    style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                    suppressHydrationWarning={true}
+                  >
+                    Open Dashboard 
+                    {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider ml-1">PRO</span>}
                   </motion.button>
-                  <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 hidden group-hover:block z-50">
-                    <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
+                  <div className="relative group py-2">
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} className={`flex items-center gap-1.5 text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/account' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-700 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>
+                      Account <ChevronDown size={14} />
+                      {pathname === '/account' && (
+                        <div className="absolute bottom-1 left-3 right-3 h-0.5 bg-[#245B92] rounded-full" />
+                      )}
+                    </motion.button>
+                    <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 hidden group-hover:block z-50">
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/login')} className={`text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/login' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-600 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>Login</motion.button>
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
-              </>
-          )}
+              ) : (
+                <>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/login')} className={`text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/login' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-600 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>Login</motion.button>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* MOBILE HAMBURGER TOGGLE BUTTON */}
-      <div className="flex md:hidden items-center">
+          {/* MOBILE HAMBURGER TOGGLE BUTTON */}
+        <div className="flex md:hidden items-center">
           <motion.button 
             whileTap={{ scale: 0.9 }}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -848,7 +851,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-          
+        
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>One place to recover payments.</h2>
@@ -906,7 +909,7 @@ export default function LandingPage() {
     <section id="ai-recovery-assistant" className="py-16 sm:py-20 bg-slate-50/60 border-b border-slate-100 relative overflow-hidden px-4" suppressHydrationWarning={true}>
     <div className="max-w-5xl mx-auto" suppressHydrationWarning={true}>
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-14 shadow-xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center" suppressHydrationWarning={true}>
-            
+        
       <div className="space-y-6" suppressHydrationWarning={true}>
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider shadow-3xs" suppressHydrationWarning={true}>
           <Bot size={14} /> AI RECOVERY ASSISTANT (PRO)
@@ -1120,7 +1123,7 @@ export default function LandingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto text-left" suppressHydrationWarning={true}>
-            
+        
       {/* Left Form */}
       <motion.div 
         initial={{ opacity: 0, x: -10 }}
@@ -1324,8 +1327,8 @@ export default function LandingPage() {
                   <span className="font-black text-[#147D75] uppercase text-[10px] block">AI Recommendation</span>
                   <p className="font-medium">Send a follow-up today via WhatsApp for highest response rate.</p>
                 </div>
-              </div>
-              </div>
+                </div>
+                </div>
               )}
             </div>
 
@@ -1351,7 +1354,7 @@ export default function LandingPage() {
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
             <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
             </div>
-          )}
+            )}
           </div>
         </div>
       </motion.div>
@@ -1628,6 +1631,7 @@ export default function LandingPage() {
           <span className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200/60 px-4 py-2 rounded-full uppercase tracking-wider shadow-3xs inline-block">
         ⚡ Takes less than 2 minutes to send your first reminder.
           </span>
+
         </div>
       </div>
 
@@ -1781,9 +1785,55 @@ export default function LandingPage() {
           <div className="absolute top-4 right-4 bg-[#20B8BE] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider" suppressHydrationWarning={true}>MOST POPULAR</div>
           <h3 className="font-black text-lg" suppressHydrationWarning={true}>Pro</h3>
           <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Everything you need to recover payments faster.</p>
-          <div className="text-4xl sm:text-5xl font-black mb-1" suppressHydrationWarning={true}>₹499 <span className="text-xs sm:text-sm font-bold text-slate-400" suppressHydrationWarning={true}>/ month</span></div>
-          <p className="text-xs font-bold text-slate-400 mb-2" suppressHydrationWarning={true}>or ₹4,999 / year</p>
-          <p className="text-[11px] text-slate-400 font-medium mb-8">Cancel anytime • Secure payments</p>
+          
+          <div
+            className="text-4xl sm:text-5xl font-black mb-1"
+            suppressHydrationWarning={true}
+          >
+            {seasonalPricing && (
+              <span className="text-xl sm:text-2xl text-slate-300 line-through mr-2">
+                ₹499
+              </span>
+            )}
+
+            {seasonalPricing
+              ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
+              : '₹499'}
+
+            <span
+              className="text-xs sm:text-sm font-bold text-slate-400"
+              suppressHydrationWarning={true}
+            >
+              / month
+            </span>
+          </div>
+
+          <p
+            className="text-xs font-bold text-slate-400 mb-2"
+            suppressHydrationWarning={true}
+          >
+            {seasonalPricing ? (
+              <>
+                <span className="line-through text-slate-300 mr-1">
+                  ₹4,999
+                </span>
+                or ₹{seasonalPricing.yearlyPrice.toLocaleString('en-IN')} / year
+              </>
+            ) : (
+              'or ₹4,999 / year'
+            )}
+          </p>
+
+          <p className="text-[11px] text-slate-400 font-medium mb-8">
+            {seasonalPricing ? (
+              <span className="text-[#20B8BE] font-bold">
+                {seasonalPricing.name} • Limited time
+              </span>
+            ) : (
+              'Cancel anytime • Secure payments'
+            )}
+          </p>
+
           <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
             {[
               "Unlimited AI Reminders",
