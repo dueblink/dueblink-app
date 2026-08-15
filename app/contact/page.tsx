@@ -64,6 +64,7 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!fullName || !email || !subject || !message) {
       alert("Please fill in all required fields.");
       return;
@@ -73,15 +74,41 @@ export default function ContactPage() {
     setSubmitStatus('idle');
 
     try {
-      // Simulate API submission
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: fullName,
+          email,
+          subject,
+          message,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || 'Failed to send message.'
+        );
+      }
+
+      // Message successfully sent
       setSubmitStatus('success');
+
+      // Clear form
       setFullName('');
       setEmail('');
       setSubject('');
       setMessage('');
+
     } catch (error) {
+      console.error('Contact form submission error:', error);
+
       setSubmitStatus('error');
+
     } finally {
       setIsSubmitting(false);
     }
