@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
-  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu
+  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight
 } from 'lucide-react';
 // IMPORT FIREBASE
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -848,7 +848,7 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-        
+         
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
           <motion.span 
@@ -865,7 +865,7 @@ export default function LandingPage() {
           </motion.span>
         ))}
       </div>
-        
+         
       <div className="space-y-3 pt-4 text-sm font-semibold text-slate-600 border-t border-slate-200/60 max-w-xl mx-auto" suppressHydrationWarning={true}>
         <p className="text-slate-700 font-medium" suppressHydrationWarning={true}>
           Small follow-up mistakes become big cash flow problems.
@@ -884,7 +884,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-      
+        
   </div>
 </motion.section>
 
@@ -900,7 +900,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>One place to recover payments.</h2>
@@ -1011,33 +1011,264 @@ export default function LandingPage() {
         </div>
       </div>
 
-      <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl border border-slate-800 space-y-6" suppressHydrationWarning={true}>
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4" suppressHydrationWarning={true}>
-          <div className="flex items-center gap-2.5" suppressHydrationWarning={true}>
-            <div className="w-3 h-3 rounded-full bg-[#2BB6A8] animate-pulse" suppressHydrationWarning={true} />
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-400" suppressHydrationWarning={true}>DueBlink AI Engine</span>
+      {/* ============================================================
+          STATIC AI RECOVERY ASSISTANT PREVIEW
+          Visual replica of the Dashboard Recovery Assistant.
+          This is intentionally NON-FUNCTIONAL.
+          ============================================================ */}
+
+      <div
+        className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-full max-w-[320px] mx-auto overflow-hidden"
+      >
+        {/* HEADER */}
+        <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] p-3.5 text-white relative overflow-hidden">
+
+          <div className="absolute -right-6 -bottom-6 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none" />
+
+          <div className="flex justify-between items-start relative z-10">
+
+            <div className="flex items-center gap-2">
+
+              <div className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+                <Brain size={14} className="text-white" />
+              </div>
+
+              <div>
+                <div className="flex items-center gap-1.5">
+
+                  <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">
+                    Blink
+                  </h3>
+
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+
+                  <span className="text-[8px] font-bold text-white/80 uppercase">
+                    Online
+                  </span>
+
+                </div>
+
+                <p className="text-xs font-bold text-white mt-0.5">
+                  Your AI Recovery Assistant
+                </p>
+              </div>
+
+            </div>
+
+            {/* Static close icon — intentionally non-functional */}
+            <div className="text-white/70 bg-white/10 p-1.5 rounded-full">
+              <X size={12} />
+            </div>
+
           </div>
-          <span className="text-[10px] font-bold text-[#20B8BE] bg-[#20B8BE]/10 px-2.5 py-1 rounded-md" suppressHydrationWarning={true}>Pro Active</span>
+
+          {/* GREETING */}
+          <div className="mt-2.5 pt-2 border-t border-white/15">
+
+            <p className="text-[11px] font-bold text-white/90">
+              {new Date().getHours() < 12
+                ? "Good morning!"
+                : new Date().getHours() < 17
+                ? "Good afternoon!"
+                : "Good evening!"}
+            </p>
+
+            <p className="text-[10px] text-white/80 font-medium mt-0.5">
+              What can I help you with today?
+            </p>
+
+          </div>
+
         </div>
 
-        <div className="space-y-4 text-xs font-medium text-slate-300" suppressHydrationWarning={true}>
-          <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-2" suppressHydrationWarning={true}>
-            <p className="text-[#20B8BE] font-bold uppercase text-[10px]" suppressHydrationWarning={true}>Today's Priority</p>
-            <p className="text-white font-bold" suppressHydrationWarning={true}>ABC Agency</p>
-            <p className="text-amber-400 font-semibold" suppressHydrationWarning={true}>₹25,000 Due · 15 Days Overdue</p>
+
+        {/* BODY */}
+        <div className="p-3.5 text-xs">
+
+          <div className="space-y-2">
+
+            {/* TITLE + PRO BADGE */}
+            <div className="flex items-center justify-between mb-1">
+
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Choose an action
+              </p>
+
+              <span className="text-[9px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">
+                Pro Active
+              </span>
+
+            </div>
+
+
+            {/* ACTION 1 */}
+            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
+
+              <div className="flex items-center gap-2 truncate">
+
+                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={13} />
+                </div>
+
+                <div className="truncate">
+
+                  <p className="font-bold text-[11px] text-slate-800 truncate">
+                    Generate Follow-up
+                  </p>
+
+                  <p className="text-[9px] text-slate-400 font-medium truncate">
+                    Generate an AI Email & WhatsApp follow-up
+                  </p>
+
+                </div>
+
+              </div>
+
+              <ChevronRight
+                size={12}
+                className="text-slate-300 flex-shrink-0 ml-1"
+              />
+
+            </div>
+
+
+            {/* ACTION 2 */}
+            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
+
+              <div className="flex items-center gap-2 truncate">
+
+                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
+                  <Brain size={13} />
+                </div>
+
+                <div className="truncate">
+
+                  <p className="font-bold text-[11px] text-slate-800 truncate">
+                    Today's Priorities
+                  </p>
+
+                  <p className="text-[9px] text-slate-400 font-medium truncate">
+                    See who needs your attention today
+                  </p>
+
+                </div>
+
+              </div>
+
+              <ChevronRight
+                size={12}
+                className="text-slate-300 flex-shrink-0 ml-1"
+              />
+
+            </div>
+
+
+            {/* ACTION 3 */}
+            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
+
+              <div className="flex items-center gap-2 truncate">
+
+                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
+                  <BarChart3 size={13} />
+                </div>
+
+                <div className="truncate">
+
+                  <p className="font-bold text-[11px] text-slate-800 truncate">
+                    Outstanding Summary
+                  </p>
+
+                  <p className="text-[9px] text-slate-400 font-medium truncate">
+                    Analyze your outstanding payments
+                  </p>
+
+                </div>
+
+              </div>
+
+              <ChevronRight
+                size={12}
+                className="text-slate-300 flex-shrink-0 ml-1"
+              />
+
+            </div>
+
+
+            {/* ACTION 4 */}
+            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
+
+              <div className="flex items-center gap-2 truncate">
+
+                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
+                  <Clock size={13} />
+                </div>
+
+                <div className="truncate">
+
+                  <p className="font-bold text-[11px] text-slate-800 truncate">
+                    Rewrite Reminder
+                  </p>
+
+                  <p className="text-[9px] text-slate-400 font-medium truncate">
+                    Rewrite your reminder professionally
+                  </p>
+
+                </div>
+
+              </div>
+
+              <ChevronRight
+                size={12}
+                className="text-slate-300 flex-shrink-0 ml-1"
+              />
+
+            </div>
+
+
+            {/* ACTION 5 */}
+            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
+
+              <div className="flex items-center gap-2 truncate">
+
+                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
+                  <Users size={13} />
+                </div>
+
+                <div className="truncate">
+
+                  <p className="font-bold text-[11px] text-slate-800 truncate">
+                    Find Overdue Clients
+                  </p>
+
+                  <p className="text-[9px] text-slate-400 font-medium truncate">
+                    Find clients with overdue payments
+                  </p>
+
+                </div>
+
+              </div>
+
+              <ChevronRight
+                size={12}
+                className="text-slate-300 flex-shrink-0 ml-1"
+              />
+
+            </div>
+
+
+            {/* FOOTER */}
+            <div className="pt-2 text-center border-t border-slate-100 mt-2">
+
+              <p className="text-[9px] font-medium text-slate-400">
+                Powered by DueBlink AI
+              </p>
+
+            </div>
+
           </div>
 
-          <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-2" suppressHydrationWarning={true}>
-            <p className="text-[#20B8BE] font-bold uppercase text-[10px]" suppressHydrationWarning={true}>AI Recommendation</p>
-            <p suppressHydrationWarning={true}>Send a Professional Follow-up</p>
-          </div>
         </div>
 
-        <div className="pt-2">
-          <div className="w-full py-2.5 bg-[#20B8BE] text-white font-black rounded-lg text-xs text-center uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-3xs">
-            <Sparkles size={13} /> Generate Follow-up
-          </div>
-        </div>
       </div>
 
     </div>
@@ -1116,7 +1347,7 @@ export default function LandingPage() {
           <span>Open Dashboard</span>
         </motion.button>
         </div>
-              
+             
         <div className="divide-y divide-slate-100 min-w-[300px]" suppressHydrationWarning={true}>
         <div className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0" suppressHydrationWarning={true}>
           <div className="flex items-center gap-3" suppressHydrationWarning={true}>
@@ -1472,7 +1703,7 @@ export default function LandingPage() {
                 {isGenerating ? 'Rewriting...' : 'Regenerate'}
               </button>
             </div>
-                  
+                 
             <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
               {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
               {activeTab === 'whatsapp' && result.whatsapp_message}
@@ -1754,7 +1985,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-amber-400 mx-auto fill-amber-400" suppressHydrationWarning={true} />
@@ -2049,7 +2280,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
@@ -2097,7 +2328,7 @@ export default function LandingPage() {
             </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${openFaq === index ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
           </button>
-                
+               
           <motion.div
             initial={false}
             animate={{ height: openFaq === index ? "auto" : 0, opacity: openFaq === index ? 1 : 0 }}
@@ -2249,7 +2480,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-        
+         
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -2273,7 +2504,7 @@ export default function LandingPage() {
         <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
       </div>
               
- </div>
+</div>
     </motion.footer>
 
     {/* --- PREMIUM INTERCEPT MODAL WITH SPRING ANIMATION --- */}
