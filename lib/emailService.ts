@@ -167,7 +167,7 @@ export async function sendWelcomeEmail(
                 >
 
                   <!-- ==================================================
-                       HEADER
+                        HEADER
                   =================================================== -->
 
                   <tr>
@@ -210,7 +210,7 @@ export async function sendWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                       BODY
+                        BODY
                   =================================================== -->
 
                   <tr>
@@ -307,7 +307,7 @@ export async function sendWelcomeEmail(
                       </p>
 
                       <!-- ==================================================
-                           3 STEP WORKSPACE CARD
+                            3 STEP WORKSPACE CARD
                       =================================================== -->
 
                       <table
@@ -562,7 +562,7 @@ export async function sendWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                           CTA
+                            CTA
                       =================================================== -->
 
                       <table
@@ -601,7 +601,7 @@ export async function sendWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                           PRO TIP
+                            PRO TIP
                       =================================================== -->
 
                       <table
@@ -657,7 +657,7 @@ export async function sendWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                       FOOTER
+                        FOOTER
                   =================================================== -->
 
                   <tr>
@@ -790,12 +790,6 @@ export async function sendProWelcomeEmail(
                 line-height:1.6 !important;
               }
 
-              /*
-               * IMPORTANT:
-               * Every Pro feature becomes a full-width row
-               * on mobile.
-               */
-
               .pro-feature-td {
                 display:block !important;
                 width:100% !important;
@@ -867,7 +861,7 @@ export async function sendProWelcomeEmail(
               <td align="center">
 
                 <!-- ==================================================
-                     MAIN PRO CONTAINER
+                    MAIN PRO CONTAINER
                 =================================================== -->
 
                 <table
@@ -889,7 +883,7 @@ export async function sendProWelcomeEmail(
                 >
 
                   <!-- ==================================================
-                       HEADER
+                        HEADER
                   =================================================== -->
 
                   <tr>
@@ -934,7 +928,7 @@ export async function sendProWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                       BODY
+                        BODY
                   =================================================== -->
 
                   <tr>
@@ -985,7 +979,7 @@ export async function sendProWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                           HEADLINE
+                            HEADLINE
                       =================================================== -->
 
                       <h1
@@ -1004,7 +998,7 @@ export async function sendProWelcomeEmail(
                       </h1>
 
                       <!-- ==================================================
-                           INTRO
+                            INTRO
                       =================================================== -->
 
                       <p
@@ -1034,7 +1028,7 @@ export async function sendProWelcomeEmail(
                       </p>
 
                       <!-- ==================================================
-                           PRO FEATURES CONTAINER
+                            PRO FEATURES CONTAINER
                       =================================================== -->
 
                       <table
@@ -1070,7 +1064,7 @@ export async function sendProWelcomeEmail(
                             </p>
 
                             <!-- ==================================================
-                                 FEATURE ROW 1
+                                  FEATURE ROW 1
                             =================================================== -->
 
                             <table
@@ -1201,7 +1195,7 @@ export async function sendProWelcomeEmail(
                             </table>
 
                             <!-- ==================================================
-                                 FEATURE ROW 2
+                                  FEATURE ROW 2
                             =================================================== -->
 
                             <table
@@ -1339,7 +1333,7 @@ export async function sendProWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                           CTA
+                            CTA
                       =================================================== -->
 
                       <table
@@ -1380,7 +1374,7 @@ export async function sendProWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                           PRO TIP
+                            PRO TIP
                       =================================================== -->
 
                       <table
@@ -1437,7 +1431,7 @@ export async function sendProWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                       FOOTER
+                        FOOTER
                   =================================================== -->
 
                   <tr>
@@ -1501,6 +1495,278 @@ export async function sendProWelcomeEmail(
   } catch (error) {
     console.error(
       "Failed to send Pro welcome email:",
+      error
+    );
+
+    return {
+      success: false,
+      error,
+    };
+  }
+}
+
+// ============================================================
+// Password Reset Email
+// ============================================================
+
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  resetLink: string
+) {
+  try {
+    const resend = getResendClient();
+
+    const data = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: [toEmail],
+
+      subject: "Reset your DueBlink password",
+
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+
+        <head>
+          <meta charset="utf-8">
+
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+          >
+
+          <title>Reset your DueBlink password</title>
+        </head>
+
+        <body
+          style="
+            margin:0;
+            padding:0;
+            background-color:#F8FAFC;
+            font-family:-apple-system,BlinkMacSystemFont,
+            'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+            color:#0F172A;
+          "
+        >
+
+          <table
+            border="0"
+            cellpadding="0"
+            cellspacing="0"
+            width="100%"
+            style="
+              background-color:#F8FAFC;
+              padding:32px 12px;
+            "
+          >
+
+            <tr>
+              <td align="center">
+
+                <table
+                  border="0"
+                  cellpadding="0"
+                  cellspacing="0"
+                  width="100%"
+                  style="
+                    max-width:620px;
+                    background-color:#ffffff;
+                    border-radius:24px;
+                    overflow:hidden;
+                    border:1px solid #E2E8F0;
+                  "
+                >
+
+                  <!-- HEADER -->
+
+                  <tr>
+                    <td
+                      style="
+                        padding:28px 36px 20px;
+                        background-color:#ffffff;
+                        border-bottom:1px solid #F1F5F9;
+                      "
+                    >
+
+                      <a
+                        href="https://dueblink.com/"
+                        target="_blank"
+                        style="
+                          text-decoration:none;
+                          display:inline-block;
+                        "
+                      >
+
+                        <img
+                          src="https://dueblink.com/logo.png"
+                          alt="DueBlink Logo"
+                          width="130"
+                          style="
+                            display:block;
+                            width:130px;
+                            height:auto;
+                            border:0;
+                          "
+                        />
+
+                      </a>
+
+                    </td>
+                  </tr>
+
+                  <!-- BODY -->
+
+                  <tr>
+                    <td
+                      style="
+                        padding:40px 36px 36px;
+                      "
+                    >
+
+                      <h1
+                        style="
+                          margin:0 0 14px;
+                          font-size:28px;
+                          line-height:1.25;
+                          font-weight:800;
+                          color:#0F172A;
+                        "
+                      >
+                        Reset your password
+                      </h1>
+
+                      <p
+                        style="
+                          margin:0 0 18px;
+                          font-size:15px;
+                          line-height:1.7;
+                          color:#475569;
+                        "
+                      >
+                        We received a request to reset your
+                        DueBlink password.
+                      </p>
+
+                      <p
+                        style="
+                          margin:0 0 28px;
+                          font-size:15px;
+                          line-height:1.7;
+                          color:#475569;
+                        "
+                      >
+                        Click the button below to create a new
+                        password for your account.
+                      </p>
+
+                      <!-- RESET BUTTON -->
+
+                      <table
+                        border="0"
+                        cellpadding="0"
+                        cellspacing="0"
+                      >
+                        <tr>
+                          <td
+                            style="
+                              border-radius:10px;
+                              background-color:#245B92;
+                            "
+                          >
+
+                            <a
+                              href="${resetLink}"
+                              target="_blank"
+                              style="
+                                display:inline-block;
+                                padding:14px 24px;
+                                color:#ffffff;
+                                text-decoration:none;
+                                font-size:14px;
+                                font-weight:700;
+                                border-radius:10px;
+                              "
+                            >
+                              Reset Password
+                            </a>
+
+                          </td>
+                        </tr>
+                      </table>
+
+                      <p
+                        style="
+                          margin:28px 0 0;
+                          font-size:13px;
+                          line-height:1.6;
+                          color:#64748B;
+                        "
+                      >
+                        If you didn't request a password reset,
+                        you can safely ignore this email.
+                      </p>
+
+                      <p
+                        style="
+                          margin:18px 0 0;
+                          font-size:12px;
+                          line-height:1.6;
+                          color:#94A3B8;
+                        "
+                      >
+                        For your security, this password reset
+                        link is temporary and can only be used
+                        once.
+                      </p>
+
+                    </td>
+                  </tr>
+
+                  <!-- FOOTER -->
+
+                  <tr>
+                    <td
+                      align="center"
+                      style="
+                        padding:24px 36px;
+                        background:#F8FAFC;
+                        border-top:1px solid #F1F5F9;
+                      "
+                    >
+
+                      <p
+                        style="
+                          font-size:11px;
+                          color:#94A3B8;
+                          margin:0;
+                        "
+                      >
+                        © 2026 DueBlink. All rights reserved.
+                      </p>
+
+                    </td>
+                  </tr>
+
+                </table>
+
+              </td>
+            </tr>
+
+          </table>
+
+        </body>
+
+        </html>
+      `,
+    });
+
+    return {
+      success: true,
+      data,
+    };
+
+  } catch (error) {
+    console.error(
+      "Failed to send password reset email:",
       error
     );
 
