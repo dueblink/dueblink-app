@@ -12,11 +12,62 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not defined in environment variables.");
+      throw new Error(
+        "OPENAI_API_KEY is not defined in environment variables."
+      );
     }
+
+    // ============================================================
+    // Reminder Variation Context
+    // ============================================================
+    // These are sent by ReminderForm.tsx.
+    // They are only used to make repeated generations different.
+
+    const previousReminders = Array.isArray(
+      body.previousReminders
+    )
+      ? body.previousReminders.slice(-5)
+      : [];
+
+    const variationInstruction =
+      typeof body.variationInstruction === 'string' &&
+      body.variationInstruction.trim()
+        ? body.variationInstruction.trim()
+        : 'Use fresh wording and a different communication approach from previous versions.';
+
+    const previousReminderText =
+      previousReminders.length > 0
+        ? previousReminders
+            .map(
+              (reminder: any, index: number) => `
+Previous Version ${index + 1}:
+
+Email Subject:
+${reminder.email_subject || ''}
+
+Email Body:
+${reminder.email_body || ''}
+
+WhatsApp:
+${reminder.whatsapp_message || ''}
+
+SMS:
+${reminder.sms_text || ''}
+`
+            )
+            .join('\n')
+        : 'No previous reminders are available.';
+
+    // ============================================================
+    // AI GENERATION
+    // ============================================================
 
     const result = await generateObject({
       model: openai('gpt-4o-mini'),
+
+      // Slightly higher creativity for more natural variation.
+      temperature: 0.85,
+
       schema: z.object({
         email_subject: z.string(),
         email_body: z.string(),
@@ -24,6 +75,7 @@ export async function POST(req: NextRequest) {
         sms_text: z.string(),
         psychology_note: z.string(),
       }),
+
       prompt: `
         You are an expert Payment Recovery Specialist for freelancers. 
         Your goal is to recover payments quickly while maintaining great client relationships.
@@ -40,21 +92,92 @@ export async function POST(req: NextRequest) {
         - 'professional': Use formal, direct, and objective language. Focus on the agreement.
         - 'firm': Use urgent, clear, and assertive language. Mention the impact of the delay on operations.
 
-        Output Rules:
-        - Email Subject: Professional, clear, includes invoice number.
-        - Email Body: Keep under 150 words. Be helpful, clear, and include a placeholder for a payment link.
-        - WhatsApp: Short, conversational, friendly. Use appropriate emojis for the tone.
+        ============================================================
+        FRESH REMINDER REQUIREMENTS
+        ============================================================
+
+        Every generation must feel freshly written.
+
+        Do NOT simply reuse the same reminder template and replace
+        the client name or amount.
+
+        Variation direction for this generation:
+        ${variationInstruction}
+
+        Previous generated reminders:
+        ${previousReminderText}
+
+        If previous reminders are available:
+
+        - Do NOT copy previous sentences.
+        - Do NOT reuse the same opening.
+        - Do NOT reuse the same closing.
+        - Do NOT reuse the same call-to-action.
+        - Do NOT closely imitate previous sentence structures.
+        - Do NOT simply replace a few words from a previous reminder.
+        - Use genuinely different wording and sentence flow.
+        - Where appropriate, use a different communication approach.
+        - Keep the selected tone.
+        - Keep all payment information accurate.
+        - Make Email, WhatsApp, and SMS naturally suited to their channels.
+
+        IMPORTANT:
+
+        Freshness must NEVER override factual accuracy.
+
+        Never invent:
+        - Invoice numbers
+        - Payment dates
+        - Penalties
+        - Discounts
+        - Legal threats
+        - Fees
+        - Services
+        - Promises
+
+        that were not provided.
+
+        ============================================================
+        OUTPUT RULES
+        ============================================================
+
+        - Email Subject: Professional and clear.
+          Include the invoice number only when an actual invoice
+          number is provided. Never invent one.
+
+        - Email Body: Keep under 150 words.
+          Be helpful, clear, and include a placeholder for a payment link.
+
+        - WhatsApp: Short, conversational, friendly.
+          Use appropriate emojis for the selected tone.
+
         - SMS: Extremely brief (under 160 characters).
-        - Psychology Note: Explain in one sentence why this specific tone is best for this situation.
+
+        - Psychology Note: Explain in one sentence why this specific
+          tone and approach is best for this situation.
+
+        Return only the requested structured fields.
       `,
     });
 
     return NextResponse.json(result.object);
+
   } catch (error: any) {
-    console.error("!!! API ROUTE ERROR !!!", error);
-    return NextResponse.json({ 
-      error: "Internal Server Error", 
-      details: error.message || "An unexpected error occurred" 
-    }, { status: 500 });
+    console.error(
+      "!!! API ROUTE ERROR !!!",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error: "Internal Server Error",
+        details:
+          error.message ||
+          "An unexpected error occurred",
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }

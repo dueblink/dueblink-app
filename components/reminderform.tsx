@@ -18,6 +18,7 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
   const [tone, setTone] = useState('Professional');
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [result, setResult] = useState<{ 
     email_subject: string; 
     email_body: string; 
@@ -28,6 +29,21 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
   
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'psychology'>('email');
   const [copied, setCopied] = useState(false);
+
+  // ============================================================
+  // Reminder Variation Memory
+  // ============================================================
+  // Keeps recent generated reminders in this browser session.
+  // This does NOT affect guest/free/pro usage limits or Firebase.
+
+  const [previousReminders, setPreviousReminders] = useState<
+    Array<{
+      email_subject: string;
+      email_body: string;
+      whatsapp_message: string;
+      sms_text: string;
+    }>
+  >([]);
 
   // User & Limit Tracking States
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -151,6 +167,26 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
     try {
       const guestId = !currentUser ? localStorage.getItem('dueblink_guest_id') : null;
 
+      // ============================================================
+      // Reminder Variation Instruction
+      // ============================================================
+
+      const variationStrategies = [
+        'Use a fresh conversational opening and a natural human tone.',
+        'Use a concise, direct structure with different sentence patterns.',
+        'Use a relationship-focused approach while remaining professional.',
+        'Use an action-oriented approach that clearly encourages payment.',
+        'Use a calm and polished business communication style with fresh wording.',
+        'Use a different opening, sentence structure, and call-to-action from previous versions.',
+        'Use natural conversational wording and avoid generic AI-style phrases.',
+        'Approach the reminder from a different communication angle while keeping all facts accurate.'
+      ];
+
+      const variationInstruction =
+        variationStrategies[
+          Math.floor(Math.random() * variationStrategies.length)
+        ];
+
       const response = await fetch('/api/generate-reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,7 +198,11 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
           daysOverdue: daysOverdue || '14',
           tone: tone.toLowerCase(),
           uid: currentUser?.uid || null,
-          guestId: guestId
+          guestId: guestId,
+
+          // New: recent outputs help the AI avoid repetition.
+          previousReminders,
+          variationInstruction
         }),
       });
 
@@ -179,6 +219,35 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
       }
 
       setResult(data);
+
+      // ============================================================
+      // Premium success animation after AI generation
+      // ============================================================
+
+      setShowSuccessAnimation(true);
+
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+      }, 1100);
+
+      // ============================================================
+      // Remember the latest 5 generations for variation.
+      // This is separate from the actual user generation limit.
+      // ============================================================
+
+      setPreviousReminders((previous) => {
+        const updated = [
+          ...previous,
+          {
+            email_subject: data.email_subject || '',
+            email_body: data.email_body || '',
+            whatsapp_message: data.whatsapp_message || '',
+            sms_text: data.sms_text || ''
+          }
+        ];
+
+        return updated.slice(-5);
+      });
 
       // Only increment usage counters if the user is NOT Pro
       if (!effectiveIsPro) {
@@ -385,12 +454,102 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
               <p className="text-[11px] text-slate-500 font-medium">Drafting multi-channel high-conversion follow-ups</p>
             </div>
           </motion.div>
+        ) : showSuccessAnimation ? (
+          <motion.div
+            key="success"
+            initial={{ opacity: 0, scale: 0.94, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 1.02, y: -6 }}
+            transition={{
+              duration: 0.45,
+              ease: [0.22, 1, 0.36, 1]
+            }}
+            className="mt-6 relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-8 sm:p-10 text-center shadow-sm"
+          >
+            {/* Animated light sweep */}
+            <motion.div
+              initial={{ x: "-120%", opacity: 0 }}
+              animate={{ x: "120%", opacity: [0, 0.55, 0] }}
+              transition={{ duration: 1, ease: "easeInOut" }}
+              className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
+            />
+
+            {/* Sparkle burst */}
+            {[
+              { x: -58, y: -32, r: 18, d: 0.05 },
+              { x: 58, y: -30, r: -18, d: 0.12 },
+              { x: -70, y: 22, r: -12, d: 0.18 },
+              { x: 70, y: 24, r: 14, d: 0.22 },
+              { x: 0, y: -58, r: 0, d: 0.08 }
+            ].map((spark, index) => (
+              <motion.div
+                key={index}
+                initial={{
+                  opacity: 0,
+                  scale: 0,
+                  x: 0,
+                  y: 0,
+                  rotate: 0
+                }}
+                animate={{
+                  opacity: [0, 1, 0],
+                  scale: [0, 1, 0.7],
+                  x: spark.x,
+                  y: spark.y,
+                  rotate: spark.r
+                }}
+                transition={{
+                  duration: 0.85,
+                  delay: spark.d,
+                  ease: "easeOut"
+                }}
+                className="absolute left-1/2 top-[46%] text-[#2BB6A8] pointer-events-none"
+              >
+                <Sparkles size={index === 4 ? 18 : 13} />
+              </motion.div>
+            ))}
+
+            {/* Success icon */}
+            <motion.div
+              initial={{ scale: 0, rotate: -25 }}
+              animate={{
+                scale: [0, 1.12, 1],
+                rotate: [-25, 8, 0]
+              }}
+              transition={{
+                duration: 0.6,
+                ease: [0.34, 1.56, 0.64, 1]
+              }}
+              className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1C2E8F] to-[#2BB6A8] text-white shadow-lg"
+            >
+              <CheckCircle2 className="h-8 w-8" />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22, duration: 0.35 }}
+              className="relative"
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1C2E8F]">
+                Blink AI
+              </p>
+
+              <h3 className="mt-1 text-lg sm:text-xl font-black text-slate-900">
+                Recovery Reminder Ready
+              </h3>
+
+              <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-500">
+                Fresh Email, WhatsApp & SMS reminders generated.
+              </p>
+            </motion.div>
+          </motion.div>
         ) : result ? (
           <motion.div 
             key="result" 
-            initial={{ opacity: 0, y: 15 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.3, ease: "easeOut" }}
+            initial={{ opacity: 0, y: 15, scale: 0.985 }} 
+            animate={{ opacity: 1, y: 0, scale: 1 }} 
+            transition={{ duration: 0.4, ease: "easeOut" }}
             className="mt-6 bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm"
           >
             <div className="flex border-b border-slate-200/80 pb-3 mb-4 items-center justify-between gap-2 flex-wrap">

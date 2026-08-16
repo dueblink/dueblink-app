@@ -18,7 +18,7 @@ import { getSeasonalPricing } from '@/lib/seasonalPricing';
 export default function LandingPage() {
   const router = useRouter();
   const pathname = usePathname();
-  
+   
   // Auth & Pro State
   const [user, setUser] = useState<any>(null);
   const [isPro, setIsPro] = useState(false);
@@ -29,7 +29,7 @@ export default function LandingPage() {
   // Sync pro status from localStorage and event listeners
   useEffect(() => {
     setMounted(true);
-    
+     
     const checkProStatus = () => {
       const isAuthed = localStorage.getItem('user_authenticated') === 'true' || auth.currentUser !== null;
       if (!isAuthed) {
@@ -42,7 +42,7 @@ export default function LandingPage() {
         localStorage.getItem('dueblink_pro_active') === 'true';
       setIsPro(isProActive);
     };
-    
+     
     checkProStatus();
 
     const handleProUpdate = () => {
@@ -61,7 +61,7 @@ export default function LandingPage() {
   // App Tracker Memory State
   const [reminderCount, setReminderCount] = useState<number>(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  
+   
   // Dynamic limit: 15 for logged-in users, 5 for non-logged-in/guests. Unlimited if Pro.
   const maxLimit = isPro ? 999999 : (user ? 15 : 5);
   const limitReached = !isPro && reminderCount >= maxLimit;
@@ -78,9 +78,20 @@ export default function LandingPage() {
   const [tone, setTone] = useState('professional');
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [result, setResult] = useState<{ email_subject: string; email_body: string; whatsapp_message: string; sms_text: string; psychology_note: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'strategy'>('email');
   const [copied, setCopied] = useState(false);
+
+  // Added previousReminders state for uniqueness handling
+  const [previousReminders, setPreviousReminders] = useState<
+    Array<{
+      email_subject: string;
+      email_body: string;
+      whatsapp_message: string;
+      sms_text: string;
+    }>
+  >([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
@@ -270,6 +281,22 @@ export default function LandingPage() {
     setResult(null);
      
     try {
+      const variationStrategies = [
+        'Use a fresh conversational opening and a natural human tone.',
+        'Use a concise, direct structure with different sentence patterns.',
+        'Use a relationship-focused approach while remaining professional.',
+        'Use an action-oriented approach that clearly encourages payment.',
+        'Use a calm and polished business communication style with fresh wording.',
+        'Use a different opening, sentence structure, and call-to-action from previous versions.',
+        'Use natural conversational wording and avoid generic AI-style phrases.',
+        'Approach the reminder from a different communication angle while keeping all facts accurate.'
+      ];
+
+      const variationInstruction =
+        variationStrategies[
+          Math.floor(Math.random() * variationStrategies.length)
+        ];
+
       const response = await fetch('/api/generate-reminder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -279,7 +306,9 @@ export default function LandingPage() {
           currency, 
           invoiceRef: invoiceRef || 'INV-2026-042', 
           daysOverdue, 
-          tone 
+          tone,
+          previousReminders,
+          variationInstruction
         }),
       });
        
@@ -289,6 +318,26 @@ export default function LandingPage() {
       }
 
       setResult(data);
+      setShowSuccessAnimation(true);
+
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+      }, 1100);
+
+      setPreviousReminders((previous) => {
+        const updated = [
+          ...previous,
+          {
+            email_subject: data.email_subject || '',
+            email_body: data.email_body || '',
+            whatsapp_message: data.whatsapp_message || '',
+            sms_text: data.sms_text || ''
+          }
+        ];
+
+        return updated.slice(-5);
+      });
+
       if (!isPro) {
         const nextCount = reminderCount + 1;
         setReminderCount(nextCount);
@@ -328,11 +377,11 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
-       
+        
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
-            
+             
           {/* LOGO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
@@ -347,7 +396,7 @@ export default function LandingPage() {
           {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
           <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
             <div className="flex items-center gap-6 text-sm font-bold" suppressHydrationWarning={true}>
-               
+                
               {/* Features Link */}
               <motion.button 
                 whileHover={{ scale: 1.02 }}
@@ -734,7 +783,7 @@ export default function LandingPage() {
   suppressHydrationWarning={true}
 >
   <div className="max-w-4xl mx-auto text-center space-y-8 sm:space-y-10" suppressHydrationWarning={true}>
-        
+     
     <div className="space-y-3" suppressHydrationWarning={true}>
       <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
 
@@ -835,7 +884,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-        
+      
   </div>
 </motion.section>
 
@@ -909,7 +958,7 @@ export default function LandingPage() {
     <section id="ai-recovery-assistant" className="py-16 sm:py-20 bg-slate-50/60 border-b border-slate-100 relative overflow-hidden px-4" suppressHydrationWarning={true}>
     <div className="max-w-5xl mx-auto" suppressHydrationWarning={true}>
       <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-14 shadow-xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center" suppressHydrationWarning={true}>
-        
+         
       <div className="space-y-6" suppressHydrationWarning={true}>
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider shadow-3xs" suppressHydrationWarning={true}>
           <Bot size={14} /> AI RECOVERY ASSISTANT (PRO)
@@ -1123,7 +1172,7 @@ export default function LandingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto text-left" suppressHydrationWarning={true}>
-        
+         
       {/* Left Form */}
       <motion.div 
         initial={{ opacity: 0, x: -10 }}
@@ -1244,7 +1293,7 @@ export default function LandingPage() {
             <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
             <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS • AI Strategy</p>
           </div>
-            
+           
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
             {isGenerating ? (
               <motion.div 
@@ -1264,6 +1313,129 @@ export default function LandingPage() {
                   <p className="text-xs font-black text-slate-900 uppercase tracking-widest">Blink AI is analyzing recovery psychology...</p>
                   <p className="text-[11px] text-slate-500 font-medium">Drafting multi-channel high-conversion follow-ups</p>
                 </div>
+              </motion.div>
+            ) : showSuccessAnimation ? (
+              <motion.div
+                key="success"
+                initial={{
+                  opacity: 0,
+                  scale: 0.94,
+                  y: 8
+                }}
+                animate={{
+                  opacity: 1,
+                  scale: 1,
+                  y: 0
+                }}
+                exit={{
+                  opacity: 0,
+                  scale: 1.02,
+                  y: -6
+                }}
+                transition={{
+                  duration: 0.45,
+                  ease: [0.22, 1, 0.36, 1]
+                }}
+                className="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-8 sm:p-10 text-center shadow-sm w-full"
+              >
+                {/* Animated light sweep */}
+                <motion.div
+                  initial={{
+                    x: "-120%",
+                    opacity: 0
+                  }}
+                  animate={{
+                    x: "120%",
+                    opacity: [0, 0.55, 0]
+                  }}
+                  transition={{
+                    duration: 1,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
+                />
+
+                {/* Sparkle burst */}
+                {[
+                  { x: -58, y: -32, r: 18, d: 0.05 },
+                  { x: 58, y: -30, r: -18, d: 0.12 },
+                  { x: -70, y: 22, r: -12, d: 0.18 },
+                  { x: 70, y: 24, r: 14, d: 0.22 },
+                  { x: 0, y: -58, r: 0, d: 0.08 }
+                ].map((spark, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{
+                      opacity: 0,
+                      scale: 0,
+                      x: 0,
+                      y: 0,
+                      rotate: 0
+                    }}
+                    animate={{
+                      opacity: [0, 1, 0],
+                      scale: [0, 1, 0.7],
+                      x: spark.x,
+                      y: spark.y,
+                      rotate: spark.r
+                    }}
+                    transition={{
+                      duration: 0.85,
+                      delay: spark.d,
+                      ease: "easeOut"
+                    }}
+                    className="absolute left-1/2 top-[46%] text-[#2BB6A8] pointer-events-none"
+                  >
+                    <Sparkles size={index === 4 ? 18 : 13} />
+                  </motion.div>
+                ))}
+
+                {/* Success icon */}
+                <motion.div
+                  initial={{
+                    scale: 0,
+                    rotate: -25
+                  }}
+                  animate={{
+                    scale: [0, 1.12, 1],
+                    rotate: [-25, 8, 0]
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    ease: [0.34, 1.56, 0.64, 1]
+                  }}
+                  className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1C2E8F] to-[#2BB6A8] text-white shadow-lg"
+                >
+                  <CheckCircle2 className="h-8 w-8" />
+                </motion.div>
+
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 8
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0
+                  }}
+                  transition={{
+                    delay: 0.22,
+                    duration: 0.35
+                  }}
+                  className="relative"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1C2E8F]">
+                    Blink AI
+                  </p>
+
+                  <h3 className="mt-1 text-lg sm:text-xl font-black text-slate-900">
+                    Recovery Reminder Ready
+                  </h3>
+
+                  <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-500">
+                    Fresh Email, WhatsApp & SMS reminders generated.
+                  </p>
+                </motion.div>
               </motion.div>
             ) : result ? (
               <motion.div 
@@ -1785,7 +1957,7 @@ export default function LandingPage() {
           <div className="absolute top-4 right-4 bg-[#20B8BE] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider" suppressHydrationWarning={true}>MOST POPULAR</div>
           <h3 className="font-black text-lg" suppressHydrationWarning={true}>Pro</h3>
           <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Everything you need to recover payments faster.</p>
-          
+           
           <div
             className="text-4xl sm:text-5xl font-black mb-1"
             suppressHydrationWarning={true}
@@ -1925,7 +2097,7 @@ export default function LandingPage() {
             </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${openFaq === index ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
           </button>
-               
+                
           <motion.div
             initial={false}
             animate={{ height: openFaq === index ? "auto" : 0, opacity: openFaq === index ? 1 : 0 }}
@@ -1959,7 +2131,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           Every missed follow-up costs money.
         </h2>
-            
+              
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -1984,7 +2156,7 @@ export default function LandingPage() {
         </motion.div>
           ))}
         </motion.div>
-            
+              
         <p className="text-sm sm:text-base text-slate-600 font-medium px-2" suppressHydrationWarning={true}>
           Every missed follow-up delays cash flow. DueBlink keeps every client, reminder, and payment organized so nothing slips through the cracks.
         </p>
@@ -2008,7 +2180,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           {isPro ? 'Welcome back! Your Pro features are ready.' : user ? 'Welcome back. Ready to recover more payments?' : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
-            
+              
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -2045,7 +2217,7 @@ export default function LandingPage() {
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
         {user ? 'Open Dashboard' : 'Generate Free Reminder'}
           </motion.button>
-            
+              
           {user && !isPro && (
         <motion.button 
           whileHover={{ scale: 1.02 }}
@@ -2059,7 +2231,7 @@ export default function LandingPage() {
         </motion.button>
           )}
         </div>
-            
+              
         {!user && (
           <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
@@ -2093,15 +2265,15 @@ export default function LandingPage() {
         <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
         <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
       </div>
-            
+              
       <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
         <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
           support@dueblink.com
         </a>
         <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
       </div>
-            
-  </div>
+              
+ </div>
     </motion.footer>
 
     {/* --- PREMIUM INTERCEPT MODAL WITH SPRING ANIMATION --- */}
