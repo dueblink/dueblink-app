@@ -1425,48 +1425,72 @@ export default function DashboardPage() {
                 <Shield className="text-[#245B92]" size={20} />
                 <h3 className="text-lg font-black text-slate-900">Security & Password</h3>
               </div>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <p className="text-sm font-bold text-slate-800">Password Reset</p>
-                  <p className="text-xs text-slate-500">Send a password reset secure link to your registered email.</p>
-                </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Password Reset</p>
+                <p className="text-xs text-slate-500 mb-4">Send a password reset secure link to your registered email.</p>
+                
                 <button 
                   onClick={async () => {
-  try {
-    if (!user?.email) {
-      alert("No registered email address found.");
-      return;
-    }
+                    try {
+                      if (!user?.email) {
+                        alert("No registered email address found.");
+                        return;
+                      }
 
-    const response = await fetch("/api/auth/password-reset", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: user.email,
-      }),
-    });
+                      const response = await fetch("/api/auth/password-reset", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          email: user.email,
+                        }),
+                      });
 
-    const data = await response.json();
+                      const data = await response.json();
 
-    if (!response.ok || !data.success) {
-      throw new Error(
-        data?.error || "Failed to send password reset email."
-      );
-    }
+                      if (!response.ok || !data.success) {
+                        throw new Error(
+                          data?.error || "Failed to send password reset email."
+                        );
+                      }
 
-    alert("Password reset email sent successfully!");
-  } catch (err) {
-    console.error("Password reset error:", err);
-    alert("Failed to send password reset email. Please try again.");
-  }
-}}
+                      setSuccessMessage(
+                        "Password reset email sent! Check your inbox for the reset link."
+                      );
 
+                      setTimeout(() => {
+                        setSuccessMessage(null);
+                      }, 4000);
+                    } catch (err) {
+                      console.error("Password reset error:", err);
+                      alert("Failed to send password reset email. Please try again.");
+                    }
+                  }}
                   className="px-5 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 >
                   Send Reset Email
                 </button>
+
+                {successMessage && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 font-bold">
+                        ✓
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-bold text-emerald-700">
+                          Password reset email sent!
+                        </p>
+
+                        <p className="mt-0.5 text-xs text-emerald-600">
+                          Check your inbox for the reset link.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
