@@ -1,15 +1,26 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useEffect,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   confirmPasswordReset,
   verifyPasswordResetCode,
 } from "firebase/auth";
-import { CheckCircle2, Eye, EyeOff, LockKeyhole, Loader2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Loader2,
+} from "lucide-react";
 import { auth } from "@/lib/firebase";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -50,7 +61,9 @@ export default function ResetPasswordPage() {
         if (err?.code === "auth/expired-action-code") {
           setError("This password reset link has expired.");
         } else if (err?.code === "auth/invalid-action-code") {
-          setError("This password reset link is invalid or has already been used.");
+          setError(
+            "This password reset link is invalid or has already been used."
+          );
         } else if (err?.code === "auth/user-disabled") {
           setError("This account has been disabled.");
         } else {
@@ -93,7 +106,9 @@ export default function ResetPasswordPage() {
       if (err?.code === "auth/expired-action-code") {
         setError("This password reset link has expired.");
       } else if (err?.code === "auth/invalid-action-code") {
-        setError("This password reset link is invalid or has already been used.");
+        setError(
+          "This password reset link is invalid or has already been used."
+        );
       } else if (err?.code === "auth/weak-password") {
         setError("Please choose a stronger password.");
       } else {
@@ -182,7 +197,6 @@ export default function ResetPasswordPage() {
     <main className="min-h-screen bg-slate-50 flex items-center justify-center px-5 py-10">
       <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
 
-        {/* Header */}
         <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] px-7 py-7 text-white">
           <div className="w-11 h-11 rounded-2xl bg-white/20 border border-white/20 flex items-center justify-center mb-5">
             <LockKeyhole size={21} />
@@ -197,7 +211,6 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-7">
 
           <div className="mb-5">
@@ -210,7 +223,6 @@ export default function ResetPasswordPage() {
             </div>
           </div>
 
-          {/* Password */}
           <div className="mb-5">
             <label className="block text-sm font-bold text-slate-700 mb-2">
               New password
@@ -238,7 +250,6 @@ export default function ResetPasswordPage() {
             </div>
           </div>
 
-          {/* Confirm password */}
           <div className="mb-5">
             <label className="block text-sm font-bold text-slate-700 mb-2">
               Confirm new password
@@ -276,7 +287,6 @@ export default function ResetPasswordPage() {
             </div>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="mb-5 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm font-medium text-red-600">
               {error}
@@ -304,5 +314,33 @@ export default function ResetPasswordPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+function ResetPasswordLoading() {
+  return (
+    <main className="min-h-screen bg-slate-50 flex items-center justify-center px-5">
+      <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl p-8 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-5">
+          <Loader2 className="w-6 h-6 text-[#245B92] animate-spin" />
+        </div>
+
+        <h1 className="text-xl font-black text-slate-900">
+          Loading
+        </h1>
+
+        <p className="text-sm text-slate-500 mt-2">
+          Please wait...
+        </p>
+      </div>
+    </main>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordLoading />}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
