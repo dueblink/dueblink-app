@@ -1,4 +1,5 @@
-import type { Metadata } from "next";import { Inter } from "next/font/google";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
@@ -9,9 +10,38 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "DueBlink - Stop Chasing Clients. Get Paid Faster.",
+  title: "DueBlink – AI Payment Reminder & Recovery Software",
+
   description:
-    "Track unpaid clients, generate professional reminders, and recover overdue payments using AI and payment psychology.",
+    "Get paid faster with DueBlink. Generate professional AI payment reminders for email, WhatsApp and SMS, follow up with overdue clients, and recover unpaid invoices.",
+
+  keywords: [
+    "payment reminder",
+    "AI payment reminders",
+    "invoice payment reminder",
+    "overdue payment reminder",
+    "payment recovery software",
+    "invoice follow up",
+    "WhatsApp payment reminder",
+    "freelancer payment reminders",
+    "client payment recovery",
+    "DueBlink",
+  ],
+
+  openGraph: {
+    title: "DueBlink – AI Payment Reminder & Recovery Software",
+    description:
+      "Generate professional AI payment reminders for email, WhatsApp and SMS and get paid faster.",
+    type: "website",
+    siteName: "DueBlink",
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "DueBlink – AI Payment Reminder & Recovery Software",
+    description:
+      "Generate professional AI payment reminders and recover overdue payments faster.",
+  },
 };
 
 export default function RootLayout({
