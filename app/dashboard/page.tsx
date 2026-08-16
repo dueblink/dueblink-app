@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check } from 'lucide-react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
@@ -370,8 +370,6 @@ export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<any | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [showResetSuccess, setShowResetSuccess] = useState(false);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
   
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
 
@@ -645,32 +643,9 @@ export default function DashboardPage() {
       initial={{ opacity: 0, y: -5 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/25 transition-colors duration-150 relative" 
+      className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/25 transition-colors duration-150" 
       suppressHydrationWarning={true}
     >
-      <AnimatePresence>
-        {showResetSuccess && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className="fixed top-6 right-6 z-[2000] flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-5 py-4 shadow-2xl"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 font-bold shrink-0">
-              ✓
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">
-                Password reset email sent!
-              </p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Check your inbox for the secure link.
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <AddClientModal 
         isOpen={isModalOpen} 
         onClose={() => { setIsModalOpen(false); setClientToEdit(null); }} 
@@ -1456,48 +1431,41 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500">Send a password reset secure link to your registered email.</p>
                 </div>
                 <button 
-                  disabled={isResettingPassword}
                   onClick={async () => {
-                    try {
-                      if (!user?.email) {
-                        alert("No registered email address found.");
-                        return;
-                      }
+  try {
+    if (!user?.email) {
+      alert("No registered email address found.");
+      return;
+    }
 
-                      setIsResettingPassword(true);
-                      const response = await fetch("/api/auth/password-reset", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                          email: user.email,
-                        }),
-                      });
+    const response = await fetch("/api/auth/password-reset", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: user.email,
+      }),
+    });
 
-                      const data = await response.json();
+    const data = await response.json();
 
-                      if (!response.ok || !data.success) {
-                        throw new Error(
-                          data?.error || "Failed to send password reset email."
-                        );
-                      }
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data?.error || "Failed to send password reset email."
+      );
+    }
 
-                      setShowResetSuccess(true);
-                      setTimeout(() => {
-                        setShowResetSuccess(false);
-                      }, 4000);
-                    } catch (err) {
-                      console.error("Password reset error:", err);
-                      alert("Failed to send password reset email. Please try again.");
-                    } finally {
-                      setIsResettingPassword(false);
-                    }
-                  }}
-                  className="px-5 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer flex items-center gap-2"
+    alert("Password reset email sent successfully!");
+  } catch (err) {
+    console.error("Password reset error:", err);
+    alert("Failed to send password reset email. Please try again.");
+  }
+}}
+
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 >
-                  {isResettingPassword && <Loader2 className="animate-spin" size={14} />}
-                  {isResettingPassword ? 'Sending...' : 'Send Reset Email'}
+                  Send Reset Email
                 </button>
               </div>
             </div>
