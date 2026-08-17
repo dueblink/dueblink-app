@@ -389,6 +389,7 @@ return (
   >
 
       
+      
       {/* NAVBAR */}
       <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
@@ -634,42 +635,56 @@ return (
                 </div>
                 <p className="text-slate-400 text-sm mb-6 font-medium" suppressHydrationWarning={true}>Unlock full potential</p>
                 
-                <div className="text-5xl font-black mb-1 text-[#0F172A]" suppressHydrationWarning={true}>
+                <div
+                  className="text-5xl font-black mb-1 text-[#0F172A]"
+                  suppressHydrationWarning={true}
+                >
                   {isIndia
                     ? (
-                        seasonalPricing
-                          ? `₹${
-                              billingCycle === 'monthly'
-                                ? seasonalPricing.monthlyPrice.toLocaleString('en-IN')
-                                : seasonalPricing.yearlyPrice.toLocaleString('en-IN')
-                            }`
-                          : (
-                              billingCycle === 'monthly'
-                                ? '₹499'
-                                : '₹4,999'
-                            )
+                        billingCycle === 'monthly'
+                          ? seasonalPricing?.id === 'launch-offer'
+                            ? '₹249'
+                            : seasonalPricing
+                              ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
+                              : '₹499'
+                          : seasonalPricing
+                            ? `₹${seasonalPricing.yearlyPrice.toLocaleString('en-IN')}`
+                            : '₹4,999'
                       )
                     : (
                         billingCycle === 'monthly'
                           ? '$9'
                           : '$89'
-                      )} 
-                  <span className="text-sm font-bold text-slate-400" suppressHydrationWarning={true}>
+                      )}
+
+                  <span
+                    className="text-sm font-bold text-slate-400"
+                    suppressHydrationWarning={true}
+                  >
                     {billingCycle === 'monthly' ? ' / month' : ' / year'}
                   </span>
                 </div>
-                <p className="text-xs font-bold text-teal-600 mb-8" suppressHydrationWarning={true}>
+                <p
+                  className="text-xs font-bold text-teal-600 mb-8"
+                  suppressHydrationWarning={true}
+                >
                   {isIndia
                     ? (
-                        seasonalPricing
-                          ? `${seasonalPricing.name} · Limited time`
-                          : (
-                              billingCycle === 'yearly'
-                                ? ' Best value: Save 15% annually'
-                                : 'Billed monthly · Cancel anytime'
+                        seasonalPricing?.id === 'launch-offer'
+                          ? (
+                              billingCycle === 'monthly'
+                                ? '50% OFF first month · Then ₹499/month'
+                                : '₹4,999/year · Normal annual pricing'
                             )
+                          : seasonalPricing
+                            ? `${seasonalPricing.name} · Limited time`
+                            : (
+                                billingCycle === 'yearly'
+                                  ? 'Best value: Save 15% annually'
+                                  : 'Billed monthly · Cancel anytime'
+                              )
                       )
-                    : ' Coming Soon'}
+                    : 'Coming Soon'}
                 </p>
 
                 <ul className="space-y-4 mb-8 flex-grow" suppressHydrationWarning={true}>

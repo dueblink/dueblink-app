@@ -6,6 +6,10 @@
 // Monthly: ₹499
 // Yearly: ₹4,999
 //
+// Launch Offer:
+// ₹249 first month
+// Then ₹499/month
+//
 // Festival offers:
 // Start 3 days before the festival.
 // End 1 day after the festival.
@@ -42,6 +46,35 @@ function addDays(dateString: string, days: number): string {
 
   return formatDate(date);
 }
+
+// ==================================================
+// 🚀 LIMITED-TIME LAUNCH OFFER
+// ==================================================
+//
+// First month: ₹249
+// After first month: ₹499/month
+//
+// Offer is available for 30 days.
+//
+// ONLY CHANGE launchOfferStartDate WHEN THE
+// LAUNCH OFFER START DATE IS DECIDED.
+//
+// ==================================================
+
+const launchOfferStartDate = '2026-08-17';
+
+const launchOffer: SeasonalPricing = {
+  id: 'launch-offer',
+  name: 'Limited-Time Launch Offer',
+
+  monthlyPrice: 249,
+  yearlyPrice: 4999,
+
+  festivalDate: launchOfferStartDate,
+
+  start: launchOfferStartDate,
+  end: addDays(launchOfferStartDate, 29),
+};
 
 // ==================================================
 // CHANGING FESTIVAL DATES
@@ -96,6 +129,17 @@ export function getSeasonalPricing(
 
   const currentYear = date.getFullYear();
   const currentDate = formatDate(date);
+
+  // ==================================================
+  // 🚀 LIMITED-TIME LAUNCH OFFER
+  // ==================================================
+
+  if (
+    currentDate >= launchOffer.start &&
+    currentDate <= launchOffer.end
+  ) {
+    return launchOffer;
+  }
 
   // ==================================================
   // 🇮🇳 INDEPENDENCE DAY

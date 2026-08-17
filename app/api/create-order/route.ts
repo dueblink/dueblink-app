@@ -48,13 +48,18 @@ export async function POST(req: Request) {
     const seasonalPricing =
       getSeasonalPricing();
 
-    const amountInRupees = seasonalPricing
-      ? billingCycle === 'monthly'
-        ? seasonalPricing.monthlyPrice
-        : seasonalPricing.yearlyPrice
-      : billingCycle === 'monthly'
-        ? 499
-        : 4999;
+    const amountInRupees =
+      seasonalPricing?.id === 'launch-offer'
+        ? billingCycle === 'monthly'
+          ? 249
+          : 4999
+        : seasonalPricing
+          ? billingCycle === 'monthly'
+            ? seasonalPricing.monthlyPrice
+            : seasonalPricing.yearlyPrice
+          : billingCycle === 'monthly'
+            ? 499
+            : 4999;
 
     const numericAmount =
       amountInRupees * 100;

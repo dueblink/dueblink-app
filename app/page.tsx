@@ -884,7 +884,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-        
+      
   </div>
 </motion.section>
 
@@ -2193,15 +2193,17 @@ export default function LandingPage() {
             className="text-4xl sm:text-5xl font-black mb-1"
             suppressHydrationWarning={true}
           >
-            {seasonalPricing && (
+            {seasonalPricing?.id === 'launch-offer' && (
               <span className="text-xl sm:text-2xl text-slate-300 line-through mr-2">
                 ₹499
               </span>
             )}
 
-            {seasonalPricing
-              ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
-              : '₹499'}
+            {seasonalPricing?.id === 'launch-offer'
+              ? '₹249'
+              : seasonalPricing
+                ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
+                : '₹499'}
 
             <span
               className="text-xs sm:text-sm font-bold text-slate-400"
@@ -2215,7 +2217,9 @@ export default function LandingPage() {
             className="text-xs font-bold text-slate-400 mb-2"
             suppressHydrationWarning={true}
           >
-            {seasonalPricing ? (
+            {seasonalPricing?.id === 'launch-offer' ? (
+              '50% OFF first month · Then ₹499/month'
+            ) : seasonalPricing ? (
               <>
                 <span className="line-through text-slate-300 mr-1">
                   ₹4,999
@@ -2228,7 +2232,11 @@ export default function LandingPage() {
           </p>
 
           <p className="text-[11px] text-slate-400 font-medium mb-8">
-            {seasonalPricing ? (
+            {seasonalPricing?.id === 'launch-offer' ? (
+              <span className="text-[#20B8BE] font-bold">
+                Limited-Time Launch Offer
+              </span>
+            ) : seasonalPricing ? (
               <span className="text-[#20B8BE] font-bold">
                 {seasonalPricing.name} • Limited time
               </span>
