@@ -691,7 +691,8 @@ return (
                   {[
                     "Unlimited AI Reminders", 
                     "Floating AI Recovery Assistant", 
-                    "AI Smart Recommendations", 
+                    "AI Smart Recommendations",
+                    "Automatic Payment Reminders",
                     "Payment Tracking & History", 
                     "Unlimited Clients & Priority Support"
                   ].map(text => (
