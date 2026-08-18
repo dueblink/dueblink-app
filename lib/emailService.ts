@@ -167,7 +167,7 @@ export async function sendWelcomeEmail(
                 >
 
                   <!-- ==================================================
-                        HEADER
+                      HEADER
                   =================================================== -->
 
                   <tr>
@@ -210,7 +210,7 @@ export async function sendWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                        BODY
+                      BODY
                   =================================================== -->
 
                   <tr>
@@ -657,7 +657,7 @@ export async function sendWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                        FOOTER
+                      FOOTER
                   =================================================== -->
 
                   <tr>
@@ -883,7 +883,7 @@ export async function sendProWelcomeEmail(
                 >
 
                   <!-- ==================================================
-                        HEADER
+                      HEADER
                   =================================================== -->
 
                   <tr>
@@ -928,7 +928,7 @@ export async function sendProWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                        BODY
+                      BODY
                   =================================================== -->
 
                   <tr>
@@ -979,7 +979,7 @@ export async function sendProWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                            HEADLINE
+                          HEADLINE
                       =================================================== -->
 
                       <h1
@@ -998,7 +998,7 @@ export async function sendProWelcomeEmail(
                       </h1>
 
                       <!-- ==================================================
-                            INTRO
+                          INTRO
                       =================================================== -->
 
                       <p
@@ -1028,7 +1028,7 @@ export async function sendProWelcomeEmail(
                       </p>
 
                       <!-- ==================================================
-                            PRO FEATURES CONTAINER
+                          PRO FEATURES CONTAINER
                       =================================================== -->
 
                       <table
@@ -1064,7 +1064,7 @@ export async function sendProWelcomeEmail(
                             </p>
 
                             <!-- ==================================================
-                                  FEATURE ROW 1
+                                    FEATURE ROW 1
                             =================================================== -->
 
                             <table
@@ -1195,7 +1195,7 @@ export async function sendProWelcomeEmail(
                             </table>
 
                             <!-- ==================================================
-                                  FEATURE ROW 2
+                                    FEATURE ROW 2
                             =================================================== -->
 
                             <table
@@ -1333,7 +1333,7 @@ export async function sendProWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                            CTA
+                          CTA
                       =================================================== -->
 
                       <table
@@ -1374,7 +1374,7 @@ export async function sendProWelcomeEmail(
                       </table>
 
                       <!-- ==================================================
-                            PRO TIP
+                          PRO TIP
                       =================================================== -->
 
                       <table
@@ -1431,7 +1431,7 @@ export async function sendProWelcomeEmail(
                   </tr>
 
                   <!-- ==================================================
-                        FOOTER
+                      FOOTER
                   =================================================== -->
 
                   <tr>
@@ -1767,6 +1767,234 @@ export async function sendPasswordResetEmail(
   } catch (error) {
     console.error(
       "Failed to send password reset email:",
+      error
+    );
+
+    return {
+      success: false,
+      error,
+    };
+  }
+}
+
+// ============================================================
+// Automated Payment Reminder Email
+// ============================================================
+
+export async function sendAutomatedReminderEmail(
+  toEmail: string,
+  subject: string,
+  body: string,
+  paymentLink?: string
+) {
+  try {
+    const resend = getResendClient();
+
+    const emailBody = body
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br />");
+
+    const safePaymentLink =
+      typeof paymentLink === "string" &&
+      paymentLink.trim().length > 0
+        ? paymentLink.trim()
+        : "";
+
+    const paymentButton = safePaymentLink
+      ? `
+        <div
+          style="
+            margin:32px 0;
+            text-align:center;
+          "
+        >
+          <a
+            href="${safePaymentLink}"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="
+              display:inline-block;
+              padding:14px 28px;
+              background:#159A9F;
+              color:#ffffff;
+              text-decoration:none;
+              border-radius:10px;
+              font-size:14px;
+              font-weight:700;
+            "
+          >
+            Pay Now
+          </a>
+        </div>
+      `
+      : "";
+
+    const data = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: [toEmail],
+      subject,
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+
+        <head>
+          <meta charset="utf-8">
+
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+          >
+
+          <title>${subject}</title>
+        </head>
+
+        <body
+          style="
+            margin:0;
+            padding:0;
+            background-color:#F8FAFC;
+            font-family:-apple-system,BlinkMacSystemFont,
+            'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+            color:#0F172A;
+          "
+        >
+
+          <table
+            border="0"
+            cellpadding="0"
+            cellspacing="0"
+            width="100%"
+            style="
+              background-color:#F8FAFC;
+              padding:32px 12px;
+            "
+          >
+
+            <tr>
+              <td align="center">
+
+                <table
+                  border="0"
+                  cellpadding="0"
+                  cellspacing="0"
+                  width="100%"
+                  style="
+                    max-width:620px;
+                    background-color:#ffffff;
+                    border-radius:24px;
+                    overflow:hidden;
+                    border:1px solid #E2E8F0;
+                  "
+                >
+
+                  <!-- HEADER -->
+
+                  <tr>
+                    <td
+                      style="
+                        padding:28px 36px 20px;
+                        background-color:#ffffff;
+                        border-bottom:1px solid #F1F5F9;
+                      "
+                    >
+
+                      <a
+                        href="https://dueblink.com/"
+                        target="_blank"
+                        style="
+                          text-decoration:none;
+                          display:inline-block;
+                        "
+                      >
+
+                        <img
+                          src="https://dueblink.com/logo.png"
+                          alt="DueBlink Logo"
+                          width="130"
+                          style="
+                            display:block;
+                            width:130px;
+                            height:auto;
+                            border:0;
+                          "
+                        />
+
+                      </a>
+
+                    </td>
+                  </tr>
+
+                  <!-- BODY -->
+
+                  <tr>
+                    <td
+                      style="
+                        padding:40px 36px 36px;
+                      "
+                    >
+
+                      <div
+                        style="
+                          font-size:15px;
+                          line-height:1.7;
+                          color:#475569;
+                        "
+                      >
+                        ${emailBody}
+                      </div>
+
+                      ${paymentButton}
+
+                    </td>
+                  </tr>
+
+                  <!-- FOOTER -->
+
+                  <tr>
+                    <td
+                      align="center"
+                      style="
+                        padding:24px 36px;
+                        background:#F8FAFC;
+                        border-top:1px solid #F1F5F9;
+                      "
+                    >
+
+                      <p
+                        style="
+                          font-size:11px;
+                          color:#94A3B8;
+                          margin:0;
+                        "
+                      >
+                        Sent automatically by DueBlink.
+                      </p>
+
+                    </td>
+                  </tr>
+
+                </table>
+
+              </td>
+            </tr>
+
+          </table>
+
+        </body>
+
+        </html>
+      `,
+    });
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error(
+      "Failed to send automated reminder email:",
       error
     );
 

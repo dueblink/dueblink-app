@@ -4,17 +4,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check } from 'lucide-react';
-import { onAuthStateChanged, signOut, sendPasswordResetEmail } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
 import { useCompletion } from 'ai/react';
 
-function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: { isOpen: boolean; onClose: () => void; user: any; clientToEdit?: any; onClientSaved?: () => void }) {
+function AddClientModal({ isOpen, onClose, user, isPro, clientToEdit, onClientSaved }: { isOpen: boolean; onClose: () => void; user: any; isPro?: boolean; clientToEdit?: any; onClientSaved?: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [successStep, setSuccessStep] = useState(false);
+  const [automatedReminders, setAutomatedReminders] = useState(false);
 
   const [formData, setFormData] = useState({ 
     name: '', 
@@ -23,7 +24,8 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
     whatsapp: '', 
     amount: '', 
     dueDate: '', 
-    invoiceNumber: '' 
+    invoiceNumber: '',
+    paymentLink: ''
   });
 
   useEffect(() => {
@@ -35,10 +37,13 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
         whatsapp: clientToEdit.whatsapp || '',
         amount: clientToEdit.amount || '',
         dueDate: clientToEdit.dueDate || '',
-        invoiceNumber: clientToEdit.invoiceNumber || ''
+        invoiceNumber: clientToEdit.invoiceNumber || '',
+        paymentLink: clientToEdit.paymentLink || ''
       });
+      setAutomatedReminders(clientToEdit.automatedReminders || false);
     } else {
-      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '' });
+      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '' });
+      setAutomatedReminders(false);
     }
   }, [clientToEdit, isOpen]);
 
@@ -64,6 +69,9 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
           amount: formData.amount,
           dueDate: formData.dueDate,
           invoiceNumber: formData.invoiceNumber,
+          paymentLink: formData.paymentLink.trim(),
+          automatedReminders: isPro && automatedReminders,
+          automationStatus: isPro && automatedReminders ? 'active' : 'off'
         });
       } else {
         await addDoc(collection(db, 'clients'), {
@@ -75,9 +83,12 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
           amount: formData.amount,
           dueDate: formData.dueDate,
           invoiceNumber: formData.invoiceNumber,
+          paymentLink: formData.paymentLink.trim(),
           status: 'Pending',
           createdAt: serverTimestamp(),
-          reminderHistory: []
+          reminderHistory: [],
+          automatedReminders: isPro && automatedReminders,
+          automationStatus: isPro && automatedReminders ? 'active' : 'off'
         });
       }
 
@@ -99,7 +110,18 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
   };
 
   const handleResetAndClose = () => {
-    setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '' });
+    setFormData({
+      name: '',
+      company: '',
+      email: '',
+      whatsapp: '',
+      amount: '',
+      dueDate: '',
+      invoiceNumber: '',
+      paymentLink: ''
+    });
+
+    setAutomatedReminders(false);
     setSuccessStep(false);
     onClose();
   };
@@ -245,6 +267,178 @@ function AddClientModal({ isOpen, onClose, user, clientToEdit, onClientSaved }: 
                   />
                 </div>
               </div>
+
+              {/* Payment Link */}
+              <div className="space-y-1.5" suppressHydrationWarning={true}>
+                <label
+                  className="text-xs font-bold text-slate-500 uppercase"
+                  suppressHydrationWarning={true}
+                >
+                  Payment Link{' '}
+                  <span className="text-slate-400 font-normal lowercase">
+                    (Optional)
+                  </span>
+                </label>
+
+                <div
+                  className="relative flex items-center"
+                  suppressHydrationWarning={true}
+                >
+                  <input
+                    type="url"
+                    className="w-full px-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900"
+                    placeholder="https://rzp.io/l/..."
+                    value={formData.paymentLink}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        paymentLink: e.target.value
+                      })
+                    }
+                    suppressHydrationWarning={true}
+                  />
+                </div>
+
+                <p className="text-[10px] text-slate-400 pl-1">
+                  Add a payment link if you want the client to pay directly from the reminder email.
+                </p>
+              </div>
+
+              {/* Automated Email Reminders Block */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: 0.21 }}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                suppressHydrationWarning={true}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-[#0F172A]">
+                        Automated Email Reminders
+                      </p>
+
+                      <span className="rounded-full bg-[#E8F8F8] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#159A9F]">
+                        PRO
+                      </span>
+                    </div>
+
+                    <p className="mt-1 max-w-md text-[11px] font-medium leading-relaxed text-slate-500">
+                      Let DueBlink automatically follow up with this client until payment is received.
+                    </p>
+                  </div>
+
+                  {/* ON / OFF */}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className={`text-[10px] font-black uppercase tracking-wide ${
+                        automatedReminders && isPro
+                          ? 'text-[#159A9F]'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {automatedReminders && isPro ? 'ON' : 'OFF'}
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={!isPro}
+                      aria-label="Toggle automated email reminders"
+                      aria-pressed={automatedReminders && isPro}
+                      onClick={() => {
+                        if (isPro) {
+                          setAutomatedReminders((prev) => !prev);
+                        }
+                      }}
+                      className={`relative h-7 w-12 rounded-full p-1 transition-all duration-200 ${
+                        automatedReminders && isPro
+                          ? 'bg-[#20B8BE]'
+                          : 'bg-slate-200'
+                      } ${
+                        !isPro
+                          ? 'cursor-not-allowed opacity-60'
+                          : 'cursor-pointer'
+                      }`}
+                    >
+                      <span
+                        className={`block h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                          automatedReminders && isPro
+                            ? 'translate-x-5'
+                            : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Automation details */}
+                {isPro && automatedReminders && (
+                  <div className="mt-5 rounded-xl border border-[#D8F1F2] bg-[#F7FCFC] p-4">
+                    <p className="mb-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Automatic follow-up sequence
+                    </p>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#DDF7F7] text-[10px] font-black text-[#159A9F]">
+                          ✓
+                        </span>
+                        <div className="flex flex-1 items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-600">
+                            First reminder
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            Due date
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#DDF7F7] text-[10px] font-black text-[#159A9F]">
+                          ✓
+                        </span>
+                        <div className="flex flex-1 items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-600">
+                            Follow-up
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            3 days later
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#DDF7F7] text-[10px] font-black text-[#159A9F]">
+                          ✓
+                        </span>
+                        <div className="flex flex-1 items-center justify-between">
+                          <span className="text-xs font-semibold text-slate-600">
+                            Final follow-up
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            7 days later
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 border-t border-[#D8F1F2] pt-3 text-[10px] font-medium leading-relaxed text-slate-400">
+                      Reminders automatically stop when the invoice is marked as paid.
+                    </p>
+                  </div>
+                )}
+
+                {/* Free user */}
+                {!isPro && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-[10px]"></span>
+                    <p className="text-[10px] font-bold text-slate-400">
+                      Upgrade to Pro to enable automated reminders.
+                    </p>
+                  </div>
+                )}
+              </motion.div>
 
               <button 
                 type="submit" 
@@ -604,8 +798,8 @@ export default function DashboardPage() {
 
   const filteredAndSortedClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                          (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()));
+                        (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                        (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()));
     
     if (!matchesSearch) return false;
 
@@ -648,8 +842,12 @@ export default function DashboardPage() {
     >
       <AddClientModal 
         isOpen={isModalOpen} 
-        onClose={() => { setIsModalOpen(false); setClientToEdit(null); }} 
-        user={user} 
+        onClose={() => { 
+          setIsModalOpen(false); 
+          setClientToEdit(null); 
+        }} 
+        user={user}
+        isPro={isPro}
         clientToEdit={clientToEdit}
       />
       
@@ -1182,7 +1380,7 @@ export default function DashboardPage() {
                       <div key={c.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30 transition-all duration-150 space-y-4 cursor-pointer" suppressHydrationWarning={true}>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
                           <div className="space-y-1" suppressHydrationWarning={true}>
-                            <div className="flex items-center gap-3" suppressHydrationWarning={true}>
+                            <div className="flex items-center gap-3 flex-wrap" suppressHydrationWarning={true}>
                               <p className="font-bold text-base text-slate-900" suppressHydrationWarning={true}>{c.name}</p>
                               <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
                                 c.status === 'Paid' 
@@ -1193,6 +1391,13 @@ export default function DashboardPage() {
                               }`} suppressHydrationWarning={true}>
                                 {c.status === 'Paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Pending'}
                               </span>
+
+                              {c.automatedReminders === true && c.status !== 'Paid' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E8F8F8] text-[#159A9F]">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#20B8BE]" />
+                                  Auto Reminder ON
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>{c.company || c.email || 'No company'}</p>
                           </div>
@@ -1269,6 +1474,11 @@ export default function DashboardPage() {
                                 {c.invoiceNumber && (
                                   <span suppressHydrationWarning={true}>
                                     Invoice: <strong className="text-slate-900 ml-1">{c.invoiceNumber}</strong>
+                                  </span>
+                                )}
+                                {c.paymentLink && (
+                                  <span suppressHydrationWarning={true}>
+                                    Payment Link: <a href={c.paymentLink} target="_blank" rel="noopener noreferrer" className="text-[#245B92] underline ml-1">{c.paymentLink}</a>
                                   </span>
                                 )}
                               </div>
@@ -1502,15 +1712,15 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
                 <a href="/contact" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
                   <span>Contact Support</span>
-                  <span className="text-[#245B92]">→</span>
+                  <span className="#245B92">→</span>
                 </a>
                 <a href="/#faq" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
                   <span>FAQ</span>
-                  <span className="text-[#245B92]">→</span>
+                  <span className="#245B92">→</span>
                 </a>
                 <a href="/pricing" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
                   <span>Pricing & Plans</span>
-                  <span className="text-[#245B92]">→</span>
+                  <span className="#245B92">→</span>
                 </a>
               </div>
             </div>

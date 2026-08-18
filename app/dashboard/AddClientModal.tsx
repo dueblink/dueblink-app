@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2, CheckCircle2, Sparkles, Loader2, ArrowRight } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -11,13 +11,20 @@ interface AddClientModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: any;
+  isPro: boolean;
 }
 
-export default function AddClientModal({ isOpen, onClose, user }: AddClientModalProps) {
+export default function AddClientModal({
+  isOpen,
+  onClose,
+  user,
+  isPro
+}: AddClientModalProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [successStep, setSuccessStep] = useState(false);
   const [isFirstClient, setIsFirstClient] = useState(false);
+  const [automatedReminders, setAutomatedReminders] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -26,7 +33,8 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
     whatsapp: '',
     amount: '',
     dueDate: '',
-    invoiceNumber: ''
+    invoiceNumber: '',
+    paymentLink: ''
   });
 
   const [errors, setErrors] = useState({
@@ -44,6 +52,7 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
   const amountInputRef = useRef<HTMLInputElement>(null);
   const dueDateInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
+  const paymentLinkInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus Client Name on open & ESC key listener
   useEffect(() => {
@@ -100,7 +109,7 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
     validateField(field, value);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, nextRef: React.RefObject<HTMLInputElement | HTMLInputElement | null>) => {
+  const handleKeyDown = (e: React.KeyboardEvent, nextRef: React.RefObject<HTMLInputElement | null>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       nextRef?.current?.focus();
@@ -147,6 +156,8 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
         amount: formData.amount,
         dueDate: formData.dueDate,
         invoiceNumber: formData.invoiceNumber,
+        paymentLink: formData.paymentLink.trim(),
+        automatedReminders: isPro && automatedReminders,
         status: 'Pending',
         createdAt: serverTimestamp(),
         reminderHistory: []
@@ -164,10 +175,20 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
   };
 
   const handleResetAndClose = () => {
-    setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '' });
+    setFormData({
+      name: '',
+      company: '',
+      email: '',
+      whatsapp: '',
+      amount: '',
+      dueDate: '',
+      invoiceNumber: '',
+      paymentLink: ''
+    });
     setErrors({ name: '', email: '', amount: '', dueDate: '' });
     setSuccessStep(false);
     setIsFirstClient(false);
+    setAutomatedReminders(false);
     onClose();
   };
 
@@ -386,9 +407,136 @@ export default function AddClientModal({ isOpen, onClose, user }: AddClientModal
                     placeholder="INV-2026-001" 
                     value={formData.invoiceNumber} 
                     onChange={(e) => handleChange('invoiceNumber', e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(e, paymentLinkInputRef)}
                     suppressHydrationWarning={true}
                   />
                 </div>
+              </motion.div>
+
+              {/* Payment Link */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: 0.21 }}
+                className="space-y-1.5"
+                suppressHydrationWarning={true}
+              >
+                <label
+                  className="text-xs font-bold text-slate-500 uppercase"
+                  suppressHydrationWarning={true}
+                >
+                  Payment Link{' '}
+                  <span className="text-slate-400 font-normal lowercase">
+                    (Optional)
+                  </span>
+                </label>
+
+                <div
+                  className="relative flex items-center"
+                  suppressHydrationWarning={true}
+                >
+                  <Link2 className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <input
+                    ref={paymentLinkInputRef}
+                    type="url"
+                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition"
+                    placeholder="https://rzp.io/l/..."
+                    value={formData.paymentLink}
+                    onChange={(e) =>
+                      handleChange('paymentLink', e.target.value)
+                    }
+                    suppressHydrationWarning={true}
+                  />
+                </div>
+
+                <p className="text-[10px] text-slate-400 pl-1">
+                  Add a payment link if you want clients to pay directly from the reminder email.
+                </p>
+              </motion.div>
+
+              {/* Automated Email Reminders */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: 0.24 }}
+                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                suppressHydrationWarning={true}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-slate-900">
+                        Automated Email Reminders
+                      </p>
+
+                      <span className="text-[9px] font-black uppercase tracking-wide px-2 py-1 rounded-full bg-[#245B92] text-white">
+                        PRO
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                      Automatically send payment reminders to this client.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isPro) {
+                        alert('Automated Email Reminders are available with DueBlink Pro.');
+                        router.push('/pricing');
+                        return;
+                      }
+
+                      setAutomatedReminders(prev => !prev);
+                    }}
+                    className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                      automatedReminders
+                        ? 'bg-[#20B8BE]'
+                        : 'bg-slate-300'
+                    }`}
+                    aria-label="Toggle automated email reminders"
+                  >
+                    <span
+                      className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                        automatedReminders
+                          ? 'translate-x-6'
+                          : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {!isPro && (
+                  <p className="text-[10px] font-bold text-[#245B92] mt-3">
+                    Upgrade to Pro to automatically send reminders.
+                  </p>
+                )}
+
+                {isPro && automatedReminders && (
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400 mb-2">
+                      Automatic sequence
+                    </p>
+
+                    <div className="space-y-2 text-xs font-semibold text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span>First reminder</span>
+                        <span className="text-slate-400">On due date</span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span>Follow-up</span>
+                        <span className="text-slate-400">3 days later</span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span>Final follow-up</span>
+                        <span className="text-slate-400">7 days later</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             </form>
           ) : (

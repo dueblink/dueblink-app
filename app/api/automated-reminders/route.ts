@@ -1,0 +1,188 @@
+import { NextResponse } from "next/server";
+import { getAdminDb } from "@/lib/firebaseAdmin";
+import { generateEmailReminder } from "@/lib/generateReminder";
+import { sendAutomatedReminderEmail } from "@/lib/emailService";
+
+function getIndiaDate(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function parseDateOnly(dateString: string) {
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+export async function GET() {
+  try {
+    const db = getAdminDb();
+
+    const snapshot = await db
+      .collection("clients")
+      .where("automatedReminders", "==", true)
+      .where("automationStatus", "==", "active")
+      .where("status", "==", "Pending")
+      .get();
+
+    const todayString = getIndiaDate(new Date());
+    const today = parseDateOnly(todayString);
+
+    const eligibleClients = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
+
+        let dueDate = "";
+
+        if (typeof data.dueDate === "string") {
+          dueDate = data.dueDate.substring(0, 10);
+        } else if (
+          data.dueDate &&
+          typeof data.dueDate.toDate === "function"
+        ) {
+          dueDate = getIndiaDate(data.dueDate.toDate());
+        }
+
+        if (!dueDate) {
+          return null;
+        }
+
+        const dueDateObject = parseDateOnly(dueDate);
+
+        const daysOverdue = Math.floor(
+          (today.getTime() - dueDateObject.getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
+        let reminderStage: string | null = null;
+
+        if (daysOverdue === 0) {
+          reminderStage = "first";
+        } else if (daysOverdue === 3) {
+          reminderStage = "follow-up";
+        } else if (daysOverdue === 7) {
+          reminderStage = "final";
+        }
+
+        return {
+          id: doc.id,
+          name: data.name,
+          email: data.email,
+          amount: data.amount,
+          paymentLink: data.paymentLink || "",
+          currency: data.currency || "₹",
+          dueDate,
+          daysOverdue,
+          status: data.status,
+          automatedReminders: data.automatedReminders,
+          automationStatus: data.automationStatus,
+          userId: data.userId,
+          tone: data.tone || "professional",
+          invoiceRef: data.invoiceRef || "",
+          reminderStage,
+          lastAutomatedReminderStage:
+            data.lastAutomatedReminderStage || null,
+        };
+      })
+      .filter(
+        (client) =>
+          client !== null &&
+          client.reminderStage !== null &&
+          client.lastAutomatedReminderStage !== client.reminderStage
+      );
+
+    const results = [];
+
+    for (const client of eligibleClients) {
+      if (!client || !client.email) {
+        continue;
+      }
+
+      try {
+        // Generate a unique email using the same AI reminder system.
+        const generatedEmail = await generateEmailReminder({
+          clientName: client.name || "Client",
+          currency: client.currency,
+          amount: client.amount || "0",
+          daysOverdue: client.daysOverdue,
+          invoiceRef: client.invoiceRef,
+          tone: client.tone,
+          paymentLink: client.paymentLink,
+          variationInstruction:
+            client.reminderStage === "first"
+              ? "Write a polite first payment reminder appropriate for the due date."
+              : client.reminderStage === "follow-up"
+              ? "Write a fresh follow-up for a payment that is 3 days overdue. Do not sound repetitive."
+              : "Write a final but professional follow-up for a payment that is 7 days overdue. Remain respectful and clear.",
+        });
+
+        // Send ONLY the email.
+        const sendResult = await sendAutomatedReminderEmail(
+          client.email,
+          generatedEmail.email_subject,
+          generatedEmail.email_body
+        );
+
+        if (!sendResult.success) {
+          results.push({
+            id: client.id,
+            name: client.name,
+            success: false,
+            stage: client.reminderStage,
+            error: "Email could not be sent.",
+          });
+
+          continue;
+        }
+
+        // Mark this reminder stage as sent.
+        await db.collection("clients").doc(client.id).update({
+          lastAutomatedReminderStage: client.reminderStage,
+          lastAutomatedReminderSentAt: new Date(),
+        });
+
+        results.push({
+          id: client.id,
+          name: client.name,
+          email: client.email,
+          success: true,
+          stage: client.reminderStage,
+        });
+      } catch (error) {
+        console.error(
+          `Failed automated reminder for client ${client.id}:`,
+          error
+        );
+
+        results.push({
+          id: client.id,
+          name: client.name,
+          success: false,
+          stage: client.reminderStage,
+          error: "Failed to generate or send reminder.",
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      count: results.length,
+      results,
+    });
+  } catch (error: any) {
+    console.error("Automated reminders route error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to process automated reminders.",
+        details: error?.message || "Unknown error",
+      },
+      { status: 500 }
+    );
+  }
+}
