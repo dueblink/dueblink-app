@@ -1483,6 +1483,59 @@ export default function DashboardPage() {
                                 )}
                               </div>
 
+                              {/* Reminder History */}
+                              <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs" suppressHydrationWarning={true}>
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="text-sm font-black text-slate-900">
+                                    Reminder History
+                                  </h4>
+                                </div>
+
+                                {Array.isArray(c.reminderHistory) && c.reminderHistory.length > 0 ? (
+                                  <div className="space-y-3">
+                                    {c.reminderHistory.map((reminder: any, index: number) => (
+                                      <div
+                                        key={index}
+                                        className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100"
+                                        suppressHydrationWarning={true}
+                                      >
+                                        <div className="mt-0.5 flex-shrink-0">
+                                          <span className="text-base">
+                                            {reminder.type === 'email' ? '' : ''}
+                                          </span>
+                                        </div>
+
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-bold text-slate-900">
+                                            {reminder.label || reminder.title || 'Reminder sent'}
+                                          </p>
+
+                                          <p className="text-[11px] text-slate-500 mt-0.5">
+                                            {reminder.sentAt
+                                              ? `Sent: ${new Date(
+                                                  reminder.sentAt?.toDate
+                                                    ? reminder.sentAt.toDate()
+                                                    : reminder.sentAt
+                                                ).toLocaleString('en-IN', {
+                                                  day: '2-digit',
+                                                  month: 'short',
+                                                  year: 'numeric',
+                                                  hour: 'numeric',
+                                                  minute: '2-digit',
+                                                })}`
+                                              : 'Sent'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs font-medium text-slate-500 py-2">
+                                    No reminders sent yet.
+                                  </p>
+                                )}
+                              </div>
+
                               {isPro && (
                                 <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
                                   <button 

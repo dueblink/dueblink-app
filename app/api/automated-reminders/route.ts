@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { generateEmailReminder } from "@/lib/generateReminder";
 import { sendAutomatedReminderEmail } from "@/lib/emailService";
+import { FieldValue } from "firebase-admin/firestore";
 
 function getIndiaDate(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -139,10 +140,23 @@ export async function GET() {
           continue;
         }
 
-        // Mark this reminder stage as sent.
+        // ------------------------------------------------------------
+        // EMAIL SENT SUCCESSFULLY
+        // Save the automated reminder in the client's reminder history.
+        // ------------------------------------------------------------
         await db.collection("clients").doc(client.id).update({
           lastAutomatedReminderStage: client.reminderStage,
           lastAutomatedReminderSentAt: new Date(),
+
+          reminderHistory: FieldValue.arrayUnion({
+            type: "automated",
+            channel: "email",
+            stage: client.reminderStage,
+            email_subject: generatedEmail.email_subject,
+            email_body: generatedEmail.email_body,
+            paymentLink: client.paymentLink || "",
+            sentAt: new Date(),
+          }),
         });
 
         results.push({
