@@ -1016,7 +1016,7 @@ export default function LandingPage() {
     </motion.section>
 
     {/* --- AUTOMATED REMINDERS GUIDE SECTION --- */}
-    <section className="py-12 sm:py-16 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
+    <section id="automated-reminders" className="py-12 sm:py-16 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
       <div className="max-w-5xl mx-auto px-4" suppressHydrationWarning={true}>
         <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6 sm:p-10 text-center" suppressHydrationWarning={true}>
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
@@ -1513,13 +1513,13 @@ export default function LandingPage() {
           </div>
           <div className="space-y-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-[#20B8BE] bg-[#20B8BE]/10 px-3 py-1 rounded-full">
-             {user ? 'Monthly Limit Reached' : 'Free Trial Limit Reached'}
+               {user ? 'Monthly Limit Reached' : 'Free Trial Limit Reached'}
             </span>
             <h4 className="text-lg font-black tracking-tight text-white pt-2">
-             {user ? 'You have used all 15 free reminders this month.' : "You've used all 5 free AI reminders."}
+               {user ? 'You have used all 15 free reminders this month.' : "You've used all 5 free AI reminders."}
             </h4>
             <p className="text-xs text-slate-300 font-medium leading-relaxed">
-             {user ? 'Your reminders automatically refill every month. Want unlimited reminders and advanced recovery tools right now?' : "Create a free account to unlock 15 monthly free reminders or upgrade to Pro for unlimited AI generation."}
+               {user ? 'Your reminders automatically refill every month. Want unlimited reminders and advanced recovery tools right now?' : "Create a free account to unlock 15 monthly free reminders or upgrade to Pro for unlimited AI generation."}
             </p>
           </div>
           <div className="space-y-3 pt-2">
@@ -1779,7 +1779,7 @@ export default function LandingPage() {
                   <button 
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider transition cursor-pointer shadow-3xs ${activeTab === tab.id ? 'bg-[#1C2E8F] text-white ring-2 ring-[#1C2E8F]/20 scale-102' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                  className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider transition cursor-pointer shadow-3xs ${activeTab === tab.id ? 'bg-[#1C2E8F] text-white ring-2 ring-[#1C2E8F]/20 scale-102' : 'bg-slate-200 text-slate-600 hover:bg-slate-350'}`}
                   suppressHydrationWarning={true}
                   >
                   {tab.label}

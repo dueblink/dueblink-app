@@ -115,7 +115,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     if (saved) setRemainingFreeReminders(parseInt(saved));
 
     if (pathname !== '/dashboard' || isPro) {
-      setShowMessageBubble(true);
       const loadMinimizeTimer = setTimeout(() => {
         setShowMessageBubble((prev) => (clickedSectionText ? prev : false));
       }, 6000);
@@ -187,16 +186,15 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       'hero',
       'late-payments',
       'features',
+      'built-for',
+      'automated-reminders',
       'ai-recovery-assistant',
       'dashboard-preview',
       'reminder-generator',
-      'without-vs-with',
       'reminder-examples',
       'how-it-works',
-      'built-for',
       'pricing',
       'faq',
-      'missed-followup',
       'final-cta'
     ];
 
@@ -206,7 +204,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
           const index = sectionIds.indexOf(entry.target.id);
           if (index !== -1 && currentSectionIndexRef.current !== index) {
             setCurrentSectionIndex(index);
-            setClickedSectionText(null);
           }
         }
       });
@@ -230,6 +227,58 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     };
   }, [pathname]);
 
+  const getCurrentMessages = () => {
+    if (isLoggedIn && isPro) {
+      return [
+        "Your Pro workspace is ready.",
+        "See everything DueBlink can do for your payments.",
+        "Your complete payment recovery toolkit.",
+        "Built for businesses that invoice and follow up.",
+        "Set it once and let DueBlink follow up automatically.",
+        "I can help you decide which payment to chase first.",
+        "Your payment recovery activity, all in one place.",
+        "Create unlimited AI payment reminders in seconds.",
+        "See reminders for different payment stages.",
+        "Add clients, follow up, and track payments.",
+        "Your Pro plan unlocks the full recovery toolkit.",
+        "Find quick answers to common questions.",
+        "Ready to recover more payments?"
+      ];
+    } else if (isLoggedIn) {
+      return [
+        "Welcome back. Let's recover your payments.",
+        "Stay on top of every payment you are owed.",
+        "Your tools for faster payment recovery.",
+        "Built for businesses that invoice and follow up.",
+        "Let DueBlink handle your follow-ups automatically.",
+        "Upgrade to Pro for smarter recovery recommendations.",
+        "Manage your clients and payment activity here.",
+        "Create AI payment reminders when you need them.",
+        "See examples for different payment stages.",
+        "Add clients, send reminders, and track payments.",
+        "Upgrade when you need unlimited recovery tools.",
+        "Find quick answers to common questions.",
+        "Ready to get paid faster?"
+      ];
+    } else {
+      return [
+        "Start with 5 free AI reminders.",
+        "Late payments are easier to manage with timely follow-ups.",
+        "Everything you need to recover payments, in one place.",
+        "Built for businesses that invoice and follow up.",
+        "Set it once and let DueBlink follow up automatically.",
+        "See how AI can help you recover payments.",
+        "Your payment recovery workspace.",
+        "Create a professional payment reminder in seconds.",
+        "See reminders for different payment stages.",
+        "Add a client, send reminders, and track payment.",
+        "Start free, then upgrade when you need more.",
+        "Find quick answers to common questions.",
+        "Ready to get paid faster?"
+      ];
+    }
+  };
+
   const handleRobotClick = () => {
     if (pathname === '/dashboard') {
       setIsExpanded(!isExpanded);
@@ -242,53 +291,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       return;
     }
 
-    const messages = isLoggedIn && isPro ? [
-      "Your Pro workspace is ready.",
-      "You have access to every DueBlink feature.",
-      "Open your AI Recovery Assistant to analyze payments, generate follow-ups and recover money faster.",
-      "Your dashboard is your recovery command center.",
-      "You can generate unlimited AI reminders anytime.",
-      "Track unpaid invoices effortlessly.",
-      "Use smart follow-ups to get paid sooner.",
-      "Review client payment statuses in real-time.",
-      "Follow the automated workflow from invoice to paid.",
-      "Built specifically for freelancers, agencies, and consultants.",
-      "Your Pro subscription is active with zero limits.",
-      "Most common questions are answered here.",
-      "Stay consistent with your payment tracking.",
-      "Let's recover more payments today."
-    ] : isLoggedIn ? [
-      "Open your dashboard to continue managing your clients.",
-      "Everything you've seen is available inside your account.",
-      "Upgrade to Pro to unlock AI recommendations and smart follow-ups.",
-      "This is your payment recovery workspace.",
-      "You can generate reminders instantly using your saved client data.",
-      "Track your pending and paid invoices easily.",
-      "See the difference between manual tracking and DueBlink.",
-      "Review real reminder examples for different overdue stages.",
-      "Follow the simple step-by-step recovery process.",
-      "Designed for service businesses and freelancers.",
-      "You're on the Free plan. Upgrade anytime to unlock every AI feature.",
-      "Most common questions are answered here.",
-      "Avoid missed follow-ups to protect your cash flow.",
-      "Continue where you left off."
-    ] : [
-      "Start here. Try 5 free AI reminders—no signup required.",
-      "This explains why spreadsheets, WhatsApp and memory aren't enough.",
-      "These are the tools DueBlink gives you to organize clients and recover payments.",
-      "This is DueBlink Pro's smartest feature. It analyzes payment data and recommends your next action.",
-      "This is where you'll manage clients, reminders and payment tracking.",
-      "You can generate up to 5 AI reminders for free before creating an account.",
-      "Here's the difference between manual tracking and using DueBlink.",
-      "See how DueBlink automatically adjusts reminder tones based on how overdue a payment is.",
-      "This section shows the complete payment recovery workflow.",
-      "If clients owe you money, DueBlink is built for you.",
-      "Start free. Upgrade only when you need unlimited AI and the Recovery Assistant.",
-      "Most common questions are answered here.",
-      "This is why consistent follow-ups matter for healthy cash flow.",
-      "You're ready. Try your first AI reminder."
-    ];
-
+    const messages = getCurrentMessages();
     setClickedSectionText(messages[currentSectionIndex] || messages[0]);
     setShowMessageBubble((prev) => !prev);
   };
@@ -300,17 +303,17 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       }
       return ""; 
     }
-    if (clickedSectionText) return clickedSectionText;
 
-    if (isLoggedIn && isPro) {
-      return `Welcome back, ${userName}!\n\nI'm Blink, your Pro AI Recovery Assistant. Everything is unlocked and ready.`;
+    if (clickedSectionText) {
+      return clickedSectionText;
     }
 
-    if (isLoggedIn) {
-      return `Welcome back, ${userName}!\n\nReady to continue recovering payments?`;
+    if (currentSectionIndex === null || currentSectionIndex === undefined) {
+      return "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how it can help you get paid faster.";
     }
 
-    return "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how to recover payments faster.\n\nNeed help? Click me anytime.";
+    const messages = getCurrentMessages();
+    return messages[currentSectionIndex] || messages[0] || "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how it can help you get paid faster.";
   };
 
   const handleActionClick = async (actionId: string, actionTitle: string) => {
@@ -419,7 +422,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
   if (pathname === '/create-account' || pathname === '/login' || !isVisible) return null;
 
-  // Raised baseline positioning so it never hides behind the taskbar/system tray even before scrolling
   const positioningClass = isScrolled 
     ? 'bottom-28 sm:bottom-32 right-6 sm:right-8' 
     : 'bottom-20 sm:bottom-24 right-6 sm:right-8';
@@ -455,7 +457,10 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 </div>
               </div>
               <button 
-                onClick={(e) => { e.stopPropagation(); setShowMessageBubble(false); setClickedSectionText(null); }} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMessageBubble(false);
+                }} 
                 className="text-[10px] font-bold text-slate-400 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200 px-2 py-0.5 rounded-full cursor-pointer transition flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-[#20B8BE]"
                 aria-label="Close message bubble"
                 suppressHydrationWarning={true}
@@ -468,7 +473,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               {getActiveMessage()}
             </p>
 
-            {pathname !== '/dashboard' && (isLoggedIn || currentSectionIndex === 0 || currentSectionIndex === 13 || clickedSectionText) && (
+            {pathname !== '/dashboard' && (isLoggedIn || currentSectionIndex === 0 || currentSectionIndex === 12 || clickedSectionText) && (
               <button 
                 onClick={handleLandingAction} 
                 className="mt-0.5 w-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white py-2 px-3 rounded-xl font-bold text-[11px] shadow-md hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]"
