@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebaseAdmin";
+import { getAdminAuth } from "@/lib/firebaseAdminAuth";
+import { createPaymentActionToken } from "@/lib/paymentActionToken";
 import { generateEmailReminder } from "@/lib/generateReminder";
-import { sendAutomatedReminderEmail } from "@/lib/emailService";
+import {
+  sendAutomatedReminderEmail,
+  sendOwnerPaymentStatusEmail,
+} from "@/lib/emailService";
 import { FieldValue } from "firebase-admin/firestore";
 
 function getIndiaDate(date: Date) {
@@ -19,9 +24,40 @@ function parseDateOnly(dateString: string) {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
-export async function GET() {
+async function getOwnerEmail(
+  adminAuth: ReturnType<typeof getAdminAuth>,
+  userId: string
+) {
+  try {
+    const userRecord = await adminAuth.getUser(userId);
+
+    return userRecord.email || null;
+  } catch (error) {
+    console.error(`Could not get owner email for user ${userId}:`, error);
+
+    return null;
+  }
+}
+
+export async function GET(request: Request) {
   try {
     const db = getAdminDb();
+    const adminAuth = getAdminAuth();
+
+    const ownerPaymentItems = new Map<
+      string,
+      {
+        email: string;
+        items: {
+          clientName: string;
+          amount: string;
+          paidLink: string;
+          notYetLink: string;
+        }[];
+      }
+    >();
+
+    const appOrigin = new URL(request.url).origin;
 
     const snapshot = await db
       .collection("clients")
@@ -159,6 +195,49 @@ export async function GET() {
           }),
         });
 
+        const ownerEmail = await getOwnerEmail(
+          adminAuth,
+          client.userId
+        );
+
+        if (ownerEmail) {
+          const paidToken = createPaymentActionToken(
+            client.userId,
+            client.id,
+            "paid"
+          );
+
+          const notYetToken = createPaymentActionToken(
+            client.userId,
+            client.id,
+            "not_yet"
+          );
+
+          const paidLink =
+            `${appOrigin}/api/payment-status?token=${encodeURIComponent(
+              paidToken
+            )}`;
+
+          const notYetLink =
+            `${appOrigin}/api/payment-status?token=${encodeURIComponent(
+              notYetToken
+            )}`;
+
+          if (!ownerPaymentItems.has(ownerEmail)) {
+            ownerPaymentItems.set(ownerEmail, {
+              email: ownerEmail,
+              items: [],
+            });
+          }
+
+          ownerPaymentItems.get(ownerEmail)!.items.push({
+            clientName: client.name || "Client",
+            amount: `${client.currency}${client.amount || "0"}`,
+            paidLink,
+            notYetLink,
+          });
+        }
+
         results.push({
           id: client.id,
           name: client.name,
@@ -180,6 +259,17 @@ export async function GET() {
           error: "Failed to generate or send reminder.",
         });
       }
+    }
+
+    for (const owner of ownerPaymentItems.values()) {
+      if (owner.items.length === 0) {
+        continue;
+      }
+
+      await sendOwnerPaymentStatusEmail(
+        owner.email,
+        owner.items
+      );
     }
 
     return NextResponse.json({

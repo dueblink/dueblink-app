@@ -2004,3 +2004,341 @@ export async function sendAutomatedReminderEmail(
     };
   }
 }
+
+// ============================================================
+// Owner Payment Status Email
+// ============================================================
+
+export type OwnerPaymentStatusItem = {
+  clientName: string;
+  amount: string;
+  paidLink: string;
+  notYetLink: string;
+};
+
+export async function sendOwnerPaymentStatusEmail(
+  toEmail: string,
+  items: OwnerPaymentStatusItem[]
+) {
+  try {
+    const resend = getResendClient();
+
+    if (!toEmail || items.length === 0) {
+      return {
+        success: false,
+        error: "Missing owner email or payment status items.",
+      };
+    }
+
+    const clientRows = items
+      .map((item) => {
+        const safeClientName = item.clientName
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+
+        const safeAmount = item.amount
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+
+        return `
+          <div
+            style="
+              padding:20px 0;
+              border-bottom:1px solid #E2E8F0;
+            "
+          >
+
+            <div
+              style="
+                font-size:16px;
+                font-weight:700;
+                color:#0F172A;
+                margin-bottom:6px;
+              "
+            >
+              ${safeClientName}
+            </div>
+
+            <div
+              style="
+                font-size:14px;
+                color:#64748B;
+                margin-bottom:16px;
+              "
+            >
+              Outstanding: ${safeAmount}
+            </div>
+
+            <table
+              border="0"
+              cellpadding="0"
+              cellspacing="0"
+            >
+              <tr>
+
+                <td
+                  style="
+                    border-radius:8px;
+                    background:#159A9F;
+                  "
+                >
+                  <a
+                    href="${item.paidLink}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="
+                      display:inline-block;
+                      padding:11px 16px;
+                      color:#ffffff;
+                      text-decoration:none;
+                      font-size:13px;
+                      font-weight:700;
+                      border-radius:8px;
+                    "
+                  >
+                    ✓ Yes, Paid
+                  </a>
+                </td>
+
+                <td style="width:10px;"></td>
+
+                <td
+                  style="
+                    border-radius:8px;
+                    background:#F1F5F9;
+                    border:1px solid #E2E8F0;
+                  "
+                >
+                  <a
+                    href="${item.notYetLink}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="
+                      display:inline-block;
+                      padding:11px 16px;
+                      color:#334155;
+                      text-decoration:none;
+                      font-size:13px;
+                      font-weight:700;
+                      border-radius:8px;
+                    "
+                  >
+                    Not Yet
+                  </a>
+                </td>
+
+              </tr>
+            </table>
+
+          </div>
+        `;
+      })
+      .join("");
+
+    const data = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: [toEmail],
+      subject:
+        items.length === 1
+          ? `Payment status — ${items[0].clientName}`
+          : `DueBlink — Payment status for ${items.length} clients`,
+
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+
+        <head>
+          <meta charset="utf-8">
+
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0"
+          >
+
+          <title>DueBlink Payment Status</title>
+        </head>
+
+        <body
+          style="
+            margin:0;
+            padding:0;
+            background-color:#F8FAFC;
+            font-family:-apple-system,BlinkMacSystemFont,
+            'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+            color:#0F172A;
+          "
+        >
+
+          <table
+            border="0"
+            cellpadding="0"
+            cellspacing="0"
+            width="100%"
+            style="
+              background-color:#F8FAFC;
+              padding:32px 12px;
+            "
+          >
+
+            <tr>
+              <td align="center">
+
+                <table
+                  border="0"
+                  cellpadding="0"
+                  cellspacing="0"
+                  width="100%"
+                  style="
+                    max-width:620px;
+                    background-color:#ffffff;
+                    border-radius:24px;
+                    overflow:hidden;
+                    border:1px solid #E2E8F0;
+                  "
+                >
+
+                  <!-- HEADER -->
+
+                  <tr>
+                    <td
+                      style="
+                        padding:28px 36px 20px;
+                        background-color:#ffffff;
+                        border-bottom:1px solid #F1F5F9;
+                      "
+                    >
+
+                      <a
+                        href="https://dueblink.com/"
+                        target="_blank"
+                        style="
+                          text-decoration:none;
+                          display:inline-block;
+                        "
+                      >
+
+                        <img
+                          src="https://dueblink.com/logo.png"
+                          alt="DueBlink Logo"
+                          width="130"
+                          style="
+                            display:block;
+                            width:130px;
+                            height:auto;
+                            border:0;
+                          "
+                        />
+
+                      </a>
+
+                    </td>
+                  </tr>
+
+                  <!-- BODY -->
+
+                  <tr>
+                    <td
+                      style="
+                        padding:40px 36px 36px;
+                      "
+                    >
+
+                      <h1
+                        style="
+                          margin:0 0 12px;
+                          font-size:24px;
+                          line-height:1.3;
+                          font-weight:800;
+                          color:#0F172A;
+                        "
+                      >
+                        Payment status
+                      </h1>
+
+                      <p
+                        style="
+                          margin:0 0 20px;
+                          font-size:15px;
+                          line-height:1.6;
+                          color:#475569;
+                        "
+                      >
+                        Did these clients pay their outstanding
+                        invoices?
+                      </p>
+
+                      ${clientRows}
+
+                      <p
+                        style="
+                          margin:24px 0 0;
+                          font-size:12px;
+                          line-height:1.6;
+                          color:#94A3B8;
+                        "
+                      >
+                        You can also update payment status from
+                        your DueBlink dashboard.
+                      </p>
+
+                    </td>
+                  </tr>
+
+                  <!-- FOOTER -->
+
+                  <tr>
+                    <td
+                      align="center"
+                      style="
+                        padding:24px 36px;
+                        background:#F8FAFC;
+                        border-top:1px solid #F1F5F9;
+                      "
+                    >
+
+                      <p
+                        style="
+                          font-size:11px;
+                          color:#94A3B8;
+                          margin:0;
+                        "
+                      >
+                        Sent by DueBlink.
+                      </p>
+
+                    </td>
+                  </tr>
+
+                </table>
+
+              </td>
+            </tr>
+
+          </table>
+
+        </body>
+
+        </html>
+      `,
+    });
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error(
+      "Failed to send owner payment status email:",
+      error
+    );
+
+    return {
+      success: false,
+      error,
+    };
+  }
+}
