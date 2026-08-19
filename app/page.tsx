@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
-  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight
+  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight, CheckCircle
 } from 'lucide-react';
 // IMPORT FIREBASE
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -848,7 +848,7 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-        
+         
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
           <motion.span 
@@ -884,7 +884,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-      
+       
   </div>
 </motion.section>
 
@@ -926,6 +926,7 @@ export default function LandingPage() {
         { title: "AI Recovery Assistant (Pro)", desc: "AI recommends who to contact next and helps recover payments faster.", icon: <Bot className="w-5 h-5 text-white" suppressHydrationWarning={true} /> },
         { title: "Smart Follow-ups", desc: "Generate AI follow-up reminders in one click.", icon: <RefreshCw className="w-5 h-5 text-white" suppressHydrationWarning={true} /> },
         { title: "Automatic Payment Reminders (Pro)", desc: "Automatically remind clients when payments are due.", icon: <Clock className="w-5 h-5 text-white" suppressHydrationWarning={true} /> },
+        { title: "One-Click Payment Updates (Pro)", desc: "Mark payments as paid directly from your email — no dashboard required.", icon: <CheckCircle className="w-5 h-5 text-white" suppressHydrationWarning={true} /> },
         { title: "Recover Payments Faster", desc: "Recover payments sooner with AI-powered recommendations.", icon: <Zap className="w-5 h-5 text-white" suppressHydrationWarning={true} /> }
         ].map((card, cIdx) => (
         <motion.div 
@@ -1585,7 +1586,7 @@ export default function LandingPage() {
                     ease: "easeInOut"
                   }}
                   className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
-              />
+                />
 
                 {/* Sparkle burst */}
                 {[
@@ -1704,7 +1705,7 @@ export default function LandingPage() {
                 {isGenerating ? 'Rewriting...' : 'Regenerate'}
               </button>
             </div>
-                     
+                       
           <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
               {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
               {activeTab === 'whatsapp' && result.whatsapp_message}
@@ -1758,7 +1759,7 @@ export default function LandingPage() {
         <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
         <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
         </div>
-          )}
+            )}
         </div>
       </div>
       </motion.div>
@@ -2250,6 +2251,7 @@ export default function LandingPage() {
             {[
               "Unlimited AI Reminders",
               "Floating AI Recovery Assistant",
+              "One Click Payment Updates",
               "AI Smart Recommendations",
               "Automatic Payment Reminders",
               "Payment Tracking & History",

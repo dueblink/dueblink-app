@@ -693,6 +693,7 @@ return (
                     "Floating AI Recovery Assistant", 
                     "AI Smart Recommendations",
                     "Automatic Payment Reminders",
+                    "One Click Payment Updates",
                     "Payment Tracking & History", 
                     "Unlimited Clients & Priority Support"
                   ].map(text => (
