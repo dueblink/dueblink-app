@@ -9,6 +9,9 @@ import {
 } from "@/lib/emailService";
 import { FieldValue } from "firebase-admin/firestore";
 
+export const dynamic = "force-dynamic";
+
+
 function getIndiaDate(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
