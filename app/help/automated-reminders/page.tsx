@@ -364,15 +364,9 @@ export default function AutomatedRemindersPage() {
             <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-4">
               Stop Chasing. Let DueBlink Follow Up.
             </h2>
-            <p className="text-sm sm:text-base font-medium text-white/90 max-w-xl mx-auto leading-relaxed mb-8">
+            <p className="text-sm sm:text-base font-medium text-white/90 max-w-xl mx-auto leading-relaxed">
               Automate your payment follow-ups today and spend less time remembering who needs to be contacted.
             </p>
-            <button 
-              onClick={() => router.push('/create-account')} 
-              className="inline-flex items-center gap-2 bg-white text-[#245B92] px-8 py-3.5 rounded-xl font-black text-sm hover:bg-slate-50 transition cursor-pointer shadow-3xs"
-            >
-              Get Started Free <ArrowRight size={16} />
-            </button>
           </div>
         </div>
       </section>
