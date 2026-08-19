@@ -11,6 +11,7 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const dynamic = "force-dynamic";
 
+const cronSecret = process.env.CRON_SECRET;
 
 function getIndiaDate(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
@@ -43,6 +44,18 @@ async function getOwnerEmail(
 }
 
 export async function GET(request: Request) {
+  const authorization = request.headers.get("authorization");
+
+  if (
+    !cronSecret ||
+    authorization !== `Bearer ${cronSecret}`
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
   try {
     const db = getAdminDb();
     const adminAuth = getAdminAuth();
