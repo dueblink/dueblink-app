@@ -381,7 +381,7 @@ export default function LandingPage() {
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
-             
+            
           {/* LOGO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
@@ -884,7 +884,7 @@ export default function LandingPage() {
         </div>
       </div>
     </motion.div>
-       
+        
   </div>
 </motion.section>
 
@@ -900,7 +900,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-3" suppressHydrationWarning={true}>
         <div className="text-4xl select-none" suppressHydrationWarning={true}>💡</div>
         <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>One place to recover payments.</h2>
@@ -955,6 +955,37 @@ export default function LandingPage() {
       </div>
     </div>
     </motion.section>
+
+    {/* --- AUTOMATED REMINDERS GUIDE SECTION --- */}
+    <section className="py-12 sm:py-16 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
+      <div className="max-w-5xl mx-auto px-4" suppressHydrationWarning={true}>
+        <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6 sm:p-10 text-center" suppressHydrationWarning={true}>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
+            <Clock size={14} />
+            AUTOMATED REMINDERS
+          </div>
+
+          <h2 className="mt-4 text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
+            Wondering how automatic reminders work?
+          </h2>
+
+          <p className="mt-3 mx-auto max-w-2xl text-sm sm:text-base text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>
+            See exactly when reminders are sent, how the follow-up sequence
+            works, how long emails take to arrive, and what happens after your
+            client pays.
+          </p>
+
+          <button
+            onClick={() => router.push('/help/automated-reminders')}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#245B92] to-[#20B8BE] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:shadow-md cursor-pointer"
+            suppressHydrationWarning={true}
+          >
+            See How It Works
+            <ArrowRight size={16} />
+          </button>
+        </div>
+      </div>
+    </section>
 
     {/* --- DEDICATED AI RECOVERY ASSISTANT SECTION --- */}
     <section id="ai-recovery-assistant" className="py-16 sm:py-20 bg-slate-50/60 border-b border-slate-100 relative overflow-hidden px-4" suppressHydrationWarning={true}>
@@ -1705,7 +1736,7 @@ export default function LandingPage() {
                 {isGenerating ? 'Rewriting...' : 'Regenerate'}
               </button>
             </div>
-                       
+                  
           <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
               {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
               {activeTab === 'whatsapp' && result.whatsapp_message}
@@ -1987,7 +2018,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-amber-400 mx-auto fill-amber-400" suppressHydrationWarning={true} />
@@ -2290,7 +2321,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-         
+        
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
@@ -2490,7 +2521,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-         
+        
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
