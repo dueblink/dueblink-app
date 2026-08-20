@@ -189,7 +189,14 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
 
       const response = await fetch('/api/generate-reminder', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentUser
+            ? {
+                Authorization: `Bearer ${await currentUser.getIdToken()}`,
+              }
+            : {}),
+        },
         body: JSON.stringify({
           clientName,
           amount: amountDue,

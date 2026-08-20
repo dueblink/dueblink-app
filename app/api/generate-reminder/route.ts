@@ -2,6 +2,8 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { type NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebaseAdminAuth';
+import { getAdminDb } from '@/lib/firebaseAdmin';
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,6 +12,103 @@ const openai = createOpenAI({
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    // ============================================================
+    // 0. Verify Firebase authentication
+    // ============================================================
+
+    const authHeader = req.headers.get('authorization');
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Authentication required',
+        },
+        { status: 401 }
+      );
+    }
+
+    const idToken = authHeader.substring(7).trim();
+
+    if (!idToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Authentication token missing',
+        },
+        { status: 401 }
+      );
+    }
+
+    let verifiedUserId: string;
+
+    try {
+      const decodedToken =
+        await getAdminAuth().verifyIdToken(idToken);
+
+      verifiedUserId = decodedToken.uid;
+    } catch (error) {
+      console.error(
+        'GENERATE REMINDER AUTH ERROR:',
+        error
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invalid or expired authentication token',
+        },
+        { status: 401 }
+      );
+    }
+
+    console.log(
+      'Verified Reminder User ID:',
+      verifiedUserId
+    );
+
+    // ============================================================
+    // 1. Check server-side AI reminder usage
+    // ============================================================
+
+    const adminDb = getAdminDb();
+
+    const userRef = adminDb
+      .collection('users')
+      .doc(verifiedUserId);
+
+    const userSnapshot = await userRef.get();
+
+    if (!userSnapshot.exists) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'User account not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    const userData = userSnapshot.data() || {};
+
+    // Pro users have unlimited AI generations.
+    if (!userData.isPro) {
+      const aiRemindersUsed = Number(
+        userData.aiRemindersUsed || 0
+      );
+
+      if (aiRemindersUsed >= 15) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              'You have reached your 15 AI reminder limit for this month.',
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     if (!process.env.OPENAI_API_KEY) {
       throw new Error(
@@ -159,6 +258,20 @@ ${reminder.sms_text || ''}
         Return only the requested structured fields.
       `,
     });
+
+    // ============================================================
+    // Increment AI reminder usage AFTER successful generation
+    // ============================================================
+
+    if (!userData.isPro) {
+      await userRef.set(
+        {
+          aiRemindersUsed:
+            Number(userData.aiRemindersUsed || 0) + 1,
+        },
+        { merge: true }
+      );
+    }
 
     return NextResponse.json(result.object);
 

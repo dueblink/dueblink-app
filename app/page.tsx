@@ -297,9 +297,18 @@ export default function LandingPage() {
           Math.floor(Math.random() * variationStrategies.length)
         ];
 
+      const idToken = await auth.currentUser?.getIdToken();
+
+      if (!idToken) {
+        throw new Error('Please log in again to generate reminders.');
+      }
+
       const response = await fetch('/api/generate-reminder', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ 
           clientName, 
           amount, 
@@ -311,10 +320,10 @@ export default function LandingPage() {
           variationInstruction
         }),
       });
-       
+        
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${data.details || 'Unknown error'}`);
+        throw new Error(`Server returned ${response.status}: ${data.details || data.message || 'Unknown error'}`);
       }
 
       setResult(data);
@@ -1104,10 +1113,10 @@ export default function LandingPage() {
       </div>
 
       {/* ============================================================
-          STATIC AI RECOVERY ASSISTANT PREVIEW
-          Visual replica of the Dashboard Recovery Assistant.
-          This is intentionally NON-FUNCTIONAL.
-          ============================================================ */}
+        STATIC AI RECOVERY ASSISTANT PREVIEW
+        Visual replica of the Dashboard Recovery Assistant.
+        This is intentionally NON-FUNCTIONAL.
+        ============================================================ */}
 
       <div
         className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-full max-w-[320px] mx-auto overflow-hidden"
@@ -2353,7 +2362,7 @@ export default function LandingPage() {
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
         {user ? 'Open Dashboard' : 'Generate Free Reminder'}
           </motion.button>
-             
+               
           {user && !isPro && (
         <motion.button 
           whileHover={{ scale: 1.02 }}
