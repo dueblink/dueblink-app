@@ -150,7 +150,7 @@ export default function LandingPage() {
 
     if (savedMonthKey !== currentMonthKey) {
       localStorage.setItem('dueblink_reminder_month', currentMonthKey);
-      localStorage.setItem('dueblink_free_reminders', '0');
+      localStorage.setItem('dueblink_guest_reminders', '0');
       setReminderCount(0);
     }
 
@@ -243,7 +243,7 @@ export default function LandingPage() {
   // Effect: Local Storage Sync
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedCount = localStorage.getItem('dueblink_free_reminders');
+      const savedCount = localStorage.getItem('dueblink_guest_reminders');
       if (savedCount) setReminderCount(parseInt(savedCount, 10));
     }
   }, []);
@@ -350,7 +350,7 @@ export default function LandingPage() {
       if (!isPro) {
         const nextCount = reminderCount + 1;
         setReminderCount(nextCount);
-        localStorage.setItem('dueblink_free_reminders', nextCount.toString());
+        localStorage.setItem('dueblink_guest_reminders', nextCount.toString());
       }
     } catch (error) {
       console.error("AI GENERATION ERROR:", error);

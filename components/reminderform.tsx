@@ -101,7 +101,7 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
       localStorage.setItem('dueblink_guest_id', guestId);
     }
 
-    const savedCount = localStorage.getItem('dueblink_free_reminders');
+    const savedCount = localStorage.getItem('dueblink_guest_reminders');
     const count = savedCount ? parseInt(savedCount, 10) : 0;
     setGuestUsage(count);
 
@@ -261,7 +261,7 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
         if (!currentUser) {
           const nextCount = guestUsage + 1;
           setGuestUsage(nextCount);
-          localStorage.setItem('dueblink_free_reminders', nextCount.toString());
+          localStorage.setItem('dueblink_guest_reminders', nextCount.toString());
           if (nextCount >= 5) {
             setLimitReached(true);
             setLimitType('guest');
