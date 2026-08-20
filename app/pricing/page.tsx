@@ -132,254 +132,256 @@ export default function PricingPage() {
   setIsProcessing(true);
 
   try {
+    // Get Firebase ID token for secure API requests
+    const idToken = await user.getIdToken();
+
     // ======================================================
-// 1. Create Razorpay Order on SERVER
-// ======================================================
+    // 1. Create Razorpay Order on SERVER
+    // ======================================================
 
-const orderResponse = await fetch('/api/create-order', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    userId: user.uid,
-    billingCycle,
-  }),
-});
+    const orderResponse = await fetch('/api/create-order', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        billingCycle,
+      }),
+    });
 
-const orderData = await orderResponse.json();
+    const orderData = await orderResponse.json();
 
-if (!orderResponse.ok || !orderData.success) {
-  console.error('Order creation failed:', orderData);
+    if (!orderResponse.ok || !orderData.success) {
+      console.error('Order creation failed:', orderData);
 
-  throw new Error(
-    orderData.message || 'Failed to create Razorpay order'
-  );
-}
-
-console.log(
-  'Razorpay Order Created:',
-  orderData.orderId
-);
-
-console.log(
-  'Razorpay Amount:',
-  orderData.amount
-);
-
-// ======================================================
-// 2. Open Razorpay Checkout
-// ======================================================
-
-const RazorpayConstructor = (window as any).Razorpay;
-
-if (!RazorpayConstructor) {
-  throw new Error(
-    'Razorpay SDK is not loaded'
-  );
-}
-
-const options = {
-  key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-
-  // IMPORTANT:
-  // Amount comes ONLY from the server-created order.
-  amount: orderData.amount,
-  currency: orderData.currency,
-
-  name: 'DueBlink',
-  description: `DueBlink Pro (${billingCycle})`,
-  image: '/logo.png',
-
-  // Connect checkout to the server-created Razorpay order.
-  order_id: orderData.orderId,
-
-  prefill: {
-    email: user.email || '',
-    name: user.displayName || 'DueBlink User',
-  },
-
-  theme: {
-    color: '#245B92',
-  },
-
-  // ====================================================
-  // 3. Payment successful
-  // ====================================================
-
-  handler: async function (response: any) {
-    console.log(
-      'Razorpay Payment ID:',
-      response.razorpay_payment_id
-    );
-
-    console.log(
-      'Razorpay Order ID:',
-      response.razorpay_order_id
-    );
-
-    console.log(
-      'Razorpay Signature:',
-      response.razorpay_signature
-    );
-
-    try {
-      // ==================================================
-      // 4. Verify payment on SERVER
-      // ==================================================
-
-      const verifyResponse = await fetch(
-        '/api/verify-payment',
-        {
-          method: 'POST',
-
-          headers: {
-            'Content-Type': 'application/json',
-          },
-
-          body: JSON.stringify({
-            razorpay_order_id:
-              response.razorpay_order_id,
-
-            razorpay_payment_id:
-              response.razorpay_payment_id,
-
-            razorpay_signature:
-              response.razorpay_signature,
-
-            userId: user.uid,
-
-            billingCycle,
-          }),
-        }
+      throw new Error(
+        orderData.message || 'Failed to create Razorpay order'
       );
+    }
 
-      const verifyData =
-        await verifyResponse.json();
+    console.log(
+      'Razorpay Order Created:',
+      orderData.orderId
+    );
 
-      if (
-        !verifyResponse.ok ||
-        !verifyData.success
-      ) {
+    console.log(
+      'Razorpay Amount:',
+      orderData.amount
+    );
+
+    // ======================================================
+    // 2. Open Razorpay Checkout
+    // ======================================================
+
+    const RazorpayConstructor = (window as any).Razorpay;
+
+    if (!RazorpayConstructor) {
+      throw new Error(
+        'Razorpay SDK is not loaded'
+      );
+    }
+
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+
+      // IMPORTANT:
+      // Amount comes ONLY from the server-created order.
+      amount: orderData.amount,
+      currency: orderData.currency,
+
+      name: 'DueBlink',
+      description: `DueBlink Pro (${billingCycle})`,
+      image: '/logo.png',
+
+      // Connect checkout to the server-created Razorpay order.
+      order_id: orderData.orderId,
+
+      prefill: {
+        email: user.email || '',
+        name: user.displayName || 'DueBlink User',
+      },
+
+      theme: {
+        color: '#245B92',
+      },
+
+      // ====================================================
+      // 3. Payment successful
+      // ====================================================
+
+      handler: async function (response: any) {
+        console.log(
+          'Razorpay Payment ID:',
+          response.razorpay_payment_id
+        );
+
+        console.log(
+          'Razorpay Order ID:',
+          response.razorpay_order_id
+        );
+
+        console.log(
+          'Razorpay Signature:',
+          response.razorpay_signature
+        );
+
+        try {
+          // ==================================================
+          // 4. Verify payment on SERVER
+          // ==================================================
+
+          const verifyResponse = await fetch(
+            '/api/verify-payment',
+            {
+              method: 'POST',
+
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
+              },
+
+              body: JSON.stringify({
+                razorpay_order_id:
+                  response.razorpay_order_id,
+
+                razorpay_payment_id:
+                  response.razorpay_payment_id,
+
+                razorpay_signature:
+                  response.razorpay_signature,
+
+                billingCycle,
+              }),
+            }
+          );
+
+          const verifyData =
+            await verifyResponse.json();
+
+          if (
+            !verifyResponse.ok ||
+            !verifyData.success
+          ) {
+            console.error(
+              'Payment verification failed:',
+              verifyData
+            );
+
+            alert(
+              'Payment was received, but verification failed. Please contact support.'
+            );
+
+            return;
+          }
+
+          // ==================================================
+          // 5. Payment verified successfully
+          // ==================================================
+
+          console.log(
+            'Payment verified successfully'
+          );
+
+          // Keep existing Pro state behavior
+
+          localStorage.setItem(
+            'dueblink_is_pro',
+            'true'
+          );
+
+          localStorage.setItem(
+            'dueblink_pro_active',
+            'true'
+          );
+
+          localStorage.setItem(
+            'just_upgraded',
+            'true'
+          );
+
+          window.dispatchEvent(
+            new Event('pro-status-updated')
+          );
+
+          setIsUserPro(true);
+
+          // ==================================================
+          // 6. Show existing success modal
+          // ==================================================
+
+          setPaymentSuccessModal(true);
+
+        } catch (verifyError) {
+          console.error(
+            'Payment verification error:',
+            verifyError
+          );
+
+          alert(
+            'Payment verification failed. Please contact support if money was deducted.'
+          );
+        }
+      },
+
+      // ======================================================
+      // Payment modal closed
+      // ======================================================
+
+      modal: {
+        ondismiss: function () {
+          console.log(
+            'Razorpay checkout closed'
+          );
+        },
+      },
+    };
+
+    // ======================================================
+    // 7. Create Razorpay instance
+    // ======================================================
+
+    const rzp =
+      new RazorpayConstructor(options);
+
+    // ======================================================
+    // 8. Handle failed payment
+    // ======================================================
+
+    rzp.on(
+      'payment.failed',
+      function (response: any) {
         console.error(
-          'Payment verification failed:',
-          verifyData
+          'Razorpay payment failed:',
+          response.error
         );
 
         alert(
-          'Payment was received, but verification failed. Please contact support.'
+          response.error?.description ||
+            'Payment failed. Please try again.'
         );
-
-        return;
       }
+    );
 
-      // ==================================================
-      // 5. Payment verified successfully
-      // ==================================================
+    // ======================================================
+    // 9. Open Razorpay
+    // ======================================================
 
-      console.log(
-        'Payment verified successfully'
-      );
+    rzp.open();
 
-      // Keep existing Pro state behavior
-
-      localStorage.setItem(
-        'dueblink_is_pro',
-        'true'
-      );
-
-      localStorage.setItem(
-        'dueblink_pro_active',
-        'true'
-      );
-
-      localStorage.setItem(
-        'just_upgraded',
-        'true'
-      );
-
-      window.dispatchEvent(
-        new Event('pro-status-updated')
-      );
-
-      setIsUserPro(true);
-
-      // ==================================================
-      // 6. Show existing success modal
-      // ==================================================
-
-      setPaymentSuccessModal(true);
-
-    } catch (verifyError) {
-      console.error(
-        'Payment verification error:',
-        verifyError
-      );
-
-      alert(
-        'Payment verification failed. Please contact support if money was deducted.'
-      );
-    }
-  },
-
-  // ======================================================
-  // Payment modal closed
-  // ======================================================
-
-  modal: {
-    ondismiss: function () {
-      console.log(
-        'Razorpay checkout closed'
-      );
-    },
-  },
-};
-
-// ======================================================
-// 7. Create Razorpay instance
-// ======================================================
-
-const rzp =
-  new RazorpayConstructor(options);
-
-// ======================================================
-// 8. Handle failed payment
-// ======================================================
-
-rzp.on(
-  'payment.failed',
-  function (response: any) {
+  } catch (error) {
     console.error(
-      'Razorpay payment failed:',
-      response.error
+      'Razorpay checkout error:',
+      error
     );
 
     alert(
-      response.error?.description ||
-        'Payment failed. Please try again.'
+      'Something went wrong with checkout. Please try again.'
     );
+
+  } finally {
+    setIsProcessing(false);
   }
-);
-
-// ======================================================
-// 9. Open Razorpay
-// ======================================================
-
-rzp.open();
-
-} catch (error) {
-  console.error(
-    'Razorpay checkout error:',
-    error
-  );
-
-  alert(
-    'Something went wrong with checkout. Please try again.'
-  );
-
-} finally {
-  setIsProcessing(false);
-}
 };
 
 return (

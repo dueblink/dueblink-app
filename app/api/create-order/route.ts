@@ -1,22 +1,73 @@
 import { NextResponse } from 'next/server';
 import { getSeasonalPricing } from '@/lib/seasonalPricing';
+import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 
 export async function POST(req: Request) {
   try {
     const {
-      userId,
       billingCycle,
     } = await req.json();
 
     console.log('=== DUEBLINK CREATE ORDER ===');
-    console.log('User ID exists:', !!userId);
     console.log('Billing Cycle:', billingCycle);
+
+    // --------------------------------------------------
+    // 0. Verify Firebase authentication
+    // --------------------------------------------------
+
+    const authHeader = req.headers.get('authorization');
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Authentication required',
+        },
+        { status: 401 }
+      );
+    }
+
+    const idToken = authHeader.substring(7).trim();
+
+    if (!idToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Authentication token missing',
+        },
+        { status: 401 }
+      );
+    }
+
+    let userId: string;
+
+    try {
+      const decodedToken =
+        await getAdminAuth().verifyIdToken(idToken);
+
+      userId = decodedToken.uid;
+    } catch (error) {
+      console.error(
+        'CREATE ORDER AUTH ERROR:',
+        error
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invalid or expired authentication token',
+        },
+        { status: 401 }
+      );
+    }
+
+    console.log('Verified User ID:', userId);
 
     // --------------------------------------------------
     // 1. Validate request
     // --------------------------------------------------
 
-    if (!userId || !billingCycle) {
+    if (!billingCycle) {
       return NextResponse.json(
         {
           success: false,
