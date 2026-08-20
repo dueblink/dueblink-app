@@ -14,59 +14,74 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     // ============================================================
-    // 0. Verify Firebase authentication
+    // 0. Verify Firebase authentication / Guest access
     // ============================================================
 
     const authHeader = req.headers.get('authorization');
 
-    if (!authHeader?.startsWith('Bearer ')) {
+    const guestId =
+      typeof body.guestId === 'string'
+        ? body.guestId.trim()
+        : '';
+
+    let verifiedUserId: string | null = null;
+
+    // ------------------------------------------------------------
+    // Logged-in user
+    // ------------------------------------------------------------
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const idToken = authHeader.substring(7).trim();
+
+      if (!idToken) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Authentication token missing',
+          },
+          { status: 401 }
+        );
+      }
+
+      try {
+        const decodedToken =
+          await getAdminAuth().verifyIdToken(idToken);
+
+        verifiedUserId = decodedToken.uid;
+
+        console.log(
+          'Verified Reminder User ID:',
+          verifiedUserId
+        );
+      } catch (error) {
+        console.error(
+          'GENERATE REMINDER AUTH ERROR:',
+          error
+        );
+
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Invalid or expired authentication token',
+          },
+          { status: 401 }
+        );
+      }
+    }
+
+    // ------------------------------------------------------------
+    // Guest user
+    // ------------------------------------------------------------
+
+    if (!verifiedUserId && !guestId) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Authentication required',
+          message: 'Guest identifier missing',
         },
-        { status: 401 }
+        { status: 400 }
       );
     }
-
-    const idToken = authHeader.substring(7).trim();
-
-    if (!idToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Authentication token missing',
-        },
-        { status: 401 }
-      );
-    }
-
-    let verifiedUserId: string;
-
-    try {
-      const decodedToken =
-        await getAdminAuth().verifyIdToken(idToken);
-
-      verifiedUserId = decodedToken.uid;
-    } catch (error) {
-      console.error(
-        'GENERATE REMINDER AUTH ERROR:',
-        error
-      );
-
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid or expired authentication token',
-        },
-        { status: 401 }
-      );
-    }
-
-    console.log(
-      'Verified Reminder User ID:',
-      verifiedUserId
-    );
 
     // ============================================================
     // 1. Check server-side AI reminder usage
@@ -74,36 +89,74 @@ export async function POST(req: NextRequest) {
 
     const adminDb = getAdminDb();
 
-    const userRef = adminDb
-      .collection('users')
-      .doc(verifiedUserId);
+    let userData: Record<string, any> = {};
 
-    const userSnapshot = await userRef.get();
+    // ------------------------------------------------------------
+    // Logged-in user: 15/month or Pro unlimited
+    // ------------------------------------------------------------
 
-    if (!userSnapshot.exists) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'User account not found',
-        },
-        { status: 404 }
-      );
+    if (verifiedUserId) {
+      const userRef = adminDb
+        .collection('users')
+        .doc(verifiedUserId);
+
+      const userSnapshot = await userRef.get();
+
+      if (!userSnapshot.exists) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'User account not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      userData = userSnapshot.data() || {};
+
+      if (!userData.isPro) {
+        const aiRemindersUsed = Number(
+          userData.aiRemindersUsed || 0
+        );
+
+        if (aiRemindersUsed >= 15) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                'You have reached your 15 AI reminder limit for this month.',
+            },
+            { status: 403 }
+          );
+        }
+      }
     }
 
-    const userData = userSnapshot.data() || {};
+    // ------------------------------------------------------------
+    // Guest user: 5 total free reminders
+    // ------------------------------------------------------------
 
-    // Pro users have unlimited AI generations.
-    if (!userData.isPro) {
-      const aiRemindersUsed = Number(
-        userData.aiRemindersUsed || 0
+    if (!verifiedUserId) {
+      const guestRef = adminDb
+        .collection('guestUsage')
+        .doc(guestId);
+
+      const guestSnapshot = await guestRef.get();
+
+      const guestData = guestSnapshot.exists
+        ? guestSnapshot.data() || {}
+        : {};
+
+      const guestRemindersUsed = Number(
+        guestData.aiRemindersUsed || 0
       );
 
-      if (aiRemindersUsed >= 15) {
+      if (guestRemindersUsed >= 5) {
         return NextResponse.json(
           {
             success: false,
             message:
-              'You have reached your 15 AI reminder limit for this month.',
+              'You have used all 5 free AI reminders. Please create an account to continue.',
           },
           { status: 403 }
         );
@@ -176,16 +229,16 @@ ${reminder.sms_text || ''}
       }),
 
       prompt: `
-        You are an expert Payment Recovery Specialist for freelancers. 
+        You are an expert Payment Recovery Specialist for freelancers.
         Your goal is to recover payments quickly while maintaining great client relationships.
-        
+       
         Details:
         - Client Name: ${body.clientName}
         - Amount Due: ${body.currency} ${body.amount}
         - Days Overdue: ${body.daysOverdue || '7'} days
         - Invoice Reference: ${body.invoiceRef || 'Pending'}
         - Tone Preference: ${body.tone || 'professional'}
-        
+       
         Tone Guidelines:
         - 'gentle': Use warm, polite, and helpful language. Assume the client simply forgot.
         - 'professional': Use formal, direct, and objective language. Focus on the agreement.
@@ -263,11 +316,39 @@ ${reminder.sms_text || ''}
     // Increment AI reminder usage AFTER successful generation
     // ============================================================
 
-    if (!userData.isPro) {
+    // Logged-in Free users
+    if (verifiedUserId && !userData.isPro) {
+      const userRef = adminDb
+        .collection('users')
+        .doc(verifiedUserId);
+
       await userRef.set(
         {
           aiRemindersUsed:
             Number(userData.aiRemindersUsed || 0) + 1,
+        },
+        { merge: true }
+      );
+    }
+
+    // Guest users
+    if (!verifiedUserId) {
+      const guestRef = adminDb
+        .collection('guestUsage')
+        .doc(guestId);
+
+      const guestSnapshot = await guestRef.get();
+
+      const currentGuestUsage = guestSnapshot.exists
+        ? Number(
+            guestSnapshot.data()?.aiRemindersUsed || 0
+          )
+        : 0;
+
+      await guestRef.set(
+        {
+          aiRemindersUsed: currentGuestUsage + 1,
+          updatedAt: new Date(),
         },
         { merge: true }
       );
