@@ -76,14 +76,28 @@ export function ReminderForm({ onLimitReached, isPro = false }: ReminderFormProp
     window.addEventListener('pro-status-updated', handleProUnlock);
     window.addEventListener('storage', handleProUnlock);
 
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        fetchUserBackendData(user.uid);
-      } else {
-        initGuestTracking();
-      }
-    });
+   const unsubscribe = auth.onAuthStateChanged(async (user) => {
+  setCurrentUser(user);
+
+  if (user) {
+    // ============================================================
+    // Logged-in user: switch completely from Guest Trial
+    // Guest 5 reminders NEVER carry into the 15/month limit.
+    // ============================================================
+    setGuestUsage(0);
+    setLimitReached(false);
+    setLimitType(null);
+
+    await fetchUserBackendData(user.uid);
+  } else {
+    // ============================================================
+    // Guest user: use separate 5-reminder trial
+    // ============================================================
+    setFreeUserUsage(0);
+    initGuestTracking();
+  }
+});
+
 
     return () => {
       unsubscribe();

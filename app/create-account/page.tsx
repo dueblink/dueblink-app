@@ -34,12 +34,14 @@ export default function RegisterPage() {
       }
 
       await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        email: user.email,
-        name: fullName,
-        isPro: false,
-        createdAt: serverTimestamp(),
-      });
+  uid: user.uid,
+  email: user.email,
+  name: fullName,
+  isPro: false,
+  aiRemindersUsed: 0,
+  createdAt: serverTimestamp(),
+});
+
       
       // Send automated SaaS welcome email through the server API endpoint
       try {

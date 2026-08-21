@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 // IMPORT FIREBASE
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing } from '@/lib/seasonalPricing';
@@ -119,60 +120,165 @@ export default function LandingPage() {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  // Effect: Auth listener with immediate state syncing & cross-tab updates + Monthly 15-reminder cycle reset logic
+  // Effect: Auth listener + separate guest/free usage tracking
   useEffect(() => {
-    const checkAuth = () => {
-      const currentAuthUser = auth.currentUser;
-      setUser(currentAuthUser);
-      if (!currentAuthUser && localStorage.getItem('user_authenticated') !== 'true') {
-        setIsPro(false);
-        localStorage.removeItem('dueblink_is_pro');
-        localStorage.removeItem('dueblink_pro_active');
+    const loadUsageForUser = async (currentUser: any) => {
+      if (!currentUser) {
+        // Guest users use the separate 5-reminder counter.
+        const savedCount = localStorage.getItem(
+          'dueblink_guest_reminders'
+        );
+
+        const guestCount = savedCount
+          ? parseInt(savedCount, 10)
+          : 0;
+
+        setReminderCount(
+          Number.isNaN(guestCount) ? 0 : guestCount
+        );
+
+        return;
+      }
+
+      // Logged-in users NEVER use the guest counter.
+      try {
+        const userRef = doc(
+          db,
+          'users',
+          currentUser.uid
+        );
+
+        const userSnapshot = await getDoc(userRef);
+
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.data();
+
+          const aiRemindersUsed = Number(
+            userData.aiRemindersUsed || 0
+          );
+
+          setReminderCount(
+            Number.isNaN(aiRemindersUsed)
+              ? 0
+              : aiRemindersUsed
+          );
+        } else {
+          // New account fallback.
+          setReminderCount(0);
+        }
+      } catch (error) {
+        console.error(
+          'Failed to load user reminder usage:',
+          error
+        );
+
+        // NEVER fall back to guest usage.
+        setReminderCount(0);
       }
     };
+
+    const checkAuth = () => {
+      const currentAuthUser = auth.currentUser;
+
+      setUser(currentAuthUser);
+
+      if (currentAuthUser) {
+        localStorage.setItem(
+          'user_authenticated',
+          'true'
+        );
+
+        loadUsageForUser(currentAuthUser);
+      } else {
+        localStorage.removeItem(
+          'user_authenticated'
+        );
+        localStorage.removeItem(
+          'dueblink_is_pro'
+        );
+        localStorage.removeItem(
+          'dueblink_pro_active'
+        );
+
+        setIsPro(false);
+
+        loadUsageForUser(null);
+      }
+    };
+
     checkAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        localStorage.setItem('user_authenticated', 'true');
-      } else {
-        localStorage.removeItem('user_authenticated');
-        localStorage.removeItem('dueblink_is_pro');
-        localStorage.removeItem('dueblink_pro_active');
-        setIsPro(false);
-      }
-    });
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (currentUser) => {
+        setUser(currentUser);
 
-    // Monthly Cycle Refill Logic Check
-    const currentMonthKey = new Date().toISOString().slice(0, 7); // Format: 'YYYY-MM'
-    const savedMonthKey = localStorage.getItem('dueblink_reminder_month');
+        if (currentUser) {
+          localStorage.setItem(
+            'user_authenticated',
+            'true'
+        );
+
+          await loadUsageForUser(currentUser);
+        } else {
+          localStorage.removeItem(
+            'user_authenticated'
+        );
+          localStorage.removeItem(
+            'dueblink_is_pro'
+        );
+          localStorage.removeItem(
+            'dueblink_pro_active'
+        );
+
+          setIsPro(false);
+
+          await loadUsageForUser(null);
+        }
+      }
+    );
+
+    // Monthly reset applies to the guest counter only.
+    const currentMonthKey = new Date()
+      .toISOString()
+      .slice(0, 7);
+
+    const savedMonthKey = localStorage.getItem(
+      'dueblink_reminder_month'
+    );
 
     if (savedMonthKey !== currentMonthKey) {
-      localStorage.setItem('dueblink_reminder_month', currentMonthKey);
-      localStorage.setItem('dueblink_guest_reminders', '0');
-      setReminderCount(0);
+      localStorage.setItem(
+        'dueblink_reminder_month',
+        currentMonthKey
+      );
+
+      localStorage.setItem(
+        'dueblink_guest_reminders',
+        '0'
+      );
+
+      if (!auth.currentUser) {
+        setReminderCount(0);
+      }
     }
 
     const handleStorageChange = () => {
       checkAuth();
-      const isAuthed = auth.currentUser !== null || localStorage.getItem('user_authenticated') === 'true';
-      if (!isAuthed) {
-        setIsPro(false);
-        return;
-      }
-
-      if (localStorage.getItem('dueblink_is_pro') === 'true' || localStorage.getItem('dueblink_pro_active') === 'true') {
-        setIsPro(true);
-      } else {
-        setIsPro(false);
-      }
     };
-    window.addEventListener('storage', handleStorageChange);
+
+    window.addEventListener(
+      'storage',
+      handleStorageChange
+    );
 
     return () => {
       unsubscribe();
-      window.removeEventListener('storage', handleStorageChange);
+
+      window.removeEventListener(
+        'storage',
+        handleStorageChange
+      );
     };
   }, []);
 
@@ -239,14 +345,6 @@ export default function LandingPage() {
     const timer = setTimeout(handleType, isDeleting ? 30 : 80);
     return () => clearTimeout(timer);
   }, [displayedText, isDeleting, loopNum, titles]);
-
-  // Effect: Local Storage Sync
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedCount = localStorage.getItem('dueblink_guest_reminders');
-      if (savedCount) setReminderCount(parseInt(savedCount, 10));
-    }
-  }, []);
 
   const getStageLabel = () => {
     if (tone === 'gentle') return 'Stage 1 · Gentle Reminder';
@@ -357,8 +455,17 @@ export default function LandingPage() {
 
       if (!isPro) {
         const nextCount = reminderCount + 1;
+
         setReminderCount(nextCount);
-        localStorage.setItem('dueblink_guest_reminders', nextCount.toString());
+
+        // Only guests use the localStorage counter.
+        // Logged-in users are tracked in Firestore.
+        if (!auth.currentUser) {
+          localStorage.setItem(
+            'dueblink_guest_reminders',
+            nextCount.toString()
+        );
+        }
       }
     } catch (error) {
       console.error("AI GENERATION ERROR:", error);
@@ -584,7 +691,7 @@ export default function LandingPage() {
                 <button 
                   onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
                   className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
-                >
+              >
                   Logout
                 </button>
               </>
@@ -593,18 +700,18 @@ export default function LandingPage() {
                 <button 
                   onClick={() => { router.push('/login'); setMobileMenuOpen(false); }}
                   className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition"
-                >
+              >
                   Login
                 </button>
                 <button 
                   onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }}
                   className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition"
                   style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                >
+              >
                   Create Account
                 </button>
               </>
-            )}
+          )}
           </div>
         </motion.div>
       )}
@@ -865,7 +972,7 @@ export default function LandingPage() {
       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
         Most Freelancers and Agencies Manage This With:
       </p>
-        
+         
       <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
         {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
           <motion.span 
@@ -1029,7 +1136,7 @@ export default function LandingPage() {
         </motion.div>
         ))}
       </motion.div>
-    </div>
+  </div>
     </motion.section>
 
     {/* --- AUTOMATED REMINDERS GUIDE SECTION --- */}
@@ -1055,7 +1162,7 @@ export default function LandingPage() {
             onClick={() => router.push('/help/automated-reminders')}
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#245B92] to-[#20B8BE] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:shadow-md cursor-pointer"
             suppressHydrationWarning={true}
-          >
+        >
             See How It Works
             <ArrowRight size={16} />
           </button>
@@ -1094,12 +1201,12 @@ export default function LandingPage() {
             "Finding overdue clients",
             "Summarizing outstanding payments",
             "Suggesting the next best action"
-          ].map((item, idx) => (
+        ].map((item, idx) => (
             <div key={idx} className="flex items-center gap-3 text-sm font-semibold text-slate-700" suppressHydrationWarning={true}>
               <CheckCircle2 size={16} className="text-[#2BB6A8] shrink-0" suppressHydrationWarning={true} />
               <span suppressHydrationWarning={true}>{item}</span>
             </div>
-          ))}
+        ))}
         </div>
 
         <p className="text-xs font-semibold text-slate-400 italic pt-1" suppressHydrationWarning={true}>
@@ -1114,7 +1221,7 @@ export default function LandingPage() {
             className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-white text-sm shadow-xs transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
             style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
             suppressHydrationWarning={true}
-          >
+        >
             {isPro ? 'Open Dashboard' : !user ? 'Create Free Account' : 'Upgrade to Pro'} <ArrowRight size={16} />
           </motion.button>
         </div>
@@ -1128,7 +1235,7 @@ export default function LandingPage() {
 
       <div
         className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-full max-w-[320px] mx-auto overflow-hidden"
-      >
+    >
         {/* HEADER */}
         <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] p-3.5 text-white relative overflow-hidden">
 
@@ -1236,7 +1343,7 @@ export default function LandingPage() {
               <ChevronRight
                 size={12}
                 className="text-slate-300 flex-shrink-0 ml-1"
-              />
+          />
 
             </div>
 
@@ -1267,7 +1374,7 @@ export default function LandingPage() {
               <ChevronRight
                 size={12}
                 className="text-slate-300 flex-shrink-0 ml-1"
-              />
+          />
 
             </div>
 
@@ -1298,7 +1405,7 @@ export default function LandingPage() {
               <ChevronRight
                 size={12}
                 className="text-slate-300 flex-shrink-0 ml-1"
-              />
+          />
 
             </div>
 
@@ -1329,7 +1436,7 @@ export default function LandingPage() {
               <ChevronRight
                 size={12}
                 className="text-slate-300 flex-shrink-0 ml-1"
-              />
+          />
 
             </div>
 
@@ -1360,7 +1467,7 @@ export default function LandingPage() {
               <ChevronRight
                 size={12}
                 className="text-slate-300 flex-shrink-0 ml-1"
-              />
+          />
 
             </div>
 
@@ -1411,7 +1518,7 @@ export default function LandingPage() {
           }}
           className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left"
           suppressHydrationWarning={true}
-        >
+      >
           {[
         { label: "Outstanding Amount", val: "₹85,000", border: "#245B92", icon: <Layers className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
         { label: "Clients Awaiting Payment", val: "4", border: "#F59E0B", icon: <Users className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
@@ -1426,14 +1533,14 @@ export default function LandingPage() {
           style={{ borderTop: `4px solid ${stat.border}` }} 
           className="bg-white border-x border-b border-slate-200/80 rounded-2xl p-6 shadow-3xs"
           suppressHydrationWarning={true}
-        >
+      >
           <div className="flex items-center gap-2 text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1" suppressHydrationWarning={true}>
             {stat.icon} {stat.label}
           </div>
           <p className="text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>{stat.val}</p>
         </motion.div>
           ))}
-        </motion.div>
+      </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
@@ -1441,7 +1548,7 @@ export default function LandingPage() {
           transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
           className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-3xs text-left overflow-x-auto"
           suppressHydrationWarning={true}
-        >
+      >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
         <h3 className="text-sm font-bold text-slate-800 tracking-tight" suppressHydrationWarning={true}>Client List</h3>
         <motion.button 
@@ -1451,7 +1558,7 @@ export default function LandingPage() {
           style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
           className="text-xs font-bold text-white px-3.5 py-2 rounded-lg flex items-center justify-center gap-2 hover:opacity-95 transition cursor-pointer shadow-3xs"
           suppressHydrationWarning={true}
-        >
+      >
           <Sparkles className="w-3.5 h-3.5" suppressHydrationWarning={true} /> 
           <span>Open Dashboard</span>
         </motion.button>
@@ -1479,13 +1586,13 @@ export default function LandingPage() {
           </div>
           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}><span className="w-1 h-1 rounded-full bg-emerald-500" suppressHydrationWarning={true} /> Paid</span>
         </div>
-      </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 text-center text-xs font-bold text-slate-500" suppressHydrationWarning={true}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 text-center text-xs font-bold text-slate-500" suppressHydrationWarning={true}>
         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No spreadsheets.</div>
         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No confusion.</div>
         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No forgotten follow-ups.</div>
-          </div>
+            </div>
         </motion.div>
       </div>
   </div>
@@ -1520,7 +1627,7 @@ export default function LandingPage() {
         transition={{ duration: 0.3, delay: 0.05 }}
         className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-6 flex flex-col justify-between"
         suppressHydrationWarning={true}
-      >
+    >
         <div suppressHydrationWarning={true}>
           {limitReached ? (
           <div className="bg-gradient-to-b from-slate-900 to-[#1e293b] text-white border border-slate-800 rounded-2xl p-6 sm:p-8 text-center space-y-6 my-auto shadow-2xl relative overflow-hidden">
@@ -1590,7 +1697,7 @@ export default function LandingPage() {
               <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Days Overdue</label>
               <input type="number" value={daysOverdue} onChange={e => setDaysOverdue(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none" suppressHydrationWarning={true} />
               </div>
-              <div suppressHydrationWarning={true}>
+                <div suppressHydrationWarning={true}>
               <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Invoice #</label>
               <input type="text" placeholder="INV-2025-042" value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none placeholder:text-slate-300" suppressHydrationWarning={true} />
               </div>
@@ -1601,21 +1708,21 @@ export default function LandingPage() {
               {['gentle', 'professional', 'firm'].map((t) => (
                 <button key={t} type="button" onClick={() => handleToneChange(t)} className={`capitalize h-full cursor-pointer ${tone === t ? 'bg-[#0F172A] text-white' : 'bg-white text-slate-500'}`} suppressHydrationWarning={true}>{t}</button>
               ))}
+                </div>
               </div>
-            </div>
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit" 
-              disabled={isGenerating || limitReached} 
-              style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
-              className="w-full text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-4"
-            >
-              {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />} 
-              {isGenerating ? 'AI Thinking…' : 'Generate Reminder'}
-            </motion.button>
-          </form>
-        </div>
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit" 
+                disabled={isGenerating || limitReached} 
+                style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
+                className="w-full text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-4"
+              >
+                {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />} 
+                {isGenerating ? 'AI Thinking…' : 'Generate Reminder'}
+              </motion.button>
+            </form>
+          </div>
                )}
       </div>
       </motion.div>
@@ -1627,13 +1734,13 @@ export default function LandingPage() {
         transition={{ duration: 0.3, delay: 0.1 }}
         className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xl flex flex-col justify-between"
         suppressHydrationWarning={true}
-      >
+    >
         <div className="space-y-4 h-full flex flex-col justify-start" suppressHydrationWarning={true}>
           <div suppressHydrationWarning={true}>
             <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
             <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS • AI Strategy</p>
           </div>
-           
+              
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
             {isGenerating ? (
               <motion.div 
@@ -1693,7 +1800,7 @@ export default function LandingPage() {
                     ease: "easeInOut"
                   }}
                   className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
-              />
+                />
 
                 {/* Sparkle burst */}
                 {[
@@ -1812,7 +1919,7 @@ export default function LandingPage() {
               {isGenerating ? 'Rewriting...' : 'Regenerate'}
             </button>
           </div>
-                  
+                 
           <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
               {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
               {activeTab === 'whatsapp' && result.whatsapp_message}
@@ -1848,7 +1955,7 @@ export default function LandingPage() {
             onClick={() => handleCopy(activeTab === 'email' ? `${result.email_subject}\n\n${result.email_body}` : activeTab === 'strategy' ? `Best tone: Professional\nBest time: 10:00 AM\nNext follow-up: 3 days\nAI recommendation: Send a follow-up today` : (result as any)[activeTab === 'whatsapp' ? 'whatsapp_message' : 'sms_text'])}
             className="w-full py-2.5 bg-[#2BB6A8] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
             suppressHydrationWarning={true}
-          >
+        >
             {copied ? (
               <>
                 <Check className="w-3.5 h-3.5" /> Copied to Clipboard
@@ -1862,13 +1969,13 @@ export default function LandingPage() {
               </motion.div>
             ) : (
               <div className="my-auto py-12" suppressHydrationWarning={true}>
-         <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-11 h-11 rounded-full flex items-center justify-center text-white mb-3 shadow-xs mx-auto" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} /></div>
-        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
-        <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
-        </div>
+       <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-11 h-11 rounded-full flex items-center justify-center text-white mb-3 shadow-xs mx-auto" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} /></div>
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
+          <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
+          </div>
             )}
+          </div>
         </div>
-      </div>
       </motion.div>
     </div>
   </div>
@@ -2226,14 +2333,14 @@ export default function LandingPage() {
               </li>
             ))}
           </ul>
-          </div>
-          <button 
+            </div>
+            <button 
           onClick={() => router.push('/pricing')} 
           className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
           suppressHydrationWarning={true}
             >
           Upgrade to Pro
-          </button>
+            </button>
           </motion.div>
       </motion.div>
     )}
@@ -2299,7 +2406,7 @@ export default function LandingPage() {
             </span>
             <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${openFaq === index ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
           </button>
-             
+               
           <motion.div
             initial={false}
             animate={{ height: openFaq === index ? "auto" : 0, opacity: openFaq === index ? 1 : 0 }}
@@ -2333,7 +2440,7 @@ export default function LandingPage() {
         <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
           {isPro ? 'Welcome back! Your Pro features are ready.' : user ? 'Welcome back. Ready to recover more payments?' : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
-            
+          
         <motion.div 
           initial="hidden"
           whileInView="visible"
@@ -2343,7 +2450,7 @@ export default function LandingPage() {
           }}
           className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto mb-8"
           suppressHydrationWarning={true}
-        >
+      >
           {["✓ Know who owes you money", "✓ Never miss a follow-up", "✓ Recover payments faster"].map((text, i) => (
         <motion.div 
           key={text}
@@ -2353,7 +2460,7 @@ export default function LandingPage() {
           }}
           className="bg-white/10 backdrop-blur-xs border border-white/20 p-3 sm:p-4 rounded-xl font-bold text-xs sm:text-sm"
           suppressHydrationWarning={true}
-        >
+      >
           {text}
         </motion.div>
           ))}
@@ -2370,7 +2477,7 @@ export default function LandingPage() {
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
         {user ? 'Open Dashboard' : 'Generate Free Reminder'}
           </motion.button>
-              
+            
           {user && !isPro && (
         <motion.button 
           whileHover={{ scale: 1.02 }}
@@ -2384,7 +2491,7 @@ export default function LandingPage() {
         </motion.button>
           )}
         </div>
-              
+          
         {!user && (
           <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
@@ -2402,7 +2509,7 @@ export default function LandingPage() {
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-        
+          
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
           <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
@@ -2418,14 +2525,14 @@ export default function LandingPage() {
         <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
         <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
       </div>
-                
+            
       <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
         <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
           support@dueblink.com
         </a>
         <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
       </div>
-                
+            
 </div>
     </motion.footer>
 
