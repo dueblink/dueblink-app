@@ -584,9 +584,26 @@ export default function DashboardPage() {
 
   const [robotAction, setRobotAction] = useState<string | null>(null);
 
-  const { completion, complete, isLoading: isStreaming } = useCompletion({
-    api: '/api/pro-recovery-assistant',
-  });
+ const { completion, complete, isLoading: isStreaming } = useCompletion({
+  api: '/api/pro-recovery-assistant',
+
+  fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+    const idToken = await auth.currentUser?.getIdToken();
+
+    if (!idToken) {
+      throw new Error('Authentication required');
+    }
+
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${idToken}`);
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  },
+});
+
 
   useEffect(() => {
     if (clients && clients.length >= 0) {

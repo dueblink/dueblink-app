@@ -345,10 +345,19 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       const totalAmount = freshClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
       const targetClient = recommendation ? freshClients.find((c: any) => c.name === recommendation.name) || freshClients[0] : freshClients[0];
 
+      const idToken = await auth.currentUser?.getIdToken();
+
+      if (!idToken) {
+        throw new Error("Authentication required");
+      }
+
       const response = await fetch('/api/pro-recovery-assistant', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
           action: actionId,
           client: targetClient,
           clients: freshClients,

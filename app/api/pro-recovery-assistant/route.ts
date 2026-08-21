@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
+import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 
 // Ensure this Next.js route is always dynamic and never cached on the server side
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,51 @@ export async function POST(req: Request) {
   console.log("--- Pro Recovery Assistant Route Triggered (Streaming / Live Sync) ---");
 
   try {
+    // ============================================================
+    // 0. Verify Firebase authentication
+    // ============================================================
+
+    const authHeader = req.headers.get("authorization");
+
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Authentication required",
+        },
+        { status: 401 }
+      );
+    }
+
+    const idToken = authHeader.substring(7).trim();
+
+    if (!idToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Authentication token missing",
+        },
+        { status: 401 }
+      );
+    }
+
+    let userId: string;
+
+    try {
+      const decodedToken = await getAdminAuth().verifyIdToken(idToken);
+      userId = decodedToken.uid;
+    } catch (error) {
+      console.error("PRO RECOVERY ASSISTANT AUTH ERROR:", error);
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid or expired authentication token",
+        },
+        { status: 401 }
+      );
+    }
+
     const rawBody = await req.json();
     
     // Parse the payload safely whether passed raw or inside a prompt wrapper
