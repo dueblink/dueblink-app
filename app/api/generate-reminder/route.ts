@@ -363,15 +363,13 @@ ${reminder.sms_text || ''}
     );
 
     return NextResponse.json(
-      {
-        error: "Internal Server Error",
-        details:
-          error.message ||
-          "An unexpected error occurred",
-      },
-      {
-        status: 500,
-      }
-    );
+  {
+    error: "Internal Server Error",
+  },
+  {
+    status: 500,
+  }
+);
+
   }
 }
