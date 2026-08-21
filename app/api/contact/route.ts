@@ -11,6 +11,14 @@ export async function POST(req: Request) {
       message,
     } = await req.json();
 
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
     // ======================================================
     // 1. Validate required fields
     // ======================================================
@@ -25,9 +33,26 @@ export async function POST(req: Request) {
       );
     }
 
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(String(email).trim())) {
+      return Response.json(
+        {
+          success: false,
+          message: "Please provide a valid email address.",
+        },
+        { status: 400 }
+      );
+    }
+
     // ======================================================
     // 2. Send contact message through Resend
     // ======================================================
+
+    const safeName = escapeHtml(name);
+    const safeEmail = escapeHtml(email);
+    const safeSubject = escapeHtml(subject || "No subject");
+    const safeMessage = escapeHtml(message);
 
     const { data, error } = await resend.emails.send({
       from: "DueBlink Support <support@dueblink.com>",
@@ -166,7 +191,7 @@ export async function POST(req: Request) {
                               "
                             >
                               <strong>Name:</strong>
-                              ${name}
+                              ${safeName}
                             </p>
 
                             <p
@@ -177,7 +202,7 @@ export async function POST(req: Request) {
                               "
                             >
                               <strong>Email:</strong>
-                              ${email}
+                              ${safeEmail}
                             </p>
 
                             <p
@@ -188,7 +213,7 @@ export async function POST(req: Request) {
                               "
                             >
                               <strong>Subject:</strong>
-                              ${subject || "No subject"}
+                              ${safeSubject}
                             </p>
 
                           </td>
@@ -226,7 +251,7 @@ export async function POST(req: Request) {
                             white-space:pre-wrap;
                           "
                         >
-                          ${message}
+                          ${safeMessage}
                         </p>
 
                       </div>
