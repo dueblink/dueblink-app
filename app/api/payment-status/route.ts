@@ -37,6 +37,17 @@ export async function GET(request: Request) {
 
     const client = clientSnap.data();
 
+    const escapeHtml = (value: unknown) =>
+      String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    const safeClientName = escapeHtml(client?.name || "Client");
+    const safeAmount = escapeHtml(client?.amount || "");
+
     if (!client || client.userId !== action.userId) {
       return new NextResponse("Unauthorized payment action.", {
         status: 403,
@@ -60,7 +71,7 @@ export async function GET(request: Request) {
           </head>
           <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
             <h1>✓ Payment marked as paid</h1>
-            <p>${client.name || "Client"} — ${client.amount || ""}</p>
+            <p>${safeClientName} — ${safeAmount}</p>
             <p>You can close this page.</p>
           </body>
         </html>
@@ -90,7 +101,7 @@ export async function GET(request: Request) {
           </head>
           <body style="font-family: Arial, sans-serif; padding: 40px; text-align: center;">
             <h1>Payment still pending</h1>
-            <p>${client.name || "Client"} — ${client.amount || ""}</p>
+            <p>${safeClientName} — ${safeAmount}</p>
             <p>We'll keep this invoice pending.</p>
           </body>
         </html>
