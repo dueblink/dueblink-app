@@ -45,10 +45,13 @@ export default function RegisterPage() {
       
       // Send automated SaaS welcome email through the server API endpoint
       try {
+        const idToken = await user.getIdToken();
+
         const emailResponse = await fetch("/api/send-welcome", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify({
             email: user.email || email,
