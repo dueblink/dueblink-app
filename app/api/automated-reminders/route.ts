@@ -296,13 +296,12 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error("Automated reminders route error:", error);
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to process automated reminders.",
-        details: error?.message || "Unknown error",
-      },
-      { status: 500 }
-    );
+   return NextResponse.json(
+  {
+    success: false,
+    error: "Failed to process automated reminders.",
+  },
+  { status: 500 }
+);
   }
 }
