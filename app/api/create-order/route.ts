@@ -105,12 +105,12 @@ export async function POST(req: Request) {
           ? 249
           : 4999
         : seasonalPricing
-          ? billingCycle === 'monthly'
-            ? seasonalPricing.monthlyPrice
-            : seasonalPricing.yearlyPrice
-          : billingCycle === 'monthly'
-            ? 499
-            : 4999;
+        ? billingCycle === 'monthly'
+          ? seasonalPricing.monthlyPrice
+          : seasonalPricing.yearlyPrice
+        : billingCycle === 'monthly'
+          ? 499
+          : 4999;
 
     const numericAmount =
       amountInRupees * 100;
@@ -258,15 +258,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-
-          message:
-            razorpayData?.error
-              ?.description ||
-            razorpayData?.error?.reason ||
-            'Razorpay order creation failed',
-
-          razorpayError:
-            razorpayData?.error || null,
+          message: 'Razorpay order creation failed',
         },
         {
           status:
@@ -307,10 +299,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-
-        message:
-          error?.message ||
-          'Internal server error while creating Razorpay order',
+        message: 'Internal server error while creating Razorpay order',
       },
       { status: 500 }
     );
