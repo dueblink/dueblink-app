@@ -584,26 +584,25 @@ export default function DashboardPage() {
 
   const [robotAction, setRobotAction] = useState<string | null>(null);
 
- const { completion, complete, isLoading: isStreaming } = useCompletion({
-  api: '/api/pro-recovery-assistant',
+  const { completion, complete, isLoading: isStreaming } = useCompletion({
+    api: '/api/pro-recovery-assistant',
 
-  fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-    const idToken = await auth.currentUser?.getIdToken();
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      const idToken = await auth.currentUser?.getIdToken();
 
-    if (!idToken) {
-      throw new Error('Authentication required');
-    }
+      if (!idToken) {
+        throw new Error('Authentication required');
+      }
 
-    const headers = new Headers(init?.headers);
-    headers.set('Authorization', `Bearer ${idToken}`);
+      const headers = new Headers(init?.headers);
+      headers.set('Authorization', `Bearer ${idToken}`);
 
-    return fetch(input, {
-      ...init,
-      headers,
-    });
-  },
-});
-
+      return fetch(input, {
+        ...init,
+        headers,
+      });
+    },
+  });
 
   useEffect(() => {
     if (clients && clients.length >= 0) {
@@ -1154,6 +1153,22 @@ export default function DashboardPage() {
           >
             <SeasonalBanner />
 
+            {/* Mobile Quick Add Client */}
+            <div className="sm:hidden">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setClientToEdit(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-white px-5 py-4 rounded-2xl text-sm font-bold shadow-md transition"
+                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+              >
+                <Plus size={18} />
+                Add Client
+              </motion.button>
+            </div>
+
             {isPro ? (
               <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
                 <div className="space-y-1 text-center sm:text-left flex items-center gap-3" suppressHydrationWarning={true}>
@@ -1228,22 +1243,6 @@ export default function DashboardPage() {
                 {isStreaming && isPro ? 'Summarizing...' : 'View Recovery Summary'}
               </motion.button>
             </header>
-
-            {/* Mobile Quick Add Client */}
-            <div className="sm:hidden">
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  setClientToEdit(null);
-                  setIsModalOpen(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 text-white px-5 py-4 rounded-2xl text-sm font-bold shadow-md transition"
-                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-              >
-                <Plus size={18} />
-                Add Client
-              </motion.button>
-            </div>
 
             <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
