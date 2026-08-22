@@ -1,9 +1,27 @@
 import { NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { sendPasswordResetEmail } from "@/lib/emailService";
+import { passwordResetRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+
+    const { success } = await passwordResetRateLimit.limit(
+      `password-reset:${ip}`
+    );
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many password reset requests. Please try again later.",
+        },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const email =
       typeof body?.email === "string"

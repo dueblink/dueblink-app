@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { type NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 import { getAdminDb } from '@/lib/firebaseAdmin';
+import { reminderGenerationRateLimit } from '@/lib/rateLimit';
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -12,6 +13,23 @@ const openai = createOpenAI({
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ip = forwardedFor?.split(',')[0]?.trim() || 'unknown';
+
+    const { success } = await reminderGenerationRateLimit.limit(
+      `reminder-generation:${ip}`
+    );
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Too many reminder requests. Please try again later.',
+        },
+        { status: 429 }
+      );
+    }
 
     // ============================================================
     // 0. Verify Firebase authentication / Guest access

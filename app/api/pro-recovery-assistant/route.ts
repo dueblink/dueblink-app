@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
+import { getAdminDb } from "@/lib/firebaseAdmin";
+import { proRecoveryAssistantRateLimit } from "@/lib/rateLimit";
+
 
 // Ensure this Next.js route is always dynamic and never cached on the server side
 export const dynamic = 'force-dynamic';
@@ -58,6 +61,81 @@ export async function POST(req: Request) {
           error: "Invalid or expired authentication token",
         },
         { status: 401 }
+      );
+    }
+
+    // ============================================================
+    // Verify Pro subscription server-side
+    // ============================================================
+
+    const adminDb = getAdminDb();
+
+    const userRef = adminDb
+      .collection("users")
+      .doc(userId);
+
+    const userSnapshot = await userRef.get();
+
+    if (!userSnapshot.exists) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "User account not found",
+        },
+        { status: 404 }
+      );
+    }
+
+    const userData = userSnapshot.data() || {};
+
+    if (!userData.isPro) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Pro subscription required",
+        },
+        { status: 403 }
+      );
+    }
+
+    // Check Pro expiration server-side
+    if (userData.proExpiresAt) {
+      const expirationDate =
+        typeof userData.proExpiresAt.toDate === "function"
+          ? userData.proExpiresAt.toDate()
+          : new Date(userData.proExpiresAt);
+
+      if (new Date() >= expirationDate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Pro subscription has expired",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // ============================================================
+    // Rate limit Pro Recovery Assistant
+    // ============================================================
+
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+
+    const { success } =
+      await proRecoveryAssistantRateLimit.limit(
+        `pro-recovery-assistant:${ip}`
+      );
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Too many assistant requests. Please try again later.",
+        },
+        { status: 429 }
       );
     }
 

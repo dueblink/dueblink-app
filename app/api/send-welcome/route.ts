@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sendWelcomeEmail } from '@/lib/emailService';
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
+import { sendWelcomeRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { success: false, error: "Invalid or expired authentication token" },
         { status: 401 }
+      );
+    }
+
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+
+    const { success } = await sendWelcomeRateLimit.limit(
+      `send-welcome:${ip}`
+    );
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Too many welcome email requests. Please try again later.",
+        },
+        { status: 429 }
       );
     }
 

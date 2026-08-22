@@ -1,9 +1,27 @@
 import { Resend } from "resend";
+import { contactRateLimit } from "@/lib/rateLimit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
+
+    const { success } = await contactRateLimit.limit(
+      `contact:${ip}`
+    );
+
+    if (!success) {
+      return Response.json(
+        {
+          success: false,
+          message: "Too many contact requests. Please try again later.",
+        },
+        { status: 429 }
+      );
+    }
+
     const {
       name,
       email,

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { sendProWelcomeEmail } from '@/lib/emailService';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
+import { verifyPaymentRateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
@@ -64,6 +65,27 @@ export async function POST(req: Request) {
     }
 
     console.log('Verified User ID:', userId);
+
+    // ======================================================
+    // Rate limit payment verification
+    // ======================================================
+
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ip = forwardedFor?.split(',')[0]?.trim() || 'unknown';
+
+    const { success } = await verifyPaymentRateLimit.limit(
+      `verify-payment:${ip}`
+    );
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Too many payment verification requests. Please try again later.',
+        },
+        { status: 429 }
+      );
+    }
 
     // ======================================================
     // 1. Validate required parameters
@@ -182,6 +204,31 @@ export async function POST(req: Request) {
 
     const userData =
       userSnapshot.data() || {};
+
+    // ======================================================
+    // Prevent duplicate payment processing
+    // ======================================================
+
+    if (
+      userData.razorpayPaymentId ===
+        razorpay_payment_id &&
+      userData.razorpayOrderId ===
+        razorpay_order_id
+    ) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Payment has already been verified.',
+          billingCycle:
+            userData.billingCycle || billingCycle,
+          proExpiresAt:
+            userData.proExpiresAt?.toDate
+              ? userData.proExpiresAt.toDate().toISOString()
+              : null,
+        },
+        { status: 200 }
+      );
+    }
 
     // ======================================================
     // 7. Calculate Pro expiration date on SERVER

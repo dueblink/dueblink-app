@@ -150,8 +150,48 @@ export async function GET(request: Request) {
 
     const results = [];
 
+    const ownerProStatus = new Map<string, boolean>();
+
     for (const client of eligibleClients) {
-      if (!client || !client.email) {
+      if (!client) {
+        continue;
+      }
+
+      let isOwnerPro = ownerProStatus.get(client.userId);
+
+      if (isOwnerPro === undefined) {
+        const ownerSnapshot = await db
+          .collection("users")
+          .doc(client.userId)
+          .get();
+
+        if (!ownerSnapshot.exists) {
+          isOwnerPro = false;
+        } else {
+          const ownerData = ownerSnapshot.data() || {};
+
+          isOwnerPro = Boolean(ownerData.isPro);
+
+          if (isOwnerPro && ownerData.proExpiresAt) {
+            const expirationDate =
+              typeof ownerData.proExpiresAt.toDate === "function"
+                ? ownerData.proExpiresAt.toDate()
+                : new Date(ownerData.proExpiresAt);
+
+            if (new Date() >= expirationDate) {
+              isOwnerPro = false;
+            }
+          }
+        }
+
+        ownerProStatus.set(client.userId, isOwnerPro);
+      }
+
+      if (!isOwnerPro) {
+        continue;
+      }
+
+      if (!client.email) {
         continue;
       }
 

@@ -1,9 +1,27 @@
 import { NextResponse } from 'next/server';
 import { getSeasonalPricing } from '@/lib/seasonalPricing';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
+import { createOrderRateLimit } from '@/lib/rateLimit';
 
 export async function POST(req: Request) {
   try {
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ip = forwardedFor?.split(',')[0]?.trim() || 'unknown';
+
+    const { success } = await createOrderRateLimit.limit(
+      `create-order:${ip}`
+    );
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Too many payment requests. Please try again later.',
+        },
+        { status: 429 }
+      );
+    }
+
     const {
       billingCycle,
     } = await req.json();
