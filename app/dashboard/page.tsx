@@ -815,8 +815,8 @@ export default function DashboardPage() {
 
   const filteredAndSortedClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                        (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                        (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()));
+                          (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()));
     
     if (!matchesSearch) return false;
 
@@ -1020,12 +1020,12 @@ export default function DashboardPage() {
       />
 
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between" suppressHydrationWarning={true}>
           
           <motion.div 
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none" 
+            className="flex items-center justify-start cursor-pointer h-16 w-[220px] sm:w-[300px] relative select-none" 
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
@@ -1199,7 +1199,7 @@ export default function DashboardPage() {
                   {getGreeting()}, {getUserDisplayName()} 👋
                 </h1>
                 <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
-                  Welcome back! Here's your payment overview.
+                  Here's what needs your attention today.
                 </p>
                 
                 <div className="flex flex-wrap items-center gap-6 pt-1 text-xs font-bold text-slate-600" suppressHydrationWarning={true}>
@@ -1229,6 +1229,22 @@ export default function DashboardPage() {
               </motion.button>
             </header>
 
+            {/* Mobile Quick Add Client */}
+            <div className="sm:hidden">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setClientToEdit(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-white px-5 py-4 rounded-2xl text-sm font-bold shadow-md transition"
+                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+              >
+                <Plus size={18} />
+                Add Client
+              </motion.button>
+            </div>
+
             <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Layers size={14} suppressHydrationWarning={true}/> Total Outstanding</div>
@@ -1237,13 +1253,21 @@ export default function DashboardPage() {
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Users size={14} suppressHydrationWarning={true}/> Pending Clients</div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{clients.length} {clients.length === 1 ? 'Client' : 'Clients'}</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{pendingCount} {pendingCount === 1 ? 'Client' : 'Clients'}</p>
                 <p className="text-xs font-medium text-slate-500">{pendingCount} require attention today.</p>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><TrendingUp size={14} suppressHydrationWarning={true}/> Recovery Rate</div>
                 <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8] mb-1" suppressHydrationWarning={true}>{recoveryRateValue}%</p>
-                <p className="text-xs font-medium text-slate-500">Excellent recovery performance.</p>
+                <p className="text-xs font-medium text-slate-500">
+                  {recoveryRateValue === 0
+                    ? 'No payments recovered yet.'
+                    : recoveryRateValue < 50
+                      ? 'Room to improve your recovery.'
+                      : recoveryRateValue < 80
+                        ? 'Good recovery performance.'
+                        : 'Strong recovery performance.'}
+                </p>
               </motion.div>
             </section>
 
