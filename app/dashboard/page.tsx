@@ -786,7 +786,16 @@ export default function DashboardPage() {
       setUpgradeModalOpen(true);
       return;
     }
-    await complete(JSON.stringify({ action, clients, history: [] }));
+
+    await complete(
+      JSON.stringify({
+        action,
+        clients,
+        history: clients.flatMap(
+          (client: any) => client.reminderHistory || []
+        ),
+      })
+    );
   };
 
   const handleProRecovery = async (client: any) => {
@@ -1006,6 +1015,7 @@ export default function DashboardPage() {
       </AnimatePresence>
       
       <FloatingRobot 
+        clients={clients}
         isPro={isPro}
         externalAction={robotAction}
         onTrigger={(action) => {
@@ -1427,8 +1437,8 @@ export default function DashboardPage() {
                                 c.status === 'Paid' 
                                   ? 'bg-emerald-50 text-emerald-600' 
                                   : isOverdue 
-                                  ? 'bg-rose-50 text-rose-600' 
-                                  : 'bg-amber-50 text-amber-600'
+                                    ? 'bg-rose-50 text-rose-600' 
+                                    : 'bg-amber-50 text-amber-600'
                               }`} suppressHydrationWarning={true}>
                                 {c.status === 'Paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Pending'}
                               </span>

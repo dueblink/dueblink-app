@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
+  clients?: any[];
   onTrigger?: (action: string) => void;
   recommendation?: {
+    id?: string;
     name: string;
     amount: string | number;
     daysOverdue: number;
@@ -18,7 +20,14 @@ interface FloatingRobotProps {
   onOpenAddClient?: () => void;
 }
 
-export default function FloatingRobot({ onTrigger, recommendation, isPro = false, externalAction = null, onOpenAddClient }: FloatingRobotProps) {
+export default function FloatingRobot({
+  clients = [],
+  onTrigger,
+  recommendation,
+  isPro = false,
+  externalAction = null,
+  onOpenAddClient
+}: FloatingRobotProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('User');
@@ -27,20 +36,25 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
   const [uiState, setUiState] = useState<'idle' | 'processing'>('idle');
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
-  
+
   // Real-time reactive client count state
   const [savedClientsCount, setSavedClientsCount] = useState(0);
-  
+
   // State for in-panel AI response display & interactive commands
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [clientPickerAction, setClientPickerAction] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [showMessageBubble, setShowMessageBubble] = useState(false);
   const [clickedSectionText, setClickedSectionText] = useState<string | null>(null);
-  
+
   // Dynamic positioning state to avoid overlapping
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -55,14 +69,409 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
       .trim();
   };
 
+  const parseFollowUpResponse = (text: string) => {
+    const response = cleanResponseText(text);
+
+    const normalizeHeading = (value: string) =>
+      value
+        .replace(/[*_`#]/g, "")
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
+
+    const lines = response.split("\n");
+
+    const findHeadingIndex = (heading: string) => {
+      const target = normalizeHeading(heading);
+
+      return lines.findIndex((line) => {
+        const normalized = normalizeHeading(line);
+        return normalized === target || normalized.includes(target);
+      });
+    };
+
+    const getSection = (start: string, end?: string) => {
+      const startIndex = findHeadingIndex(start);
+
+      if (startIndex === -1) return "";
+
+      const contentLines = lines.slice(startIndex + 1);
+
+      if (!end) {
+        return contentLines.join("\n").trim();
+      }
+
+      const endIndex = contentLines.findIndex((line) => {
+        const normalized = normalizeHeading(line);
+        const target = normalizeHeading(end);
+
+        return normalized === target || normalized.includes(target);
+      });
+
+      return contentLines
+        .slice(0, endIndex === -1 ? contentLines.length : endIndex)
+        .join("\n")
+        .trim();
+    };
+
+    return {
+      snapshot: getSection(
+        "RECOVERY SNAPSHOT",
+        "RECOVERY STATUS"
+      ),
+
+      recoveryStatus: getSection(
+        "RECOVERY STATUS",
+        "BLINK RECOMMENDATION"
+      ),
+
+      recommendation: getSection(
+        "BLINK RECOMMENDATION",
+        "EMAIL FOLLOW-UP"
+      ),
+
+      email: getSection(
+        "EMAIL FOLLOW-UP",
+        "WHATSAPP FOLLOW-UP"
+      ),
+
+      whatsapp: getSection(
+        "WHATSAPP FOLLOW-UP",
+        "NEXT BEST ACTION"
+      ),
+
+      nextBestAction: getSection(
+        "NEXT BEST ACTION"
+      )
+    };
+  };
+
+  const parseSummaryResponse = (text: string) => {
+    const response = cleanResponseText(text);
+
+    const getSection = (heading: string, nextHeadings: string[]) => {
+      const startRegex = new RegExp(
+        `(?:^|\\n)\\s*(?:[^\\w\\n]{0,4})?${heading}\\s*`,
+        'i'
+      );
+
+      const startMatch = response.match(startRegex);
+
+      if (!startMatch || startMatch.index === undefined) {
+        return "";
+      }
+
+      const contentStart = startMatch.index + startMatch[0].length;
+
+      let contentEnd = response.length;
+
+      for (const nextHeading of nextHeadings) {
+        const endRegex = new RegExp(
+          `(?:^|\\n)\\s*(?:[^\\w\\n]{0,4})?${nextHeading}\\s*`,
+          'i'
+        );
+
+        const remaining = response.slice(contentStart);
+        const endMatch = remaining.match(endRegex);
+
+        if (endMatch && endMatch.index !== undefined) {
+          contentEnd = Math.min(
+            contentEnd,
+            contentStart + endMatch.index
+          );
+        }
+      }
+
+      return response
+        .slice(contentStart, contentEnd)
+        .trim();
+    };
+
+    return {
+      quickSummary: getSection(
+        "Quick Summary",
+        ["Important Information", "Blink Insight", "Next Best Action"]
+      ),
+
+      importantInformation: getSection(
+        "Important Information",
+        ["Blink Insight", "Next Best Action"]
+      ),
+
+      insight: getSection(
+        "Blink Insight",
+        ["Next Best Action"]
+      ),
+
+      nextBestAction: getSection(
+        "Next Best Action",
+        []
+      ),
+    };
+  };
+
+  const parsePrioritiesResponse = (text: string) => {
+    const response = cleanResponseText(text);
+
+    const priorityMatches = [...response.matchAll(
+      /PRIORITY\s+(\d+)([\s\S]*?)(?=PRIORITY\s+\d+|TODAY'S FOCUS|$)/gi
+    )];
+
+    const priorities = priorityMatches.map((match) => {
+      const block = match[2].trim();
+
+      const getValue = (label: string) => {
+        const regex = new RegExp(
+          `${label}:\\s*([\\s\\S]*?)(?=\\n[A-Za-z ]+:|$)`,
+          'i'
+        );
+
+        return block.match(regex)?.[1]?.trim() || '';
+      };
+
+      return {
+        number: match[1],
+        client: getValue('Client'),
+        company: getValue('Company'),
+        amount: getValue('Amount Due'),
+        dueDate: getValue('Due Date'),
+        status: getValue('Status'),
+        daysOverdue: getValue('Days Overdue'),
+        recoveryStage: getValue('Recovery Stage'),
+        why: getValue('Why It Matters'),
+        action: getValue('Recommended Action'),
+      };
+    });
+
+    const focusMatch = response.match(
+      /TODAY'S FOCUS\s*([\s\S]*)$/i
+    );
+
+    return {
+      priorities,
+      focus: focusMatch?.[1]?.trim() || '',
+    };
+  };
+
+  const parseOverdueResponse = (text: string) => {
+    const response = cleanResponseText(text);
+
+    const getSection = (heading: string, nextHeadings: string[]) => {
+      const startRegex = new RegExp(
+        `(?:^|\\n)\\s*(?:[^\\w\\n]{0,4})?${heading}\\s*`,
+        'i'
+      );
+
+      const startMatch = response.match(startRegex);
+
+      if (!startMatch || startMatch.index === undefined) {
+        return "";
+      }
+
+      const contentStart =
+        startMatch.index + startMatch[0].length;
+
+      let contentEnd = response.length;
+
+      for (const nextHeading of nextHeadings) {
+        const endRegex = new RegExp(
+          `(?:^|\\n)\\s*(?:[^\\w\\n]{0,4})?${nextHeading}\\s*`,
+          'i'
+        );
+
+        const remaining = response.slice(contentStart);
+        const endMatch = remaining.match(endRegex);
+
+        if (endMatch && endMatch.index !== undefined) {
+          contentEnd = Math.min(
+            contentEnd,
+            contentStart + endMatch.index
+          );
+        }
+      }
+
+      return response
+        .slice(contentStart, contentEnd)
+        .trim();
+    };
+
+    const importantInformation = getSection(
+      "IMPORTANT INFORMATION",
+      ["BLINK RECOMMENDATION", "NEXT BEST ACTION"]
+    );
+
+    const priorityMatches = [
+      ...importantInformation.matchAll(
+        /(?:PRIORITY\s+(\d+)|[•*-]?\s*(\d+)\.\s+)([\s\S]*?)(?=(?:PRIORITY\s+\d+|[•*-]?\s*\d+\.\s+)|$)/gi
+      ),
+    ];
+
+    const getValue = (block: string, label: string) => {
+      const regex = new RegExp(
+        `${label}:\\s*([\\s\\S]*?)(?=\\n[A-Za-z ]+:|$)`,
+        'i'
+      );
+
+      return block.match(regex)?.[1]?.trim() || '';
+    };
+
+    const priorities = priorityMatches.map((match, index) => {
+      const number = match[1] || match[2] || String(index + 1);
+      const block = match[3].trim();
+
+      const simpleMatch = block.match(
+        /^(.+?)\s*-\s*(₹[\d,]+|Rs\.?\s*[\d,]+|\$[\d,]+)\s*\((\d+)\s+days?\s+overdue\)/i
+      );
+
+      if (simpleMatch) {
+        return {
+          number,
+          client: simpleMatch[1].trim(),
+          company: '',
+          amount: simpleMatch[2].trim(),
+          daysOverdue: simpleMatch[3].trim(),
+          recoveryStage: '',
+          why: '',
+          action: '',
+        };
+      }
+
+      return {
+        number,
+        client: getValue(block, 'Client'),
+        company: getValue(block, 'Company'),
+        amount: getValue(block, 'Amount Due'),
+        daysOverdue: getValue(block, 'Days Overdue'),
+        recoveryStage: getValue(block, 'Recovery Stage'),
+        why: getValue(block, 'Why It Matters'),
+        action: getValue(block, 'Recommended Action'),
+      };
+    });
+
+    return {
+      quickSummary: getSection(
+        "QUICK SUMMARY",
+        ["IMPORTANT INFORMATION"]
+      ),
+
+      priorities,
+
+      recommendation: getSection(
+        "BLINK RECOMMENDATION",
+        ["NEXT BEST ACTION"]
+      ),
+
+      nextBestAction: getSection(
+        "NEXT BEST ACTION",
+        []
+      ),
+    };
+  };
+
+  const parseRewriteResponse = (text: string) => {
+    const response = cleanResponseText(text);
+
+    const getSection = (heading: string, nextHeadings: string[]) => {
+      const startRegex = new RegExp(
+        `(?:^|\\n)\\s*(?:[^\\w\\n]{0,4})?${heading}\\s*`,
+        'i'
+      );
+
+      const startMatch = response.match(startRegex);
+
+      if (!startMatch || startMatch.index === undefined) {
+        return "";
+      }
+
+      const contentStart = startMatch.index + startMatch[0].length;
+
+      let contentEnd = response.length;
+
+      for (const nextHeading of nextHeadings) {
+        const endRegex = new RegExp(
+          `(?:^|\\n)\\s*(?:[^\\w\\n]{0,4})?${nextHeading}\\s*`,
+          'i'
+        );
+
+        const remaining = response.slice(contentStart);
+        const endMatch = remaining.match(endRegex);
+
+        if (endMatch && endMatch.index !== undefined) {
+          contentEnd = Math.min(
+            contentEnd,
+            contentStart + endMatch.index
+          );
+        }
+      }
+
+      return response
+        .slice(contentStart, contentEnd)
+        .trim();
+    };
+
+    return {
+      quickSummary: getSection(
+        "Quick Summary",
+        ["Important Information", "Blink Recommendation", "Next Best Action"]
+      ),
+
+      importantInformation: getSection(
+        "Important Information",
+        ["Blink Recommendation", "Next Best Action"]
+      ),
+
+      recommendation: getSection(
+        "Blink Recommendation",
+        ["Next Best Action"]
+      ),
+
+      nextBestAction: getSection(
+        "Next Best Action",
+        []
+      ),
+
+      message: getSection(
+        "REWRITTEN REMINDER",
+        ["Blink Recommendation", "Next Best Action"]
+      )
+    };
+  };
+
+  const copyFollowUpEmail = async (text: string) => {
+    const followUp = parseFollowUpResponse(text);
+
+    if (!followUp.email) return;
+
+    await navigator.clipboard.writeText(followUp.email);
+    setCopied(true);
+
+    setTimeout(() => {
+      setCopied(false);
+    }, 1800);
+  };
+
+  const copyFollowUpWhatsApp = async (text: string) => {
+    const followUp = parseFollowUpResponse(text);
+
+    if (!followUp.whatsapp) return;
+
+    await navigator.clipboard.writeText(followUp.whatsapp);
+    setCopied(true);
+
+    setTimeout(() => {
+      setCopied(false);
+    }, 1800);
+  };
+
   const updateClientCount = useCallback(() => {
     try {
-      const clients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
-      setSavedClientsCount(clients.length);
+      const storedClients = clients.length > 0 ? clients : JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
+      setSavedClientsCount(storedClients.length);
     } catch {
       setSavedClientsCount(0);
     }
-  }, []);
+  }, [clients]);
 
   useEffect(() => {
     updateClientCount();
@@ -74,7 +483,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     };
   }, [updateClientCount]);
 
-  // Handle dynamic positioning to clear scroll-to-top buttons / system UI
   useEffect(() => {
     const checkScroll = () => {
       if (window.scrollY > 150) {
@@ -150,7 +558,6 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Inactivity Timer
   useEffect(() => {
     if (pathname === '/dashboard') return;
 
@@ -316,7 +723,11 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     return messages[currentSectionIndex] || messages[0] || "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how it can help you get paid faster.";
   };
 
-  const handleActionClick = async (actionId: string, actionTitle: string) => {
+  const handleActionClick = async (
+    actionId: string,
+    actionTitle: string,
+    clientId?: string
+  ) => {
     if (!isPro) {
       router.push('/pricing');
       return;
@@ -333,8 +744,8 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     }
 
     try {
-      const freshClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
-      
+      const freshClients = clients;
+
       if (freshClients.length === 0) {
         setSavedClientsCount(0);
         setUiState('idle');
@@ -343,7 +754,37 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
 
       setSavedClientsCount(freshClients.length);
       const totalAmount = freshClients.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
-      const targetClient = recommendation ? freshClients.find((c: any) => c.name === recommendation.name) || freshClients[0] : freshClients[0];
+
+      const resolvedClientId =
+        clientId ||
+        (recommendation
+          ? freshClients.find((c: any) => c.id === recommendation.id)?.id
+          : undefined);
+
+      const targetClient = resolvedClientId
+        ? freshClients.find((c: any) => c.id === resolvedClientId)
+        : recommendation 
+          ? freshClients.find((c: any) => c.name === recommendation.name) || freshClients[0] 
+          : freshClients[0];
+
+      const reminderHistory = Array.isArray(targetClient?.reminderHistory)
+        ? targetClient.reminderHistory
+        : [];
+
+      const automatedRemindersSent = reminderHistory.filter(
+        (r: any) =>
+          r?.type === 'automated' &&
+          r?.channel === 'email'
+      );
+
+      const lastAutomatedReminder =
+        automatedRemindersSent.length > 0
+          ? automatedRemindersSent[automatedRemindersSent.length - 1]
+          : null;
+
+      if (clientId) {
+        setSelectedClientId(clientId);
+      }
 
       const idToken = await auth.currentUser?.getIdToken();
 
@@ -359,9 +800,18 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
         },
         body: JSON.stringify({
           action: actionId,
-          client: targetClient,
+          clientId: resolvedClientId || null,
+          client: targetClient || null,
           clients: freshClients,
-          total: totalAmount
+          total: totalAmount,
+          automatedReminderContext: {
+            enabled: targetClient?.automatedReminders === true,
+            status: targetClient?.automationStatus || 'off',
+            lastStage: targetClient?.lastAutomatedReminderStage || null,
+            lastSentAt: targetClient?.lastAutomatedReminderSentAt || null,
+            sentCount: automatedRemindersSent.length,
+            lastReminder: lastAutomatedReminder
+          }
         })
       });
 
@@ -435,12 +885,14 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
     ? 'bottom-28 sm:bottom-32 right-6 sm:right-8' 
     : 'bottom-20 sm:bottom-24 right-6 sm:right-8';
 
+  const activeClients = clients;
+
   return (
     <div 
       className={`fixed z-[900] flex flex-col items-end gap-3 transition-all duration-200 ease-in-out ${positioningClass}`}
       suppressHydrationWarning={true}
     >
-      
+
       {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
       <AnimatePresence>
         {!isExpanded && showMessageBubble && (isPro || pathname !== '/dashboard') && (
@@ -510,7 +962,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                 return;
               }
               setIsExpanded(true);
-              handleActionClick('recommend', 'Generate Follow-up');
+              handleActionClick('recommend', 'Generate Follow-up', recommendation.id);
             }}
             suppressHydrationWarning={true}
           >
@@ -541,7 +993,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                   return;
                 }
                 setIsExpanded(true);
-                handleActionClick('recommend', 'Generate Follow-up'); 
+                handleActionClick('recommend', 'Generate Follow-up', recommendation.id); 
               }} 
               className="w-full text-white py-2 rounded-xl font-bold text-[10px] uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]" 
               style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
@@ -562,7 +1014,7 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[280px] sm:w-[320px] max-h-[80vh] flex flex-col overflow-hidden transform-gpu will-change-transform"
+            className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[min(290px,calc(100vw-24px))] sm:w-[320px] max-h-[min(72vh,560px)] flex flex-col overflow-hidden transform-gpu will-change-transform"
             suppressHydrationWarning={true}
           >
             {/* Header Banner */}
@@ -570,9 +1022,19 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
               <div className="absolute -right-6 -bottom-6 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none" />
               <div className="flex justify-between items-start relative z-10" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2">
-                  {aiResponse || uiState === 'processing' || savedClientsCount === 0 ? (
+                  {aiResponse || uiState === 'processing' || savedClientsCount === 0 || clientPickerAction ? (
                     <button 
-                      onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
+                      onClick={() => { 
+                        if (clientPickerAction) {
+                          setClientPickerAction(null);
+                        } else {
+                          setAiResponse(null); 
+                          setActiveActionName(null); 
+                          setActiveActionId(null); 
+                          setSelectedClientId(null); 
+                          setClientPickerAction(null); 
+                        }
+                      }} 
                       className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
                       aria-label="Back"
                     >
@@ -583,248 +1045,1089 @@ export default function FloatingRobot({ onTrigger, recommendation, isPro = false
                       <Brain size={14} className="text-white" />
                     </div>
                   )}
-                  <div>
+                <div>
                     <div className="flex items-center gap-1.5">
                       <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">Blink</h3>
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                       <span className="text-[8px] font-bold text-white/80 uppercase">Online</span>
                     </div>
                     <p className="text-xs font-bold text-white mt-0.5 truncate max-w-[160px]">
-                      {activeActionName ? activeActionName : 'Your AI Recovery Assistant'}
+                      {clientPickerAction ? clientPickerAction.name : (activeActionName ? activeActionName : 'Your AI Recovery Assistant')}
                     </p>
                   </div>
-                </div>
-                <button 
-                  onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }} 
-                  className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
-                  aria-label="Close panel"
-                  suppressHydrationWarning={true}
-                >
-                  <X size={12} />
-                </button>
               </div>
-
-              {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && (
-                <div className="mt-2.5 pt-2 border-t border-white/15 text-left" suppressHydrationWarning={true}>
-                  <p className="text-[11px] font-bold text-white/90">{greeting}, {userName}!</p>
-                  <p className="text-[10px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
-                </div>
-              )}
+              <button 
+                onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }} 
+                className="text-white/70 hover:text-white bg-white/15 hover:bg-white/25 p-1.5 rounded-full transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
+                aria-label="Close panel"
+                suppressHydrationWarning={true}
+              >
+                <X size={12} />
+              </button>
             </div>
 
-            {/* Content Area */}
-            <div className="p-3.5 overflow-y-auto flex-1 text-xs" suppressHydrationWarning={true}>
-              {isLoggedIn ? (
-                isPro ? (
-                  savedClientsCount === 0 && activeActionId ? (
-                    <div className="space-y-3 text-left py-1" suppressHydrationWarning={true}>
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-black text-[#245B92] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">Blink Guide</span>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-xs">
-                            {activeActionId === 'recommend' && "No Clients Found"}
-                            {activeActionId === 'priorities' && "Nothing to Review"}
-                            {activeActionId === 'summarize' && "No Payment Data"}
-                            {activeActionId === 'rewrite' && "No Reminder Available"}
-                            {activeActionId === 'overdue' && "No Overdue Clients"}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
-                            {activeActionId === 'recommend' && "You haven't added any clients yet. Blink needs at least one client to generate an AI follow-up."}
-                            {activeActionId === 'priorities' && "You don't have any clients yet. Once you add clients, Blink will automatically identify who needs your attention first."}
-                            {activeActionId === 'summarize' && "There are no clients or invoices to analyze. Your payment insights will appear here after you add your first client."}
-                            {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet. Generate your first AI reminder after adding a client."}
-                            {activeActionId === 'overdue' && "You haven't added any clients yet. Blink will automatically detect overdue payments after client information is added."}
-                          </p>
-                        </div>
-                        <div className="pt-2 border-t border-slate-200/60">
-                          <p className="text-[10px] font-bold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
-                          <p className="text-[11px] text-slate-700 font-semibold mt-0.5">Add your first client to get started.</p>
-                        </div>
+            {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && !clientPickerAction && (
+              <div className="mt-2.5 pt-2 border-t border-white/15 text-left" suppressHydrationWarning={true}>
+                <p className="text-[11px] font-bold text-white/90">{greeting}, {userName}!</p>
+                <p className="text-[10px] text-white/80 font-medium mt-0.5">What can I help you with today?</p>
+              </div>
+            )}
+          </div>
+
+          {/* Content Area */}
+          <div className="p-3.5 overflow-y-auto flex-1 text-xs" suppressHydrationWarning={true}>
+            {isLoggedIn ? (
+              isPro ? (
+                savedClientsCount === 0 && activeActionId ? (
+                  <div className="space-y-3 text-left py-1" suppressHydrationWarning={true}>
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black text-[#245B92] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">Blink Guide</span>
                       </div>
-
-                      <button 
-                        onClick={handleAddClientRedirect}
-                        className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#245B92]"
-                      >
-                        <UserPlus size={13} /> Add New Client
-                      </button>
-
-                      <button 
-                        onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
-                        className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <ArrowLeft size={12} /> Back
-                      </button>
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs">
+                          {activeActionId === 'recommend' && "No Clients Found"}
+                          {activeActionId === 'priorities' && "Nothing to Review"}
+                          {activeActionId === 'summarize' && "No Payment Data"}
+                          {activeActionId === 'rewrite' && "No Reminder Available"}
+                          {activeActionId === 'overdue' && "No Overdue Clients"}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                          {activeActionId === 'recommend' && "You haven't added any clients yet. Blink needs at least one client to generate an AI follow-up."}
+                          {activeActionId === 'priorities' && "You don't have any clients yet. Once you add clients, Blink will automatically identify who needs your attention first."}
+                          {activeActionId === 'summarize' && "There are no clients or invoices to analyze. Your payment insights will appear here after you add your first client."}
+                          {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet. Generate your first AI reminder after adding a client."}
+                          {activeActionId === 'overdue' && "You haven't added any clients yet. Blink will automatically detect overdue payments after client information is added."}
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t border-slate-200/60">
+                        <p className="text-[10px] font-bold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
+                        <p className="text-[11px] text-slate-700 font-semibold mt-0.5">Add your first client to get started.</p>
+                      </div>
                     </div>
-                  ) : aiResponse || uiState === 'processing' ? (
-                    <div className="py-1 space-y-2.5 text-left" suppressHydrationWarning={true}>
-                      {uiState === 'processing' ? (
-                        <div className="flex flex-col items-center justify-center py-8 space-y-2 text-slate-400">
-                          <Loader2 size={24} className="animate-spin text-[#20B8BE]" />
-                          <p className="text-[11px] font-bold tracking-wide">Blink is analyzing...</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 text-[11px] text-slate-800 font-medium whitespace-pre-wrap leading-relaxed shadow-inner break-words block w-full text-left max-h-[240px] overflow-y-auto">
+
+                    <button 
+                      onClick={handleAddClientRedirect}
+                      className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#245B92]"
+                    >
+                      <UserPlus size={13} /> Add New Client
+                    </button>
+
+                    <button 
+                      onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }}
+                      className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <ArrowLeft size={12} /> Back
+                    </button>
+                  </div>
+                ) : aiResponse || uiState === 'processing' ? (
+                  <div className="py-1 space-y-2.5 text-left" suppressHydrationWarning={true}>
+                    {uiState === 'processing' ? (
+                      <div className="flex flex-col items-center justify-center py-5 space-y-2 text-slate-400">
+                        <Loader2 size={24} className="animate-spin text-[#20B8BE]" />
+                        <p className="text-[11px] font-bold tracking-wide">Blink is analyzing...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {activeActionId === 'recommend' ? (
+                          (() => {
+                            const followUp = parseFollowUpResponse(aiResponse || '');
+
+                            return (
+                              <div className="space-y-3 text-left">
+
+                                {/* Title */}
+                                <div className="flex items-center gap-1.5 px-1">
+                                  <Brain size={13} className="text-[#20B8BE]" />
+                                  <span className="text-[11px] font-black text-slate-900">
+                                    Generate Follow-up
+                                  </span>
+                                </div>
+
+                                {/* Client */}
+                                {followUp.snapshot && (
+                                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-[11px] font-black text-slate-900 truncate">
+                                        {followUp.snapshot
+                                          .split('\n')
+                                          .find(line => line.toLowerCase().startsWith('client:'))
+                                          ?.replace(/^client:\s*/i, '') || 'Selected Client'}
+                                      </p>
+
+                                      <span className="shrink-0 text-[8px] font-bold text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                        Recovery
+                                      </span>
+                                    </div>
+
+                                    <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+                                      {followUp.snapshot
+                                        .split('\n')
+                                        .filter(line =>
+                                          /amount due:|due date:|status:|days overdue:|automation:|last automated stage:/i.test(line)
+                                        )
+                                        .map(line =>
+                                          line
+                                            .replace(/^amount due:\s*/i, '₹')
+                                            .replace(/^due date:\s*/i, 'Due ')
+                                            .replace(/^status:\s*/i, '')
+                                            .replace(/^days overdue:\s*/i, '')
+                                            .replace(/^automation:\s*/i, '')
+                                            .replace(/^last automated stage:\s*/i, '')
+                                        )
+                                        .join(' · ')}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Recovery */}
+                                {(followUp.recoveryStatus || followUp.recommendation) && (
+                                  <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <Zap size={10} className="text-[#20B8BE]" />
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        Recovery
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-700 leading-relaxed">
+                                      {followUp.recommendation || followUp.recoveryStatus}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Email */}
+                                {followUp.email && (
+                                  <div className="rounded-lg bg-blue-50/50 border border-blue-100 px-2.5 py-2">
+
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <Mail size={11} className="text-[#245B92]" />
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#245B92]">
+                                          Email
+                                        </span>
+                                      </div>
+
+                                      <span className="text-[8px] font-bold text-[#245B92]">
+                                        Ready
+                                      </span>
+                                    </div>
+
+                                    <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[110px] overflow-y-auto">
+                                      {followUp.email}
+                                    </div>
+
+                                    <div className="flex gap-1.5 mt-2">
+                                      <button
+                                        onClick={() => copyFollowUpEmail(aiResponse || '')}
+                                        className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        {copied ? <Check size={10} /> : <Copy size={10} />}
+                                        {copied ? 'Copied' : 'Copy'}
+                                      </button>
+
+                                      <button
+                                        onClick={() =>
+                                          handleActionClick(
+                                            'rewrite',
+                                            'Rewrite Reminder',
+                                            selectedClientId || undefined
+                                          )
+                                        }
+                                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        <RefreshCw size={10} className="text-[#245B92]" />
+                                        Rewrite
+                                      </button>
+                                    </div>
+
+                                  </div>
+                                )}
+
+                                {/* WhatsApp */}
+                                {followUp.whatsapp && (
+                                  <div className="rounded-lg bg-emerald-50/50 border border-emerald-100 px-2.5 py-2">
+
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <MessageCircle size={11} className="text-[#159A9F]" />
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        WhatsApp
+                                      </span>
+                                    </div>
+
+                                    <span className="text-[8px] font-bold text-[#159A9F]">
+                                      Ready
+                                    </span>
+                                  </div>
+
+                                  <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[14vh] sm:max-h-[85px] overflow-y-auto">
+                                    {followUp.whatsapp}
+                                  </div>
+
+                                  <div className="flex gap-1.5 mt-2">
+                                    <button
+                                      onClick={() => copyFollowUpWhatsApp(aiResponse || '')}
+                                      className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-50 text-[#159A9F] border border-emerald-100 hover:bg-emerald-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                    >
+                                      {copied ? <Check size={10} /> : <Copy size={10} />}
+                                      {copied ? 'Copied' : 'Copy'}
+                                    </button>
+
+                                    <button
+                                      onClick={() =>
+                                        handleActionClick(
+                                          'rewrite',
+                                          'Rewrite Reminder',
+                                          selectedClientId || undefined
+                                        )
+                                      }
+                                      className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-50 text-[#159A9F] border border-emerald-100 hover:bg-emerald-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                    >
+                                      <RefreshCw size={10} className="text-[#159A9F]" />
+                                      Rewrite
+                                    </button>
+                                  </div>
+
+                                </div>
+                                )}
+
+                                {/* Next Best Action */}
+                                {followUp.nextBestAction && (
+                                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                      <ArrowRight size={10} className="text-[#20B8BE]" />
+                                      <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        Next Best Action
+                                      </span>
+                                    </div>
+
+                                    <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
+                                      {followUp.nextBestAction}
+                                    </p>
+                                  </div>
+                                )}
+
+                              </div>
+                            );
+                          })()
+                        ) : activeActionId === 'priorities' ? (
+                            (() => {
+                              const priorityData = parsePrioritiesResponse(aiResponse || '');
+
+                              return (
+                                <div className="space-y-3 text-left">
+
+                                  {/* Header */}
+                                  <div className="flex items-center gap-1.5 px-1">
+                                    <Zap size={13} className="text-[#20B8BE]" />
+                                    <span className="text-[11px] font-black text-slate-900">
+                                      Today's Priorities
+                                    </span>
+                                  </div>
+
+                                  {/* Priority list */}
+                                  <div className="space-y-1.5">
+                                    {priorityData.priorities.map((priority: any) => (
+                                      <div
+                                        key={priority.number}
+                                        className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-[8px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                                #{priority.number}
+                                              </span>
+
+                                              <p className="text-[10px] font-black text-slate-900 truncate">
+                                                {priority.client || 'Client'}
+                                              </p>
+                                            </div>
+
+                                            <p className="text-[9px] text-slate-500 mt-1 truncate">
+                                              {priority.amount}
+                                              {priority.daysOverdue
+                                                ? ` · ${priority.daysOverdue} days overdue`
+                                                : ''}
+                                            </p>
+
+                                            {priority.action && (
+                                              <p className="text-[9px] text-slate-600 mt-1 leading-relaxed">
+                                                {priority.action}
+                                              </p>
+                                            )}
+                                          </div>
+
+                                          <button
+                                            onClick={() => {
+                                              const matchedClient = activeClients.find(
+                                                (client: any) =>
+                                                  client.name?.toLowerCase() === priority.client?.toLowerCase()
+                                              );
+
+                                              if (matchedClient) {
+                                                setSelectedClientId(matchedClient.id);
+                                                setAiResponse(null);
+                                                handleActionClick(
+                                                  'recommend',
+                                                  'Generate Follow-up',
+                                                  matchedClient.id
+                                                );
+                                              }
+                                            }}
+                                            className="shrink-0 px-2 py-1.5 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[8px] transition flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Sparkles size={9} className="text-[#20B8BE]" />
+                                            Follow-up
+                                          </button>
+
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  {/* Today's focus */}
+                                  {priorityData.focus && (
+                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <ArrowRight size={10} className="text-[#20B8BE]" />
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Today's Focus
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                        {priorityData.focus}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                </div>
+                              );
+                            })()
+                        ) : activeActionId === 'summarize' ? (
+                            (() => {
+                              const summary = parseSummaryResponse(aiResponse || '');
+
+                              return (
+                                <div className="space-y-2.5 text-left">
+
+                                  {/* Header */}
+                                  <div className="flex items-center gap-1.5 px-1">
+                                    <BarChart3 size={13} className="text-[#20B8BE]" />
+                                    <span className="text-[11px] font-black text-slate-900">
+                                      Outstanding Summary
+                                    </span>
+                                  </div>
+
+                                  {/* Quick Summary */}
+                                  {summary.quickSummary && (
+                                    <div className="px-1">
+                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92]">
+                                        Quick Summary
+                                      </p>
+                                      <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">
+                                        {summary.quickSummary}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Important Information */}
+                                  {summary.importantInformation && (
+                                    <div className="space-y-1.5">
+
+                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92] px-1">
+                                        Important Information
+                                      </p>
+
+                                      {(() => {
+                                        const info = summary.importantInformation;
+
+                                        const outstanding =
+                                          info.match(/Outstanding Amount:\s*([^\n]+)/i)?.[1]?.trim() || '₹0';
+
+                                        const pending =
+                                          info.match(/Pending Clients:\s*(\d+)/i)?.[1] || '0';
+
+                                        const overdue =
+                                          info.match(/Overdue Clients:\s*(\d+)/i)?.[1] || '0';
+
+                                        const paid =
+                                          info.match(/Paid Clients:\s*(\d+)/i)?.[1] || '0';
+
+                                        return (
+                                          <div className="grid grid-cols-2 gap-1.5">
+
+                                            {/* Outstanding */}
+                                            <div className="rounded-lg bg-blue-50/70 border border-blue-100 px-2.5 py-2">
+                                              <p className="text-[8px] font-bold uppercase tracking-wider text-[#245B92]">
+                                                Outstanding
+                                              </p>
+                                              <p className="text-[12px] font-black text-[#245B92] mt-0.5 truncate">
+                                                {outstanding}
+                                              </p>
+                                            </div>
+
+                                            {/* Pending */}
+                                            <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
+                                              <p className="text-[8px] font-bold uppercase tracking-wider text-slate-500">
+                                                Pending
+                                              </p>
+                                              <p className="text-[12px] font-black text-slate-800 mt-0.5">
+                                                {pending}
+                                                <span className="text-[8px] font-semibold text-slate-400 ml-1">
+                                                  Clients
+                                                </span>
+                                              </p>
+                                            </div>
+
+                                            {/* Overdue */}
+                                            <div className="rounded-lg bg-amber-50/70 border border-amber-100 px-2.5 py-2">
+                                              <p className="text-[8px] font-bold uppercase tracking-wider text-amber-700">
+                                                Overdue
+                                              </p>
+                                              <p className="text-[12px] font-black text-amber-700 mt-0.5">
+                                                {overdue}
+                                                <span className="text-[8px] font-semibold text-amber-600 ml-1">
+                                                  Clients
+                                                </span>
+                                              </p>
+                                            </div>
+
+                                            {/* Paid */}
+                                            <div className="rounded-lg bg-emerald-50/70 border border-emerald-100 px-2.5 py-2">
+                                              <p className="text-[8px] font-bold uppercase tracking-wider text-emerald-700">
+                                                Paid
+                                              </p>
+                                              <p className="text-[12px] font-black text-emerald-700 mt-0.5">
+                                                {paid}
+                                                <span className="text-[8px] font-semibold text-emerald-600 ml-1">
+                                                  Clients
+                                                </span>
+                                              </p>
+                                            </div>
+
+                                          </div>
+                                        );
+                                      })()}
+
+
+                                    </div>
+                                  )}
+
+                                  {/* Blink Insight */}
+                                  {summary.insight && (
+                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <Zap size={10} className="text-[#20B8BE]" />
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Blink Insight
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                        {summary.insight}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Next Best Action */}
+                                  {summary.nextBestAction && (
+                                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <ArrowRight size={10} className="text-[#20B8BE]" />
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Next Best Action
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
+                                        {summary.nextBestAction}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                </div>
+                              );
+                            })()
+                        ) : activeActionId === 'rewrite' ? (
+                            (() => {
+                              const rewrite = parseRewriteResponse(aiResponse || '');
+
+                              return (
+                                <div className="space-y-2.5 text-left">
+
+                                  {/* Header */}
+                                  <div className="flex items-center gap-1.5 px-1">
+                                    <Clock size={13} className="text-[#20B8BE]" />
+                                    <span className="text-[11px] font-black text-slate-900">
+                                      Rewrite Reminder
+                                    </span>
+                                  </div>
+
+                                  {/* Quick Summary */}
+                                  {rewrite.quickSummary && (
+                                    <div className="px-1">
+                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92]">
+                                      Quick Summary
+                                      </p>
+
+                                      <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">
+                                        {rewrite.quickSummary}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Important Information */}
+                                  {rewrite.importantInformation && (
+                                    <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
+                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92] mb-1">
+                                        Important Information
+                                      </p>
+
+                                      <div className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                        {rewrite.importantInformation}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Rewritten Reminder */}
+                                  {rewrite.message && (
+                                    <div className="rounded-lg bg-blue-50/60 border border-blue-100 px-2.5 py-2">
+
+                                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <Mail size={11} className="text-[#245B92]" />
+
+                                          <span className="text-[8px] font-black uppercase tracking-wider text-[#245B92]">
+                                            Rewritten Reminder
+                                          </span>
+                                        </div>
+
+                                        <span className="text-[8px] font-bold text-[#245B92]">
+                                          Ready
+                                        </span>
+                                      </div>
+
+                                      <div className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[120px] overflow-y-auto">
+                                        {rewrite.message}
+                                      </div>
+
+                                      <button
+                                        onClick={handleCopy}
+                                        className="w-full mt-2 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        {copied ? <Check size={10} /> : <Copy size={10} />}
+                                        {copied ? 'Copied' : 'Copy Reminder'}
+                                      </button>
+
+                                    </div>
+                                  )}
+
+                                  {/* Blink Recommendation */}
+                                  {rewrite.recommendation && (
+                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <Zap size={10} className="text-[#20B8BE]" />
+
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Blink Recommendation
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                        {rewrite.recommendation}
+                                      </p>
+
+                                    </div>
+                                  )}
+
+                                  {/* Next Best Action */}
+                                  {rewrite.nextBestAction && (
+                                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
+
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <ArrowRight size={10} className="text-[#20B8BE]" />
+
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Next Best Action
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
+                                        {rewrite.nextBestAction}
+                                      </p>
+
+                                    </div>
+                                  )}
+
+                                </div>
+                              );
+                            })()
+                        ) : activeActionId === 'overdue' ? (
+                            (() => {
+                              const overdue = parseOverdueResponse(aiResponse || '');
+
+                              return (
+                                <div className="space-y-2.5 text-left">
+
+                                  {/* Header */}
+                                  <div className="flex items-center gap-1.5 px-1">
+                                    <Users size={13} className="text-[#20B8BE]" />
+                                    <span className="text-[11px] font-black text-slate-900">
+                                      Find Overdue Clients
+                                    </span>
+                                  </div>
+
+                                  {/* Quick Summary */}
+                                  {overdue.quickSummary && (
+                                    <div className="px-1">
+                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92]">
+                                      Quick Summary
+                                      </p>
+
+                                      <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">
+                                        {overdue.quickSummary}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Overdue Recovery Queue */}
+                                  {overdue.priorities.length > 0 && (
+                                  <div className="space-y-1.5">
+
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92] px-1">
+                                      Overdue Recovery Queue
+                                    </p>
+
+                                    {overdue.priorities.map((priority: any) => (
+                                      <div
+                                        key={priority.number}
+                                        className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2"
+                                      >
+
+                                        {/* Client header */}
+                                        <div className="flex items-center justify-between gap-2">
+
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <span className="shrink-0 text-[8px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                              #{priority.number}
+                                            </span>
+
+                                            <p className="text-[10px] font-black text-slate-900 truncate">
+                                              {priority.client || 'Client'}
+                                            </p>
+                                          </div>
+
+                                          {priority.recoveryStage && (
+                                            <span className="shrink-0 text-[8px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded-full">
+                                              {priority.recoveryStage}
+                                            </span>
+                                          )}
+
+                                        </div>
+
+                                        {/* Amount + overdue */}
+                                        <div className="flex items-center gap-1.5 mt-1.5">
+
+                                          {priority.amount && (
+                                            <span className="text-[9px] font-bold text-slate-700">
+                                              {priority.amount}
+                                            </span>
+                                          )}
+
+                                          {priority.daysOverdue && (
+                                            <span className="text-[8px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                              {priority.daysOverdue} days overdue
+                                            </span>
+                                          )}
+
+                                        </div>
+
+                                        {/* Company */}
+                                        {priority.company && priority.company !== 'N/A' && (
+                                          <p className="text-[8px] text-slate-400 mt-1 truncate">
+                                            {priority.company}
+                                          </p>
+                                        )}
+
+                                        {/* Why it matters */}
+                                        {priority.why && (
+                                          <div className="mt-1.5">
+                                            <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                              Why It Matters
+                                            </p>
+
+                                            <p className="text-[9px] text-slate-600 leading-relaxed mt-0.5">
+                                              {priority.why}
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        {/* Recommended action */}
+                                        {priority.action && (
+                                          <div className="mt-1.5 border-l-2 border-[#20B8BE] pl-2">
+                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                              Recommended Action
+                                            </p>
+
+                                            <p className="text-[9px] text-slate-700 font-semibold leading-relaxed mt-0.5">
+                                              {priority.action}
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        {/* Follow-up */}
+                                        {priority.client && (
+                                          <button
+                                            onClick={() => {
+                                              const matchedClient = activeClients.find(
+                                                (client: any) =>
+                                                  client.name?.toLowerCase() ===
+                                                  priority.client?.toLowerCase()
+                                              );
+
+                                              if (matchedClient) {
+                                                setSelectedClientId(matchedClient.id);
+                                                setAiResponse(null);
+
+                                                handleActionClick(
+                                                  'recommend',
+                                                  'Generate Follow-up',
+                                                  matchedClient.id
+                                                );
+                                              }
+                                            }}
+                                            className="w-full mt-2 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                          >
+                                            <Sparkles size={10} className="text-[#20B8BE]" />
+                                            Generate Follow-up
+                                          </button>
+                                        )}
+
+                                      </div>
+                                    ))}
+
+                                </div>
+                                )}
+
+                                  {/* Blink Recommendation */}
+                                  {overdue.recommendation && (
+                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <Zap size={10} className="text-[#20B8BE]" />
+
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Blink Recommendation
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                        {overdue.recommendation}
+                                      </p>
+
+                                    </div>
+                                  )}
+
+                                  {/* Next Best Action */}
+                                  {overdue.nextBestAction && (
+                                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
+
+                                      <div className="flex items-center gap-1.5 mb-0.5">
+                                        <ArrowRight size={10} className="text-[#20B8BE]" />
+
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                          Next Best Action
+                                        </span>
+                                      </div>
+
+                                      <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
+                                        {overdue.nextBestAction}
+                                      </p>
+
+                                    </div>
+                                  )}
+
+                                </div>
+                              );
+                            })()
+                        ) : (
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-[10px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto">
                             {aiResponse}
                           </div>
-                          
-                          <div className="grid grid-cols-2 gap-1.5 pt-1">
-                            {activeActionId === 'recommend' && (
-                              <>
-                                <button onClick={handleCopy} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                                  {copied ? 'Copied!' : 'Copy Email'}
-                                </button>
-                                <button onClick={() => handleActionClick('rewrite', 'Rewrite Reminder')} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  <Clock size={11} className="text-[#20B8BE]" /> Rewrite
-                                </button>
-                              </>
-                            )}
+                        )}
+                      </div>
+                    )}
+                  
 
-                            {activeActionId === 'summarize' && (
-                              <>
-                                <button onClick={handleCopy} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  {copied ? <Check size={11} className="text-emerald-400" /> : <Download size={11} />}
-                                  {copied ? 'Copied!' : 'Export Summary'}
-                                </button>
-                                <button onClick={() => handleActionClick('summarize', 'Outstanding Summary')} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  <RefreshCw size={11} className="text-[#20B8BE]" /> Analyze Again
-                                </button>
-                              </>
-                            )}
+                {activeActionId === 'recommend' && uiState !== 'processing' && (
+                  <div className="flex gap-1.5 pt-1">
+                    <button
+                      onClick={() =>
+                        handleActionClick(
+                          'recommend',
+                          'Generate Follow-up',
+                          selectedClientId || undefined
+                        )
+                      }
+                      className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw size={10} className="text-[#20B8BE]" />
+                      Regenerate
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAiResponse(null);
+                        setActiveActionName(null);
+                        setActiveActionId(null);
+                        setSelectedClientId(null);
+                        setClientPickerAction(null);
+                      }}
+                      className="flex-1 py-1.5 px-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <ArrowLeft size={10} />
+                      Back
+                    </button>
+                  </div>
+                )}
 
-                            {activeActionId === 'priorities' && (
-                              <>
-                                <button onClick={() => handleActionClick('recommend', 'Generate Follow-up')} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  <Sparkles size={11} className="text-[#20B8BE]" /> Follow-up
-                                </button>
-                                <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy Summary'}
-                                </button>
-                              </>
-                            )}
-
-                            {activeActionId === 'rewrite' && (
-                              <>
-                                <button onClick={handleCopy} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy'}
-                                </button>
-                                <button onClick={() => handleActionClick('rewrite', 'Rewrite Reminder')} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  <RefreshCw size={11} className="text-[#20B8BE]" /> Rewrite Again
-                                </button>
-                              </>
-                            )}
-
-                            {activeActionId === 'overdue' && (
-                              <>
-                                <button onClick={() => handleActionClick('recommend', 'Generate Follow-up')} className="py-2 px-2.5 bg-[#0F172A] text-white rounded-xl font-bold text-[10px] shadow-sm hover:opacity-95 transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  <Sparkles size={11} className="text-[#20B8BE]" /> Follow-up
-                                </button>
-                                <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                                  {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy List'}
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <button 
-                        onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); }}
-                        className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
-                      >
-                        <ArrowLeft size={12} /> Back to Quick Actions
+                {uiState !== 'processing' && activeActionId !== 'recommend' && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  {activeActionId === 'summarize' && (
+                    <>
+                      <button onClick={handleCopy} className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                      {copied ? <Check size={11} className="text-emerald-400" /> : <Download size={11} />}
+                      {copied ? 'Copied!' : 'Export Summary'}
                       </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2" suppressHydrationWarning={true}>
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Choose an action</p>
-                        <span className="text-[9px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Pro Active</span>
-                      </div>
-                      {[
-                        { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={13}/>, desc: 'Generate an AI Email & WhatsApp follow-up' },
-                        { name: "Today's Priorities", id: 'priorities', icon: <Brain size={13}/>, desc: 'See who needs your attention today' },
-                        { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={13}/>, desc: 'Analyze your outstanding payments' },
-                        { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={13}/>, desc: 'Rewrite your reminder professionally' },
-                        { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={13}/>, desc: 'Find clients with overdue payments' },
-                      ].map((act) => (
-                        <button 
-                          key={act.id}
-                          onClick={() => handleActionClick(act.id, act.name)}
-                          className="w-full text-left p-2 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
-                          suppressHydrationWarning={true}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <div className="w-6 h-6 rounded-lg bg-slate-100 group-hover:bg-[#20B8BE]/10 text-[#245B92] group-hover:text-[#20B8BE] flex items-center justify-center transition-colors flex-shrink-0">
-                              {act.icon}
-                            </div>
-                            <div className="truncate">
-                              <p className="font-bold text-[11px] text-slate-800 group-hover:text-[#245B92] transition-colors truncate">{act.name}</p>
-                              <p className="text-[9px] text-slate-400 font-medium truncate">{act.desc}</p>
-                            </div>
-                          </div>
-                          <ChevronRight size={12} className="text-slate-300 group-hover:text-[#20B8BE] group-hover:translate-x-0.5 transition-all flex-shrink-0 ml-1" />
-                        </button>
-                      ))}
+                      <button onClick={() => handleActionClick('summarize', 'Outstanding Summary', selectedClientId || undefined)} className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                      <RefreshCw size={11} className="text-[#20B8BE]" /> Analyze Again
+                      </button>
+                    </>
+                  )}
 
-                      <div className="pt-2 text-center border-t border-slate-100 mt-2">
-                        <p className="text-[9px] font-medium text-slate-400">Powered by DueBlink AI</p>
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  <div className="py-3 text-center space-y-2.5" suppressHydrationWarning={true}>
-                    <div className="space-y-1">
-                      <h5 className="font-black text-xs text-slate-900">Unlock Pro Assistant</h5>
-                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                        Upgrade to DueBlink Pro to generate instant AI follow-up messages and payment recovery strategies.
+                  {activeActionId === 'priorities' && (
+                    <>
+                      <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2">
+                      {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy Summary'}
+                      </button>
+                    </>
+                  )}
+
+                  {activeActionId === 'rewrite' && (
+                    <>
+                      <button
+                        onClick={() =>
+                          handleActionClick(
+                            'rewrite',
+                            'Rewrite Reminder',
+                            selectedClientId || undefined
+                          )
+                        }
+                        className="py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw size={10} className="text-[#20B8BE]" />
+                        Rewrite Again
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setAiResponse(null);
+                          setActiveActionName(null);
+                          setActiveActionId(null);
+                          setSelectedClientId(null);
+                          setClientPickerAction(null);
+                        }}
+                        className="py-1.5 px-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <ArrowLeft size={10} />
+                        Back
+                      </button>
+                    </>
+                  )}
+
+                  {activeActionId === 'overdue' && (
+                    <>
+                      <button
+                        onClick={handleCopy}
+                        className="py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        {copied ? <Check size={10} /> : <Copy size={10} />}
+                        {copied ? 'Copied!' : 'Copy List'}
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleActionClick(
+                            'overdue',
+                            'Find Overdue Clients',
+                            undefined
+                          )
+                        }
+                        className="py-1.5 px-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw size={10} className="text-[#20B8BE]" />
+                        Refresh
+                      </button>
+                    </>
+                  )}
+                  </div>
+                )}
+
+                <button 
+                  onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }}
+                  className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
+                >
+                  <ArrowLeft size={12} /> Back to Quick Actions
+                </button>
+              </div>
+            ) : clientPickerAction ? (
+              <div className="space-y-2.5" suppressHydrationWarning={true}>
+                <div className="mb-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Select Client
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Choose which client you want Blink to work on.
+                  </p>
+                </div>
+
+                {clients.map((client: any) => (
+                  <button
+                    key={client.id}
+                    onClick={() => {
+                      setClientPickerAction(null);
+                      handleActionClick(
+                        clientPickerAction.id,
+                        clientPickerAction.name,
+                        client.id
+                      );
+                    }}
+                    className="w-full text-left p-2.5 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-all flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-[11px] text-slate-800 truncate">
+                        {client.name}
+                      </p>
+                      <p className="text-[9px] text-slate-400 truncate">
+                        {client.company || 'No company'} · ₹{Number(client.amount || 0).toLocaleString()}
                       </p>
                     </div>
-                    <button 
-                      onClick={() => { setIsExpanded(false); router.push('/pricing'); }}
-                      className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]"
-                    >
-                      Upgrade to Pro ✨
-                    </button>
-                    <div className="pt-1 text-center">
-                      <p className="text-[9px] font-medium text-slate-400">Powered by DueBlink AI</p>
-                    </div>
-                  </div>
-                )
-              ) : (
-                <div className="text-center py-2" suppressHydrationWarning={true}>
-                  <p className="text-[11px] font-bold text-slate-800 mb-3 leading-relaxed" suppressHydrationWarning={true}>
-                    {remainingFreeReminders > 0 ? `Hi! You have ${remainingFreeReminders} free reminders remaining.` : "You've used your free reminders. Create an account to continue!"}
-                  </p>
-                  <button onClick={handleLandingAction} className="w-full text-white py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer mb-2 focus:outline-none focus:ring-2 focus:ring-[#245B92]" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
-                    <span>{remainingFreeReminders > 0 ? "Try 5 AI Reminders Free" : "Create Account"}</span> 
-                    <ArrowRight size={12} />
-                  </button>
-                  <div className="pt-1.5 text-center border-t border-slate-100">
-                    <p className="text-[9px] font-medium text-slate-400">Powered by DueBlink AI</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* 4. WIDGET BUTTON */}
-      <motion.button 
-        whileHover={{ scale: 1.05 }} 
-        whileTap={{ scale: 0.95 }}
-        onClick={handleRobotClick}
-        aria-label="Open Blink AI Assistant"
-        className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform focus:outline-none focus:ring-4 focus:ring-[#20B8BE]/40"
-        suppressHydrationWarning={true}
-      >
-        <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
-      </motion.button>
-    </div>
+                    <ChevronRight
+                      size={13}
+                      className="text-slate-300 flex-shrink-0"
+                    />
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setClientPickerAction(null)}
+                  className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer"
+                >
+                  <ArrowLeft size={12} className="inline mr-1" />
+                  Back
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2" suppressHydrationWarning={true}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Choose an action</p>
+                  <span className="text-[9px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">Pro Active</span>
+                </div>
+                {[
+                  { name: 'Generate Follow-up', id: 'recommend', icon: <Sparkles size={13}/>, desc: 'Generate an AI Email & WhatsApp follow-up' },
+                  { name: "Today's Priorities", id: 'priorities', icon: <Brain size={13}/>, desc: 'See who needs your attention today' },
+                  { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={13}/>, desc: 'Analyze your outstanding payments' },
+                  { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={13}/>, desc: 'Rewrite your reminder professionally' },
+                  { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={13}/>, desc: 'Find clients with overdue payments' },
+                ].map((act) => (
+                  <button 
+                    key={act.id}
+                    onClick={() => {
+                      const clientSpecificActions = ['recommend', 'rewrite'];
+
+                      if (clientSpecificActions.includes(act.id)) {
+                        setClientPickerAction({
+                          id: act.id,
+                          name: act.name,
+                        });
+                      } else {
+                        handleActionClick(act.id, act.name);
+                      }
+                    }}
+                    className="w-full text-left p-2 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
+                    suppressHydrationWarning={true}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <div className="w-6 h-6 rounded-lg bg-slate-100 group-hover:bg-[#20B8BE]/10 text-[#245B92] group-hover:text-[#20B8BE] flex items-center justify-center transition-colors flex-shrink-0">
+                        {act.icon}
+                      </div>
+                      <div className="truncate">
+                        <p className="font-bold text-[11px] text-slate-800 group-hover:text-[#245B92] transition-colors truncate">{act.name}</p>
+                        <p className="text-[9px] text-slate-400 font-medium truncate">{act.desc}</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={12} className="text-slate-300 group-hover:text-[#20B8BE] group-hover:translate-x-0.5 transition-all flex-shrink-0 ml-1" />
+                  </button>
+                ))}
+
+                <div className="pt-2 text-center border-t border-slate-100 mt-2">
+                  <p className="text-[9px] font-medium text-slate-400">Powered by DueBlink AI</p>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="py-3 text-center space-y-2.5" suppressHydrationWarning={true}>
+              <div className="space-y-1">
+                <h5 className="font-black text-xs text-slate-900">Unlock Pro Assistant</h5>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  Upgrade to DueBlink Pro to generate instant AI follow-up messages and payment recovery strategies.
+                </p>
+              </div>
+              <button 
+                onClick={() => { setIsExpanded(false); router.push('/pricing'); }}
+                className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]"
+              >
+                Upgrade to Pro ✨
+              </button>
+              <div className="pt-1 text-center">
+                <p className="text-[9px] font-medium text-slate-400">Powered by DueBlink AI</p>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="text-center py-2" suppressHydrationWarning={true}>
+            <p className="text-[11px] font-bold text-slate-800 mb-3 leading-relaxed" suppressHydrationWarning={true}>
+              {remainingFreeReminders > 0 ? `Hi! You have ${remainingFreeReminders} free reminders remaining.` : "You've used your free reminders. Create an account to continue!"}
+            </p>
+            <button onClick={handleLandingAction} className="w-full text-white py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer mb-2 focus:outline-none focus:ring-2 focus:ring-[#245B92]" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
+              <span>{remainingFreeReminders > 0 ? "Try 5 AI Reminders Free" : "Create Account"}</span> 
+              <ArrowRight size={12} />
+            </button>
+            <div className="pt-1.5 text-center border-t border-slate-100">
+              <p className="text-[9px] font-medium text-slate-400">Powered by DueBlink AI</p>
+            </div>
+          </div>
+        )}
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+
+    {/* 4. WIDGET BUTTON */}
+    <motion.button 
+      whileHover={{ scale: 1.05 }} 
+      whileTap={{ scale: 0.95 }}
+      onClick={handleRobotClick}
+      aria-label="Open Blink AI Assistant"
+      className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform focus:outline-none focus:ring-4 focus:ring-[#20B8BE]/40"
+      suppressHydrationWarning={true}
+    >
+      <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
+    </motion.button>
+   </div>
   );
 }

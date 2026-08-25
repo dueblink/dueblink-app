@@ -5,7 +5,6 @@ import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { proRecoveryAssistantRateLimit } from "@/lib/rateLimit";
 
-
 // Ensure this Next.js route is always dynamic and never cached on the server side
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -148,24 +147,139 @@ export async function POST(req: Request) {
 
     console.log("DEBUG - Parsed body:", body); 
 
-    let { client, history, action, clients, total } = body;
+    let { clientId, history, action, total } = body;
 
-    // Strict Server-Side Validation: Filter out invalid, empty, or deleted records from live data
-    if (Array.isArray(clients)) {
-      clients = clients.filter((c: any) => {
-        const isValidRecord = c && typeof c === 'object' && Object.keys(c).length > 0;
-        const isNotDeleted = c.status !== 'Deleted' && c.isDeleted !== true;
-        const hasName = Boolean(c.name && c.name.trim() !== '');
+    // ============================================================
+    // Load clients SERVER-SIDE for the authenticated user.
+    // Never trust client/client list supplied by the browser.
+    // ============================================================
+    const clientSnapshot = await adminDb
+      .collection("clients")
+      .where("userId", "==", userId)
+      .get();
+
+    let clients: any[] = clientSnapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Record<string, any>),
+      }))
+      .filter((c: any) => {
+        const isValidRecord =
+          c &&
+          typeof c === "object" &&
+          Object.keys(c).length > 0;
+
+        const isNotDeleted =
+          c.status !== "Deleted" &&
+          c.isDeleted !== true;
+
+        const hasName =
+          Boolean(c.name && String(c.name).trim() !== "");
+
         return isValidRecord && isNotDeleted && hasName;
       });
-    }
 
-    // Separate active recovery cases from paid clients for Blink AI workflows
-    const activeClients = clients?.filter((c: any) => c.status !== 'Paid') || [];
-    const paidClients = clients?.filter((c: any) => c.status === 'Paid') || [];
+    // ============================================================
+    // Calculate live payment status from dueDate.
+    // The database stores unpaid clients as "Pending"; overdue
+    // status is derived from the due date, just like the dashboard.
+    // ============================================================
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const getDaysOverdue = (dueDate: string | undefined): number => {
+      if (!dueDate) return 0;
+
+      const [year, month, day] = dueDate.split("-").map(Number);
+
+      if (!year || !month || !day) return 0;
+
+      const due = new Date(year, month - 1, day);
+      due.setHours(0, 0, 0, 0);
+
+      const diffTime = today.getTime() - due.getTime();
+
+      return Math.max(
+        0,
+        Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      );
+    };
+
+    const liveClients = clients.map((c: any) => {
+      const daysOverdue = getDaysOverdue(c.dueDate);
+
+      const isOverdue =
+        c.status === "Pending" &&
+        daysOverdue > 0;
+
+      return {
+        ...c,
+
+        // Live payment state
+        daysOverdue,
+        isOverdue,
+        liveStatus:
+          c.status === "Paid"
+            ? "Paid"
+            : isOverdue
+            ? "Overdue"
+            : "Pending",
+
+        // Live recovery automation state
+        automatedReminders: Boolean(c.automatedReminders),
+        automationStatus: c.automationStatus || "off",
+        lastAutomatedReminderStage:
+          c.lastAutomatedReminderStage || null,
+        lastAutomatedReminderSentAt:
+          c.lastAutomatedReminderSentAt || null,
+        reminderHistory: Array.isArray(c.reminderHistory)
+          ? c.reminderHistory
+          : [],
+      };
+    });
+
+    // Separate active recovery cases from paid clients.
+    const activeClients = liveClients.filter(
+      (c: any) => c.status !== "Paid"
+    );
+
+    const paidClients = liveClients.filter(
+      (c: any) => c.status === "Paid"
+    );
 
     const hasActiveClients = activeClients.length > 0;
-    const hasValidClient = client && typeof client === 'object' && client.name && client.status !== 'Deleted' && client.status !== 'Paid';
+
+    // ============================================================
+    // Resolve selected client from the authenticated user's
+    // live server-side client list.
+    // ============================================================
+
+    let client: any = null;
+
+    if (clientId) {
+      client =
+        liveClients.find(
+          (c: any) => String(c.id) === String(clientId)
+        ) || null;
+
+      if (!client) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Client not found",
+          },
+          { status: 404 }
+        );
+      }
+    }
+
+    const hasValidClient =
+      client &&
+      typeof client === "object" &&
+      client.name &&
+      client.status !== "Deleted" &&
+      client.status !== "Paid";
 
     // Section 3: If No Active Pending/Overdue Clients Exist (All Paid or Empty), Return Celebration or Empty State
     if (!hasActiveClients && action !== "welcome_pro") {
@@ -191,6 +305,27 @@ export async function POST(req: Request) {
 You help freelancers, agencies, consultants and businesses recover payments faster.
 Never act like a general chatbot. Only answer using the latest live dashboard data provided. Never use cached or outdated data.
 CRITICAL RULE: Automatically exclude paid clients from all recovery recommendations, priority lists, outstanding calculation breakdowns, and follow-up generation unless specifically queried about payment history.
+
+RECOVERY MEMORY RULE:
+Always use the live automated-reminder fields when deciding what to recommend:
+- automatedReminders
+- automationStatus
+- lastAutomatedReminderStage
+- lastAutomatedReminderSentAt
+- reminderHistory
+
+Never recommend an action as if no reminder has been sent when reminderHistory shows that an automated reminder was already sent.
+
+When a payment is still unpaid after an automated reminder, explain the current recovery stage and recommend the most appropriate next manual or automated action.
+
+Every action response MUST end with:
+✨ Blink Recommendation
+What should be done next based on the live recovery state.
+
+🎯 Next Best Action
+Give ONE clear next action the user can take.
+
+The Next Best Action must match the actual situation. Do not recommend sending another reminder immediately if the appropriate automated reminder stage was already sent.
 
 DESIGN PRINCIPLE:
 - Every response must be visual, structured, scannable, and understood in under 10 seconds.
@@ -230,73 +365,278 @@ Choose a quick action below to begin recovering payments.`;
         userPrompt = "Provide a short, welcoming overview for the Pro user using the exact Blink layout.";
 
       } else if (action === "recommend") {
-        const targetClient = activeClients?.[0] || client || { name: 'Selected Client', company: 'N/A', amount: '0', dueDate: 'N/A', status: 'Pending' };
+        const targetClient =
+          client
+            ? liveClients.find((c: any) => String(c.id) === String(client.id)) || client
+            : activeClients?.[0] || {
+                name: 'Selected Client',
+                company: 'N/A',
+                amount: '0',
+                dueDate: 'N/A',
+                status: 'Pending',
+                liveStatus: 'Pending',
+                isOverdue: false,
+                daysOverdue: 0,
+              };
+
+        const targetStatus =
+          targetClient.liveStatus ||
+          (targetClient.isOverdue ? 'Overdue' : targetClient.status || 'Pending');
+
+        const reminderAlreadySent =
+          Array.isArray(targetClient.reminderHistory) &&
+          targetClient.reminderHistory.some(
+            (r: any) => r?.type === 'automated' && r?.channel === 'email'
+          );
+
+        const lastAutomatedStage =
+          targetClient.lastAutomatedReminderStage || "None";
+
+        const recoveryState =
+          reminderAlreadySent
+            ? lastAutomatedStage === "first"
+              ? "Automated first reminder already sent. Move to the next recovery stage if payment is still unpaid."
+              : lastAutomatedStage === "follow-up"
+                ? "Automated follow-up already sent. The client is still in recovery and should not receive the same follow-up again."
+                : lastAutomatedStage === "final"
+                  ? "Automated final reminder already sent. Consider direct contact or escalation instead of another generic reminder."
+                  : `Automated reminder already sent (${lastAutomatedStage}). Continue from the current recovery stage.`
+            : targetClient.isOverdue
+              ? `Payment is ${targetClient.daysOverdue} days overdue. No automated reminder recorded.`
+              : "Payment is pending and no automated reminder is recorded.";
+
         systemPrompt += `
-Follow this exact layout for Generate Follow-up:
-🤖 Blink
-📌 Generate Follow-up
+Follow this exact layout for Generate Follow-up.BLINK
+GENERATE FOLLOW-UP
 
-━━━━━━━━━━━━━━━━━━━━━━
-💡 Quick Summary
-Targeted recovery strategy and tailored multi-channel follow-up generated from active live records.
+━━━━━━━━━━━━━━━━━━━━
+RECOVERY SNAPSHOT
 
-━━━━━━━━━━━━━━━━━━━━━━
-📌 Important Information
-• Client: ${targetClient.name}
-• Company: ${targetClient.company || 'N/A'}
-• Amount Due: ₹${targetClient.amount}
-• Due Date: ${targetClient.dueDate || 'N/A'}
-• Status: ${targetClient.status || 'Pending'}
+Client: ${targetClient.name}
+Company: ${targetClient.company || 'N/A'}
+Amount Due: ₹${targetClient.amount}
+Due Date: ${targetClient.dueDate || 'N/A'}
+Status: ${targetStatus}
+Days Overdue: ${targetClient.daysOverdue || 0}
+Automation: ${reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded'}
+Last Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
 
-━━━━━━━━━━━━━━━━━━━━━━
-✉️ AI Email
-Subject: Friendly Payment Reminder - Invoice Follow-up
-Hi ${targetClient.name}, hope you are doing well. This is a gentle reminder regarding your pending invoice of ₹${targetClient.amount}. Please let us know when we can expect the transfer. Thank you!
+━━━━━━━━━━━━━━━━━━━━
+RECOVERY STATUS
 
-━━━━━━━━━━━━━━━━━━━━━━
-💬 AI WhatsApp
-Hi ${targetClient.name}! Just following up on the pending invoice of ₹${targetClient.amount}. Let's get this settled this week. Thanks!
+${recoveryState}
 
-━━━━━━━━━━━━━━━━━━━━━━
-✨ Blink Recommendation
-Send the personalized email and WhatsApp follow-up today to secure prompt payment.
+Clearly explain what has already happened with this client and what recovery stage they are currently in.
 
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 Next Best Action
-Send the reminder today.`;
+━━━━━━━━━━━━━━━━━━━━
+BLINK RECOMMENDATION
 
-        userPrompt = `Analyze active live client data for follow-up: ${JSON.stringify(targetClient)}. Use the exact Blink layout.`;
+Explain the single most appropriate recovery action for this client right now.
+
+Do not recommend repeating an automated reminder that has already been sent.
+The recommendation must reflect the current recovery stage, payment status, and overdue duration.
+
+━━━━━━━━━━━━━━━━━━━━
+EMAIL FOLLOW-UP
+
+Create a professional, personalized email for the current recovery stage.
+
+Rules:
+- Do not call an overdue invoice "pending".
+- Do not repeat an automated reminder that was already sent.
+- If the first automated reminder was already sent, create the next-stage follow-up.
+- If the automated follow-up was already sent, create a stronger manual recovery message.
+- If the final automated reminder was already sent, use an escalation-oriented message only when appropriate.
+- If no automated reminder was sent and the client is overdue, create the first recovery follow-up.
+- If the client is Paid, do not create a recovery email.
+
+Show:
+Subject:
+Email Body:
+
+━━━━━━━━━━━━━━━━━━━━
+WHATSAPP FOLLOW-UP
+
+Create a concise WhatsApp message for the SAME recovery stage as the email.
+
+Rules:
+- Do not repeat an automated reminder already sent.
+- Match the current recovery stage.
+- Keep it natural and suitable for WhatsApp.
+- Do not call an overdue invoice "pending".
+- If the client is Paid, do not create a recovery WhatsApp message.
+
+Show:
+WhatsApp Message:
+
+━━━━━━━━━━━━━━━━━━━━
+NEXT BEST ACTION
+
+Give ONE clear next action based on the client's current recovery state.
+
+Do not give a generic instruction such as "Send the reminder today."
+
+The action must tell the owner exactly what to do next.
+
+Keep the response concise, specific to this client, and focused on recovering the outstanding payment.
+Do not use generic AI explanations.
+`;
+
+        userPrompt = `Analyze active live client data for follow-up: ${JSON.stringify(targetClient)}.
+
+Use the exact Blink Generate Follow-up layout above.
+
+The output must be based on the client's actual:
+- payment status
+- overdue days
+- automated reminder history
+- last automated reminder stage
+- current recovery state
+
+Do not restart the recovery sequence.
+Do not repeat an automated reminder that has already been sent.
+`;
 
       } else if (action === "priorities") {
         systemPrompt += `
-Follow this exact layout for Today's Priorities:
+Follow this exact Blink layout for Today's Priorities.
+
 🤖 Blink
 📌 Today's Priorities
 
-━━━━━━━━━━━━━━━━━━━━━━
-💡 Quick Summary
-Active unpaid client portfolio analyzed in real-time, excluding paid accounts, to isolate today's most urgent collection targets.
+TODAY'S RECOVERY QUEUE
 
-━━━━━━━━━━━━━━━━━━━━━━
-📌 Important Information
-• High Priority: Immediate contact needed for overdue active accounts.
-• Medium Priority: Follow-ups due within the current week.
-• Low Priority: Active accounts in good standing with future due dates.
+Analyze the supplied live client records and rank the clients who need the owner's attention most urgently.
 
-━━━━━━━━━━━━━━━━━━━━━━
-✨ Blink Recommendation
-Start with the highest-priority unpaid client from your live portfolio to maximize immediate cash recovery.
+For each priority, show:
 
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 Next Best Action
-Generate Follow-up for the top priority client.`;
+PRIORITY 1
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
+Why It Matters:
+Recommended Action:
 
-        userPrompt = `Identify today's priorities based on active unpaid live data: ${JSON.stringify(activeClients)}. Use the exact Blink layout.`;
+PRIORITY 2
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
+Why It Matters:
+Recommended Action:
+
+PRIORITY 3
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
+Why It Matters:
+Recommended Action:
+
+Rules:
+- Only include unpaid clients.
+- Paid clients must never appear.
+- Overdue clients come before non-overdue clients.
+- Higher days overdue means higher urgency.
+- If an automated reminder has already been sent, do not recommend sending the same reminder again.
+- Consider the client's current automated recovery stage.
+- A client who is overdue with no automated reminder should be considered highly actionable.
+- A client who has already received a final automated reminder should not simply be given another generic reminder.
+- Do not call an overdue invoice "pending."
+- Do not invent client information.
+- Use the actual live records supplied.
+- Keep every priority concise and specific.
+- If fewer than 3 unpaid clients exist, show only the clients that actually exist.
+- Do not generate email or WhatsApp content in this action.
+
+━━━━━━━━━━━━━━━━━━━━
+
+🎯 TODAY'S FOCUS
+
+Give ONE concise sentence identifying the client that should be handled first and exactly why.
+
+Do not say "send reminders to clients."
+Name the actual priority and the reason.
+
+Keep the entire response compact and decision-focused.
+`;
+
+        const priorityClients = [...activeClients]
+          .filter((c: any) => c.status !== 'Paid')
+          .sort((a: any, b: any) => {
+            // 1. Overdue clients first
+            if (a.isOverdue !== b.isOverdue) {
+              return a.isOverdue ? -1 : 1;
+            }
+
+            // 2. Clients further into recovery need attention sooner
+            const recoveryStage = (client: any) => {
+              const stage = String(client.lastAutomatedReminderStage || '').toLowerCase();
+
+              if (stage.includes('final')) return 4;
+              if (stage.includes('follow')) return 3;
+              if (stage.includes('first')) return 2;
+              if (stage) return 1;
+
+              return 0;
+            };
+
+            const stageDifference =
+              recoveryStage(b) - recoveryStage(a);
+
+            if (stageDifference !== 0) {
+              return stageDifference;
+            }
+
+            // 3. Highest overdue duration
+            return (
+              Number(b.daysOverdue || 0) -
+              Number(a.daysOverdue || 0)
+            );
+          })
+          .slice(0, 5);
+
+        userPrompt = `Identify today's priorities using these live recovery cases: ${JSON.stringify(priorityClients)}.
+
+Prioritize:
+1. Overdue clients first.
+2. Clients with the highest days overdue.
+3. Clients where automated reminders have already been sent but payment is still pending.
+4. Then other pending clients.
+
+For every priority, explain the reason and the recommended next action.
+
+Do not recommend repeating an automated reminder that has already been sent.
+
+End with exactly one clear Next Best Action.
+Use the exact Blink layout.`;
 
       } else if (action === "summarize" || action === "summarize_outstanding") {
         const pendingCount = activeClients.filter((c: any) => c.status !== 'Paid')?.length || 0;
-        const overdueCount = activeClients.filter((c: any) => c.status === 'Overdue' || Number(c.daysOverdue || 0) > 0)?.length || 0;
+        const overdueCount = activeClients.filter((c: any) => c.isOverdue === true).length;
         const computedTotal = activeClients.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+
+        const automatedReminderClients = activeClients.filter(
+          (c: any) =>
+            c.automatedReminders === true &&
+            c.lastAutomatedReminderStage
+        );
+
+        const manuallyActionableClients = activeClients.filter(
+          (c: any) =>
+            c.isOverdue === true &&
+            !c.lastAutomatedReminderStage
+        );
 
         systemPrompt += `
 Follow this exact layout for Outstanding Summary:
@@ -305,15 +645,14 @@ Follow this exact layout for Outstanding Summary:
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Complete breakdown of current outstanding receivables and recovery performance based on active unpaid records.
+Complete breakdown of the current outstanding portfolio based on active unpaid records.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
 • Outstanding Amount: ₹${computedTotal}
 • Pending Clients: ${pendingCount}
 • Overdue Clients: ${overdueCount}
-• Recovery Rate: 85%
-• Recovered This Month: ₹12,400
+• Paid Clients: ${paidClients.length}
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📈 Blink Insight
@@ -323,64 +662,222 @@ Cash flow requires active monitoring on overdue active accounts this week.
 🎯 Next Best Action
 Review overdue clients to protect cash flow.`;
 
-        userPrompt = `Summarize live outstanding payments excluding paid accounts: ${JSON.stringify(activeClients)}. Total active outstanding is ₹${computedTotal}. Use the exact Blink layout.`;
+        userPrompt = `Summarize the live outstanding payment portfolio.
+
+Live data:
+${JSON.stringify(activeClients)}
+
+Include:
+- Total outstanding amount
+- Pending client count
+- Overdue client count
+- Paid client count
+- Which clients have already received automated reminders
+- Which overdue clients still need manual attention
+
+Do not count paid clients as outstanding.
+
+Do not recommend repeating an automated reminder that has already been sent.
+
+End with one clear:
+  Next Best Action
+
+Choose the next action based on the live recovery state.`;
 
       } else if (action === "rewrite") {
-        const targetClient = activeClients?.[0] || client || { name: 'Client', amount: '0' };
+        const targetClient =
+          client
+            ? liveClients.find((c: any) => String(c.id) === String(client.id)) || client
+            : activeClients?.[0] || {
+                name: 'Client',
+                amount: '0',
+                status: 'Pending',
+                liveStatus: 'Pending',
+                isOverdue: false,
+                daysOverdue: 0,
+                reminderHistory: [],
+              };
+
+        const previousAutomatedReminders = Array.isArray(
+          targetClient.reminderHistory
+        )
+          ? targetClient.reminderHistory.filter(
+              (r: any) =>
+                r?.type === "automated" &&
+                r?.channel === "email"
+            )
+          : [];
+
         systemPrompt += `
-Follow this exact layout for Rewrite Reminder:
+Follow this exact layout for Rewrite Reminder.
+
 🤖 Blink
 📌 Rewrite Reminder
 
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Reminder message tuned to your preferred communication tone using active live client records.
+Explain briefly what this rewritten reminder is designed to accomplish for the current recovery situation.
 
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
-• Current Reminder: Standard payment follow-up
+• Client: ${targetClient.name}
+• Amount Due: ₹${targetClient.amount}
+• Due Date: ${targetClient.dueDate || 'N/A'}
+• Status: ${targetClient.status || 'Pending'}
+• Days Overdue: ${targetClient.daysOverdue || 0}
+• Previous Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
 • Selected Tone: Professional & Firm
 
-━━━━━━━━━━━━━━━━━━━━━━
-📝 Preview
-Dear ${targetClient.name}, this is a formal notification that your account balance of ₹${targetClient.amount} is currently pending. Kindly process the payment at your earliest convenience.
+━━━━━━━━━━━━━━━━━━━━
+📝 REWRITTEN REMINDER
 
-━━━━━━━━━━━━━━━━━━━━━━
+Write ONE complete rewritten payment reminder based on the client's CURRENT recovery stage.
+
+Rules:
+- Reflect the actual payment status.
+- Reflect the actual overdue duration.
+- Do not repeat an automated reminder that was already sent.
+- If an automated reminder was already sent, make this an appropriate next-stage manual follow-up.
+- Keep it professional, concise and payment-focused.
+- Do not call an overdue invoice "pending".
+- Do not create a recovery reminder if the client is Paid.
+
+Show:
+Subject:
+Email Body:
+
+━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
-Use a professional tone for active accounts to preserve client relationships while ensuring priority.
+Explain briefly why this version is appropriate for the current recovery stage.
 
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
-Copy the rewritten message and send it to the client.`;
+Give ONE clear next action for the owner.
+`;
 
-        userPrompt = `Rewrite a payment reminder based on active live client data: ${JSON.stringify(targetClient)}. Use the exact Blink layout.`;
+        userPrompt = `Rewrite the payment reminder for this live recovery case:
+
+${JSON.stringify({
+  ...targetClient,
+  reminderHistory: previousAutomatedReminders,
+})}
+
+Use the exact Rewrite Reminder layout.
+
+The rewritten reminder must reflect:
+- Current payment status
+- Days overdue
+- Previous automated reminder history
+- Last automated reminder stage
+
+Do not restart the recovery sequence.
+Do not repeat the wording or purpose of an automated reminder already sent.
+If automated reminders have already been sent, create the appropriate next-stage manual follow-up.
+
+Keep it professional, concise and payment-focused.
+
+The response MUST contain these sections:
+Quick Summary
+Important Information
+REWRITTEN REMINDER
+Blink Recommendation
+Next Best Action
+
+Inside REWRITTEN REMINDER, provide:
+Subject:
+Email Body:
+`;
 
       } else if (action === "overdue") {
-        const overdueList = activeClients.filter((c: any) => c.status === 'Overdue' || Number(c.daysOverdue || 0) > 0);
+        const overdueList = activeClients.filter(
+          (c: any) => c.isOverdue === true
+        );
+
+        // Build the authoritative overdue-client list directly from
+        // server-side Firebase data. Do NOT let AI decide which clients
+        // are overdue or omit clients from the list.
+        const overdueClientLines = overdueList.map(
+          (c: any, index: number) => {
+            return `PRIORITY ${index + 1}
+Client: ${c.name}
+Company: ${c.company || "N/A"}
+Amount Due: ₹${c.amount || "0"}
+Due Date: ${c.dueDate || "N/A"}
+Status: ${c.liveStatus || c.status || "Pending"}
+Days Overdue: ${c.daysOverdue}
+Recovery Stage: ${c.lastAutomatedReminderStage || "None"}`;
+          }
+        ).join("\n\n");
+
+        const overdueData =
+          overdueList.length > 0
+            ? overdueClientLines
+            : "No overdue clients found.";
+
         systemPrompt += `
-Follow this exact layout for Find Overdue Clients:
-🤖 Blink
-📌 Find Overdue Clients
+Follow this exact layout for Find Overdue Clients.
+
+ Blink
+ Find Overdue Clients
 
 ━━━━━━━━━━━━━━━━━━━━━━
-💡 Quick Summary
-Filtered list displaying all active accounts past their initial payment deadline based on live records.
+ Quick Summary
+
+There are ${overdueList.length} overdue client${overdueList.length === 1 ? "" : "s"}.
 
 ━━━━━━━━━━━━━━━━━━━━━━
-📌 Important Information
-• Client 1: ${overdueList[0]?.name || 'N/A'} - ₹${overdueList[0]?.amount || '0'} (${overdueList[0]?.daysOverdue || '0'} days overdue)
-• Client 2: ${overdueList[1]?.name || 'N/A'} - ₹${overdueList[1]?.amount || '0'} (${overdueList[1]?.daysOverdue || '0'} days overdue)
-• Client 3: ${overdueList[2]?.name || 'N/A'} - ₹${overdueList[2]?.amount || '0'} (${overdueList[2]?.daysOverdue || '0'} days overdue)
+ Important Information
+
+${overdueData}
+
+CRITICAL:
+The PRIORITY list above is authoritative server-side data.
+
+Do NOT:
+- remove clients
+- combine clients
+- invent clients
+- change client amounts
+- change due dates
+- change overdue days
+- show only one client
+
+Every client in the supplied list MUST appear in the final response.
+
+For each client, provide:
+Why It Matters:
+Recommended Action:
 
 ━━━━━━━━━━━━━━━━━━━━━━
-✨ Blink Recommendation
-Contact the highest-priority overdue unpaid client first to accelerate cash recovery.
+ Blink Recommendation
+
+After reviewing ALL overdue clients, identify the most important recovery opportunity.
 
 ━━━━━━━━━━━━━━━━━━━━━━
-🎯 Next Best Action
-Generate Follow-up for the top overdue account.`;
+ Next Best Action
 
-        userPrompt = `List overdue active clients from live records: ${JSON.stringify(activeClients)}. Use the exact Blink layout.`;
+Give ONE clear action the owner should take next.
+`;
+
+        userPrompt = `
+The server has already identified these clients as overdue:
+
+${overdueData}
+
+IMPORTANT:
+Preserve EVERY PRIORITY exactly as supplied.
+Do not remove or combine any client.
+
+For each client, add:
+Why It Matters:
+Recommended Action:
+
+Then provide:
+Blink Recommendation
+Next Best Action
+
+Use the exact Blink layout.
+`;
       }
     } 
     // 2. Handle Individual Client Reminders using live object data
@@ -411,11 +908,23 @@ Tailored multi-channel reminder generated for active client ${client.name}.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✉️ AI Email
-Hi ${client.name}, following up on your invoice for ₹${client.amount}. Please let us know when payment will be processed.
+Subject: Friendly Payment Reminder - Invoice Follow-up
+Use the client's live payment status, overdue days, recovery state, and automated reminder history to write the appropriate recovery message.
+
+Recovery-stage rules:
+- If the client is Paid: do not write a payment recovery reminder.
+- If no automated reminder has been sent and the payment is overdue: write the first recovery follow-up.
+- If automated stage "first" was already sent: do not repeat the first reminder; write the next-stage follow-up if payment is still unpaid.
+- If automated stage "follow-up" was already sent: do not repeat the same follow-up; write a stronger manual recovery message.
+- If automated stage "final" was already sent: do not write another generic reminder; use an escalation-oriented message only when appropriate.
+
+Never pretend that no reminder was sent when reminder history shows one was already sent.
+Never call an overdue invoice "pending."
+The message must reflect the client's current recovery stage and should not restart the recovery sequence.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💬 AI WhatsApp
-Hi ${client.name}! Checking in on the ₹${client.amount} pending invoice. Thanks!
+Hi ${client.name}! Just following up on the pending invoice of ₹${client.amount}. Let's get this settled this week. Thanks!
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
