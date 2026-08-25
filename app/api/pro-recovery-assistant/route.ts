@@ -332,7 +332,19 @@ DESIGN PRINCIPLE:
 - Return ONLY plain text. No JSON, no Markdown asterisks (**), no code blocks, no streaming metadata.
 - Every label and field must be strictly separated. Never combine labels and values into a single sentence or paragraph.
 - Keep recommendations under 3 lines. Avoid long paragraphs or walls of text.
-- Include appropriate icons and clean emojis for headers and info fields.`;
+- Include appropriate icons and clean emojis for headers and info fields.
+
+OUTPUT FORMAT IS STRICT AND MUST NOT BE CHANGED.
+Return ONLY the exact headings and labels specified in the layout below.
+Do not rename headings.
+Do not add alternative headings.
+Do not use Markdown headings (no #, no ##, no **bold**).
+Do not use explanations, greetings, or commentary before the first heading.
+Do not add commentary, disclaimers, or notes after the final section.
+Do not change the capitalization of labels.
+Do not omit any required section, even if a field's value is empty or unknown — use "N/A" instead of removing the label.
+Do not invent additional sections that are not in the layout.
+Every label below (e.g. "Client:", "Company:", "Days Overdue:") must appear on its own line, followed immediately by its value, with the exact spelling, punctuation, and colon shown.`;
 
     let userPrompt = "";
 
@@ -474,6 +486,33 @@ NEXT BEST ACTION
 
 Give ONE clear next action based on the client's current recovery state.
 
+REQUIRED HEADINGS (do not rename, do not skip, do not reorder):
+RECOVERY SNAPSHOT
+RECOVERY STATUS
+BLINK RECOMMENDATION
+EMAIL FOLLOW-UP
+WHATSAPP FOLLOW-UP
+NEXT BEST ACTION
+
+REQUIRED FIELD LABELS inside RECOVERY SNAPSHOT (exact spelling, exact colon, one per line):
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Automation:
+Last Automated Stage:
+
+REQUIRED LABELS inside EMAIL FOLLOW-UP:
+Subject:
+Email Body:
+
+REQUIRED LABEL inside WHATSAPP FOLLOW-UP:
+WhatsApp Message:
+
+Do not use "Customer:", "Balance:", "Late By:", "Action:" or any other alternative wording for these labels.
+
 Do not give a generic instruction such as "Send the reminder today."
 
 The action must tell the owner exactly what to do next.
@@ -558,6 +597,19 @@ Rules:
 - Keep every priority concise and specific.
 - If fewer than 3 unpaid clients exist, show only the clients that actually exist.
 - Do not generate email or WhatsApp content in this action.
+
+REQUIRED LABELS for every PRIORITY block (exact spelling, exact colon, one per line, do not rename):
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
+Why It Matters:
+Recommended Action:
+
+Do not use "Customer:", "Balance:", "Late By:", "Action:" or any other alternative wording.
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -660,7 +712,15 @@ Cash flow requires active monitoring on overdue active accounts this week.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
-Review overdue clients to protect cash flow.`;
+Review overdue clients to protect cash flow.
+
+REQUIRED HEADINGS (do not rename, do not skip, do not reorder):
+💡 Quick Summary
+📌 Important Information
+📈 Blink Insight
+🎯 Next Best Action
+
+Do not merge these headings or present them as a single paragraph.`;
 
         userPrompt = `Summarize the live outstanding payment portfolio.
 
@@ -753,6 +813,17 @@ Explain briefly why this version is appropriate for the current recovery stage.
 ━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
 Give ONE clear next action for the owner.
+
+REQUIRED HEADINGS (do not rename, do not skip, do not reorder):
+💡 Quick Summary
+📌 Important Information
+📝 REWRITTEN REMINDER
+✨ Blink Recommendation
+🎯 Next Best Action
+
+REQUIRED LABELS inside REWRITTEN REMINDER (exact spelling, exact colon):
+Subject:
+Email Body:
 `;
 
         userPrompt = `Rewrite the payment reminder for this live recovery case:
@@ -793,27 +864,6 @@ Email Body:
           (c: any) => c.isOverdue === true
         );
 
-        // Build the authoritative overdue-client list directly from
-        // server-side Firebase data. Do NOT let AI decide which clients
-        // are overdue or omit clients from the list.
-        const overdueClientLines = overdueList.map(
-          (c: any, index: number) => {
-            return `PRIORITY ${index + 1}
-Client: ${c.name}
-Company: ${c.company || "N/A"}
-Amount Due: ₹${c.amount || "0"}
-Due Date: ${c.dueDate || "N/A"}
-Status: ${c.liveStatus || c.status || "Pending"}
-Days Overdue: ${c.daysOverdue}
-Recovery Stage: ${c.lastAutomatedReminderStage || "None"}`;
-          }
-        ).join("\n\n");
-
-        const overdueData =
-          overdueList.length > 0
-            ? overdueClientLines
-            : "No overdue clients found.";
-
         systemPrompt += `
 Follow this exact layout for Find Overdue Clients.
 
@@ -822,62 +872,121 @@ Follow this exact layout for Find Overdue Clients.
 
 ━━━━━━━━━━━━━━━━━━━━━━
  Quick Summary
-
-There are ${overdueList.length} overdue client${overdueList.length === 1 ? "" : "s"}.
+${overdueList.length} active client${overdueList.length === 1 ? "" : "s"} currently have overdue payments.
 
 ━━━━━━━━━━━━━━━━━━━━━━
  Important Information
 
-${overdueData}
-
-CRITICAL:
-The PRIORITY list above is authoritative server-side data.
+CRITICAL RULE:
+You MUST include EVERY overdue client supplied in the live data below.
 
 Do NOT:
-- remove clients
+- omit any overdue client
+- show only the highest-priority client
+- summarize multiple clients into one
 - combine clients
 - invent clients
-- change client amounts
-- change due dates
-- change overdue days
-- show only one client
 
-Every client in the supplied list MUST appear in the final response.
+The number of PRIORITY blocks MUST exactly match the number of overdue clients supplied.
 
-For each client, provide:
+For EVERY overdue client, use this exact structure:
+
+PRIORITY 1
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
 Why It Matters:
 Recommended Action:
+
+PRIORITY 2
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
+Why It Matters:
+Recommended Action:
+
+Continue PRIORITY 3, PRIORITY 4, PRIORITY 5, etc. until EVERY overdue client has been included.
+
+Use the actual client data supplied. Never invent missing information.
 
 ━━━━━━━━━━━━━━━━━━━━━━
  Blink Recommendation
-
-After reviewing ALL overdue clients, identify the most important recovery opportunity.
+Identify the most important recovery opportunity after considering ALL overdue clients.
 
 ━━━━━━━━━━━━━━━━━━━━━━
  Next Best Action
-
-Give ONE clear action the owner should take next.
-`;
-
-        userPrompt = `
-The server has already identified these clients as overdue:
-
-${overdueData}
+Give ONE clear action the user should take next.
 
 IMPORTANT:
-Preserve EVERY PRIORITY exactly as supplied.
-Do not remove or combine any client.
+The overdue client list is authoritative live dashboard data.
+Every overdue client must appear in the response.
 
-For each client, add:
-Why It Matters:
-Recommended Action:
-
-Then provide:
+==================================================
+OUTPUT FORMAT IS STRICT AND MUST NOT BE CHANGED
+==================================================
+Return ONLY the exact headings below, in this exact order:
+Quick Summary
+Important Information
+PRIORITY 1 (and PRIORITY 2, PRIORITY 3, ... as needed)
 Blink Recommendation
 Next Best Action
 
-Use the exact Blink layout.
+Do not rename "Important Information" to anything else (no "Key Details", no "Overview", no "Summary of Clients").
+Do not rename "PRIORITY" to anything else (no "Client 1", no "Case 1", no "Overdue Client").
+The PRIORITY blocks MUST be located directly inside the Important Information section — never as a separate section, never after Blink Recommendation.
+Do not switch to bullet-point-only formatting instead of the required PRIORITY blocks.
+Do not use Markdown headings, bold text, or numbered lists in place of the required plain-text labels.
+
+REQUIRED FIELD LABELS inside every PRIORITY block (exact spelling, exact colon, one per line, in this order):
+Client:
+Company:
+Amount Due:
+Due Date:
+Status:
+Days Overdue:
+Recovery Stage:
+Why It Matters:
+Recommended Action:
+
+Do not use "Customer:", "Balance:", "Late By:", "Action:" or any other alternative wording for these labels.
+Do not add commentary before "Quick Summary" or after "Next Best Action".
 `;
+
+        userPrompt = `Find and prioritize all overdue clients from this live data:
+
+${JSON.stringify(overdueList)}
+
+For each overdue client consider:
+- Amount owed
+- Days overdue
+- Whether automated reminders are enabled
+- Whether an automated reminder was already sent
+- Last automated reminder stage
+
+Clearly distinguish clients who need:
+1. Automated recovery
+2. Manual follow-up
+3. Escalation after the automated sequence
+
+Never recommend sending the same automated reminder stage twice.
+
+After the overdue list, provide:
+
+Blink Recommendation
+Explain the most important recovery opportunity.
+
+Next Best Action
+Give ONE clear action the user should take next.
+
+Use the exact Blink layout.`;
       }
     } 
     // 2. Handle Individual Client Reminders using live object data
@@ -947,7 +1056,7 @@ Send the reminder today.`;
       model: openai('gpt-4o-mini'),
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.7,
+      temperature: 0.2,
     });
 
     // Return plain text stream response directly with explicit no-cache headers for live synchronization
