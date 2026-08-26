@@ -464,100 +464,15 @@ Choose a quick action below to begin recovering payments.`;
         // Code decides the stage/tone/channel — the AI just writes to spec.
         const escalation = getEscalationStage(targetClient);
 
-        const recoveryState = `Escalation stage: ${escalation.stage} (reminder #${escalation.sentCount + 1}).\n${escalation.reason}`;
-
         systemPrompt += `
-ESCALATION LADDER (follow exactly — this was computed from real reminder history, do not override it):
-Current stage: ${escalation.stage}
-Required tone: ${escalation.tone}
-Suggested channel to lead with: ${escalation.suggestedChannel}
-Reason: ${escalation.reason}
+Follow this exact layout for Generate Follow-up. Write each section ONCE — never repeat a section or restate earlier content later in the response.
 
-Stage meanings:
-- "first": friendly, informative, no pressure. Just a helpful nudge.
-- "second": more direct. Restate amount and due date plainly, ask for an expected payment date. Recommend the suggested channel if the previous channel got no response.
-- "final": firm tone. State a real deadline (e.g. "within 3 business days") and a real consequence (late fee, pause on service/delivery). No apologizing, no soft language like "just a friendly reminder."
-- "stalled": do NOT write another reminder demanding payment. Instead acknowledge they may be facing a genuine blocker, offer a payment plan or partial payment, ask directly what's preventing payment, and suggest a phone call as the real next step.
-
-Never write a "first"-stage friendly tone if the stage is "second", "final", or "stalled".
-Never repeat the tone or wording of a stage that has already passed.`;
-
-        systemPrompt += `
-Follow this exact layout for Generate Follow-up.BLINK
+BLINK
 GENERATE FOLLOW-UP
 
 ━━━━━━━━━━━━━━━━━━━━
 RECOVERY SNAPSHOT
 
-Client: ${targetClient.name}
-Company: ${targetClient.company || 'N/A'}
-Amount Due: ₹${targetClient.amount}
-Due Date: ${targetClient.dueDate || 'N/A'}
-Status: ${targetStatus}
-Days Overdue: ${targetClient.daysOverdue || 0}
-Automation: ${reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded'}
-Last Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
-Reminders Sent: ${escalation.sentCount}
-Escalation Stage: ${escalation.stage}
-
-━━━━━━━━━━━━━━━━━━━━
-RECOVERY STATUS
-
-${recoveryState}
-
-Clearly explain what has already happened with this client and what recovery stage they are currently in.
-
-━━━━━━━━━━━━━━━━━━━━
-BLINK RECOMMENDATION
-
-Explain the single most appropriate recovery action for this client right now.
-
-Do not recommend repeating an automated reminder that has already been sent.
-The recommendation must reflect the current recovery stage, payment status, and overdue duration.
-
-━━━━━━━━━━━━━━━━━━━━
-EMAIL FOLLOW-UP
-
-Create a professional, personalized email matching the ESCALATION LADDER stage above exactly.
-
-Rules:
-- Do not call an overdue invoice "pending".
-- Match the required tone for the current stage — do not soften a "final" or "stalled" stage, and do not escalate a "first" stage.
-- If stage is "stalled", do not ask for full payment again — offer a payment plan/partial payment and ask what's blocking payment.
-- If the client is Paid, do not create a recovery email.
-
-Show:
-Subject:
-Email Body:
-
-━━━━━━━━━━━━━━━━━━━━
-WHATSAPP FOLLOW-UP
-
-Create a concise WhatsApp message for the SAME escalation stage as the email.
-
-Rules:
-- Match the required tone for the current stage exactly.
-- Keep it natural and suitable for WhatsApp.
-- Do not call an overdue invoice "pending".
-- If the client is Paid, do not create a recovery WhatsApp message.
-
-Show:
-WhatsApp Message:
-
-━━━━━━━━━━━━━━━━━━━━
-NEXT BEST ACTION
-
-Give ONE clear next action based on the client's current recovery state.
-
-REQUIRED HEADINGS (do not rename, do not skip, do not reorder):
-RECOVERY SNAPSHOT
-RECOVERY STATUS
-BLINK RECOMMENDATION
-EMAIL FOLLOW-UP
-WHATSAPP FOLLOW-UP
-NEXT BEST ACTION
-
-REQUIRED FIELD LABELS inside RECOVERY SNAPSHOT (exact spelling, exact colon, one per line):
 Client:
 Company:
 Amount Due:
@@ -569,29 +484,62 @@ Last Automated Stage:
 Reminders Sent:
 Escalation Stage:
 
-REQUIRED LABELS inside EMAIL FOLLOW-UP:
+━━━━━━━━━━━━━━━━━━━━
+RECOVERY STATUS
+
+One or two sentences: what has already happened with this client and what stage they're at now.
+
+━━━━━━━━━━━━━━━━━━━━
+BLINK RECOMMENDATION
+
+One or two sentences: the single most appropriate recovery action right now.
+
+━━━━━━━━━━━━━━━━━━━━
+EMAIL FOLLOW-UP
+
 Subject:
 Email Body:
 
-REQUIRED LABEL inside WHATSAPP FOLLOW-UP:
+━━━━━━━━━━━━━━━━━━━━
+WHATSAPP FOLLOW-UP
+
 WhatsApp Message:
 
-Do not use "Customer:", "Balance:", "Late By:", "Action:" or any other alternative wording for these labels.
+━━━━━━━━━━━━━━━━━━━━
+NEXT BEST ACTION
 
-Do not give a generic instruction such as "Send the reminder today."
+ONE specific sentence telling the owner exactly what to do next. Do not repeat the email or WhatsApp text here.
 
-The action must tell the owner exactly what to do next.
-
-Keep the response concise, specific to this client, and focused on recovering the outstanding payment.
-Do not use generic AI explanations.
+==================================================
+STRICT RULES
+==================================================
+- Fill in every RECOVERY SNAPSHOT field using ONLY the client data given below. Do not invent values.
+- Escalation Stage must be exactly: "${escalation.stage}"
+- Required tone for this stage: ${escalation.tone}. Suggested channel to lead with: ${escalation.suggestedChannel}.
+  - "first": friendly, no pressure.
+  - "second": direct, restate amount/date, ask for expected payment date, suggest switching channel.
+  - "final": firm, state a real deadline and consequence. No apologizing.
+  - "stalled": do NOT ask for full payment again — offer a payment plan, ask what's blocking payment, suggest a call.
+- Write EVERY section exactly once. After NEXT BEST ACTION, stop — add nothing else.
+- Do not rename any heading or label. Do not use Markdown (**bold**, #headings).
+- Required labels: Client:, Company:, Amount Due:, Due Date:, Status:, Days Overdue:, Automation:, Last Automated Stage:, Reminders Sent:, Escalation Stage:, Subject:, Email Body:, WhatsApp Message:
 `;
 
-        userPrompt = `Analyze active live client data for follow-up: ${JSON.stringify(targetClient)}.
+        userPrompt = `Client data (use these exact values — do not invent or alter them):
+${JSON.stringify({
+  client: targetClient.name,
+  company: targetClient.company || 'N/A',
+  amountDue: `₹${targetClient.amount}`,
+  dueDate: targetClient.dueDate || 'N/A',
+  status: targetStatus,
+  daysOverdue: targetClient.daysOverdue || 0,
+  automation: reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded',
+  lastAutomatedStage: targetClient.lastAutomatedReminderStage || 'None',
+  remindersSent: escalation.sentCount,
+  escalationStage: escalation.stage,
+})}
 
-Use the exact Blink Generate Follow-up layout above.
-
-The escalation stage has already been computed: "${escalation.stage}" (tone: ${escalation.tone}, suggested channel: ${escalation.suggestedChannel}).
-Write the email and WhatsApp message to match this exact stage — do not infer a different stage from the raw data.
+Write the response using the exact layout and rules from the system prompt above. Write it once, completely, then stop.
 `;
 
       } else if (action === "priorities") {
@@ -927,7 +875,22 @@ Email Body:
       } else if (action === "overdue") {
         const overdueList = activeClients
           .filter((c: any) => c.isOverdue === true)
-          .map((c: any) => ({ ...c, escalation: getEscalationStage(c) }));
+          .map((c: any) => {
+            const esc = getEscalationStage(c);
+            return {
+              name: c.name,
+              company: c.company || 'N/A',
+              amountDue: `₹${c.amount}`,
+              dueDate: c.dueDate || 'N/A',
+              status: c.liveStatus || 'Overdue',
+              daysOverdue: c.daysOverdue || 0,
+              // Pre-written in code — the AI copies this verbatim, it does
+              // not compute or interpret a stage itself.
+              recoveryStageText: `${esc.stage} (reminder #${esc.sentCount + 1})`,
+              recommendedActionHint: esc.reason,
+              stage: esc.stage,
+            };
+          });
 
         systemPrompt += `
 Follow this exact layout for Find Overdue Clients.
@@ -1029,11 +992,14 @@ Do not add commentary before "Quick Summary" or after "Next Best Action".
 
 ${JSON.stringify(overdueList)}
 
-Each client object includes a pre-computed "escalation" field (stage, tone, suggestedChannel, reason) — use it directly for that client's "Recovery Stage:" and "Recommended Action:" fields instead of guessing from raw history.
+Each client object gives you exactly what to write — do not compute or guess anything extra:
+- Use "name" for Client:, "company" for Company:, "amountDue" for Amount Due: (already includes the ₹ symbol, copy exactly), "dueDate" for Due Date:, "status" for Status:, "daysOverdue" for Days Overdue:.
+- Copy "recoveryStageText" verbatim into Recovery Stage: — do not reword it.
+- Use "recommendedActionHint" as the basis for Recommended Action:, written as one natural sentence (you may rephrase this one field only, to sound natural — but keep its meaning exactly).
+- Write "Why It Matters:" yourself in one sentence, based on amount and days overdue.
 
-For clients at stage "stalled", the Recommended Action must NOT be another reminder — recommend a phone call, payment plan, or asking directly what's blocking payment.
-For clients at stage "final", the Recommended Action must mention a real deadline/consequence.
-Never recommend sending the same reminder tone twice in a row.
+If a client's "stage" is "stalled", the Recommended Action must NOT be another reminder — it must suggest a phone call, payment plan, or asking directly what's blocking payment.
+If a client's "stage" is "final", the Recommended Action must mention a real deadline/consequence.
 
 After the overdue list, provide:
 

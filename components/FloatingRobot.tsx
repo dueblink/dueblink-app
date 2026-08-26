@@ -70,6 +70,55 @@ export default function FloatingRobot({
       .trim();
   };
 
+  // Safety net for fields that are captured "to the end of the response"
+  // (Next Best Action, Today's Focus, etc). These are always meant to be
+  // one or two sentences. If the AI ever adds extra content after them —
+  // repeats a section, restates a heading, dumps the rest of the response —
+  // this truncates at the first sign of it, so the UI never shows a
+  // runaway wall of text no matter what the model does.
+  const truncateRunawayTail = (text: string) => {
+    if (!text) return text;
+
+    // Any of these reappearing means the AI kept going past where it
+    // should have stopped — cut there.
+    const stopMarkers = [
+      "RECOVERY SNAPSHOT",
+      "RECOVERY STATUS",
+      "BLINK RECOMMENDATION",
+      "EMAIL FOLLOW-UP",
+      "WHATSAPP FOLLOW-UP",
+      "NEXT BEST ACTION",
+      "IMPORTANT INFORMATION",
+      "QUICK SUMMARY",
+      "REWRITTEN REMINDER",
+      "PRIORITY 1",
+      "PRIORITY 2",
+      "TODAY'S FOCUS",
+      "BLINK INSIGHT",
+    ];
+
+    let cutIndex = text.length;
+
+    for (const marker of stopMarkers) {
+      const regex = new RegExp(marker.replace(/'/g, "['’]?"), "i");
+      const match = text.match(regex);
+      if (match && match.index !== undefined && match.index > 0) {
+        cutIndex = Math.min(cutIndex, match.index);
+      }
+    }
+
+    let result = text.slice(0, cutIndex).trim();
+
+    // These fields are one or two sentences — a blank line is another
+    // strong signal the real answer already ended.
+    const blankLineIndex = result.indexOf("\n\n");
+    if (blankLineIndex > 0) {
+      result = result.slice(0, blankLineIndex).trim();
+    }
+
+    return result;
+  };
+
   const parseFollowUpResponse = (text: string) => {
     const response = cleanResponseText(text);
 
@@ -142,9 +191,9 @@ export default function FloatingRobot({
         "NEXT BEST ACTION"
       ),
 
-      nextBestAction: getSection(
+      nextBestAction: truncateRunawayTail(getSection(
         "NEXT BEST ACTION"
-      )
+      ))
     };
   };
 
@@ -205,10 +254,10 @@ export default function FloatingRobot({
         ["Next Best Action"]
       ),
 
-      nextBestAction: getSection(
+      nextBestAction: truncateRunawayTail(getSection(
         "Next Best Action",
         []
-      ),
+      )),
     };
   };
 
@@ -251,7 +300,7 @@ export default function FloatingRobot({
 
     return {
       priorities,
-      focus: focusMatch?.[1]?.trim() || '',
+      focus: truncateRunawayTail(focusMatch?.[1]?.trim() || ''),
     };
   };
 
@@ -363,10 +412,10 @@ export default function FloatingRobot({
         ["NEXT BEST ACTION"]
       ),
 
-      nextBestAction: getSection(
+      nextBestAction: truncateRunawayTail(getSection(
         "NEXT BEST ACTION",
         []
-      ),
+      )),
     };
   };
 
@@ -427,10 +476,10 @@ export default function FloatingRobot({
         ["Next Best Action"]
       ),
 
-      nextBestAction: getSection(
+      nextBestAction: truncateRunawayTail(getSection(
         "Next Best Action",
         []
-      ),
+      )),
 
       message: getSection(
         "REWRITTEN REMINDER",
