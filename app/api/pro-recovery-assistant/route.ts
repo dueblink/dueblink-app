@@ -206,6 +206,63 @@ export async function POST(req: Request) {
       );
     };
 
+    // ============================================================
+    // ESCALATION LADDER — computed in code, not guessed by the AI.
+    // Looks at how many reminders (automated + manual) this client
+    // has actually received and decides:
+    //   - what stage they're at
+    //   - what tone is appropriate
+    //   - which channel to suggest next (switch if last one was ignored)
+    //   - whether they've gone quiet on every stage ("stalled")
+    // ============================================================
+    const getEscalationStage = (c: any) => {
+      const history = Array.isArray(c.reminderHistory) ? c.reminderHistory : [];
+      const sentCount = history.length;
+      const last = history[history.length - 1] || null;
+      const lastChannel = last?.channel || null;
+      const daysOverdue = c.daysOverdue || 0;
+
+      if (sentCount === 0) {
+        return {
+          stage: 'first',
+          sentCount,
+          suggestedChannel: 'email',
+          tone: 'friendly',
+          reason: 'No reminder has been sent yet.',
+        };
+      }
+
+      if (sentCount === 1) {
+        return {
+          stage: 'second',
+          sentCount,
+          suggestedChannel: lastChannel === 'email' ? 'whatsapp' : 'email',
+          tone: 'direct',
+          reason: `One reminder already sent via ${lastChannel || 'email'}, no payment yet. Switch channel and be more direct.`,
+        };
+      }
+
+      if (sentCount === 2 && daysOverdue < 21) {
+        return {
+          stage: 'final',
+          sentCount,
+          suggestedChannel: lastChannel === 'whatsapp' ? 'email' : 'whatsapp',
+          tone: 'firm-with-deadline',
+          reason: `${sentCount} reminders sent, still unpaid. State a clear deadline and a real consequence (late fee, service pause).`,
+        };
+      }
+
+      // 3+ reminders ignored, or very overdue with no response at all —
+      // more of the same reminder will not help. Shift approach entirely.
+      return {
+        stage: 'stalled',
+        sentCount,
+        suggestedChannel: 'call-or-email',
+        tone: 'problem-solving',
+        reason: `${sentCount} reminder(s) sent across channels and ${daysOverdue} days overdue with no payment — this client is not responding to reminders. Do not send another generic reminder. Acknowledge they may be stuck, offer a payment plan or partial payment, and ask directly what is blocking payment. Recommend a phone call as the next step.`,
+      };
+    };
+
     const liveClients = clients.map((c: any) => {
       const daysOverdue = getDaysOverdue(c.dueDate);
 
@@ -404,18 +461,26 @@ Choose a quick action below to begin recovering payments.`;
         const lastAutomatedStage =
           targetClient.lastAutomatedReminderStage || "None";
 
-        const recoveryState =
-          reminderAlreadySent
-            ? lastAutomatedStage === "first"
-              ? "Automated first reminder already sent. Move to the next recovery stage if payment is still unpaid."
-              : lastAutomatedStage === "follow-up"
-                ? "Automated follow-up already sent. The client is still in recovery and should not receive the same follow-up again."
-                : lastAutomatedStage === "final"
-                  ? "Automated final reminder already sent. Consider direct contact or escalation instead of another generic reminder."
-                  : `Automated reminder already sent (${lastAutomatedStage}). Continue from the current recovery stage.`
-            : targetClient.isOverdue
-              ? `Payment is ${targetClient.daysOverdue} days overdue. No automated reminder recorded.`
-              : "Payment is pending and no automated reminder is recorded.";
+        // Code decides the stage/tone/channel — the AI just writes to spec.
+        const escalation = getEscalationStage(targetClient);
+
+        const recoveryState = `Escalation stage: ${escalation.stage} (reminder #${escalation.sentCount + 1}).\n${escalation.reason}`;
+
+        systemPrompt += `
+ESCALATION LADDER (follow exactly — this was computed from real reminder history, do not override it):
+Current stage: ${escalation.stage}
+Required tone: ${escalation.tone}
+Suggested channel to lead with: ${escalation.suggestedChannel}
+Reason: ${escalation.reason}
+
+Stage meanings:
+- "first": friendly, informative, no pressure. Just a helpful nudge.
+- "second": more direct. Restate amount and due date plainly, ask for an expected payment date. Recommend the suggested channel if the previous channel got no response.
+- "final": firm tone. State a real deadline (e.g. "within 3 business days") and a real consequence (late fee, pause on service/delivery). No apologizing, no soft language like "just a friendly reminder."
+- "stalled": do NOT write another reminder demanding payment. Instead acknowledge they may be facing a genuine blocker, offer a payment plan or partial payment, ask directly what's preventing payment, and suggest a phone call as the real next step.
+
+Never write a "first"-stage friendly tone if the stage is "second", "final", or "stalled".
+Never repeat the tone or wording of a stage that has already passed.`;
 
         systemPrompt += `
 Follow this exact layout for Generate Follow-up.BLINK
@@ -432,6 +497,8 @@ Status: ${targetStatus}
 Days Overdue: ${targetClient.daysOverdue || 0}
 Automation: ${reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded'}
 Last Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
+Reminders Sent: ${escalation.sentCount}
+Escalation Stage: ${escalation.stage}
 
 ━━━━━━━━━━━━━━━━━━━━
 RECOVERY STATUS
@@ -451,15 +518,12 @@ The recommendation must reflect the current recovery stage, payment status, and 
 ━━━━━━━━━━━━━━━━━━━━
 EMAIL FOLLOW-UP
 
-Create a professional, personalized email for the current recovery stage.
+Create a professional, personalized email matching the ESCALATION LADDER stage above exactly.
 
 Rules:
 - Do not call an overdue invoice "pending".
-- Do not repeat an automated reminder that was already sent.
-- If the first automated reminder was already sent, create the next-stage follow-up.
-- If the automated follow-up was already sent, create a stronger manual recovery message.
-- If the final automated reminder was already sent, use an escalation-oriented message only when appropriate.
-- If no automated reminder was sent and the client is overdue, create the first recovery follow-up.
+- Match the required tone for the current stage — do not soften a "final" or "stalled" stage, and do not escalate a "first" stage.
+- If stage is "stalled", do not ask for full payment again — offer a payment plan/partial payment and ask what's blocking payment.
 - If the client is Paid, do not create a recovery email.
 
 Show:
@@ -469,11 +533,10 @@ Email Body:
 ━━━━━━━━━━━━━━━━━━━━
 WHATSAPP FOLLOW-UP
 
-Create a concise WhatsApp message for the SAME recovery stage as the email.
+Create a concise WhatsApp message for the SAME escalation stage as the email.
 
 Rules:
-- Do not repeat an automated reminder already sent.
-- Match the current recovery stage.
+- Match the required tone for the current stage exactly.
 - Keep it natural and suitable for WhatsApp.
 - Do not call an overdue invoice "pending".
 - If the client is Paid, do not create a recovery WhatsApp message.
@@ -503,6 +566,8 @@ Status:
 Days Overdue:
 Automation:
 Last Automated Stage:
+Reminders Sent:
+Escalation Stage:
 
 REQUIRED LABELS inside EMAIL FOLLOW-UP:
 Subject:
@@ -525,15 +590,8 @@ Do not use generic AI explanations.
 
 Use the exact Blink Generate Follow-up layout above.
 
-The output must be based on the client's actual:
-- payment status
-- overdue days
-- automated reminder history
-- last automated reminder stage
-- current recovery state
-
-Do not restart the recovery sequence.
-Do not repeat an automated reminder that has already been sent.
+The escalation stage has already been computed: "${escalation.stage}" (tone: ${escalation.tone}, suggested channel: ${escalation.suggestedChannel}).
+Write the email and WhatsApp message to match this exact stage — do not infer a different stage from the raw data.
 `;
 
       } else if (action === "priorities") {
@@ -768,7 +826,22 @@ Choose the next action based on the live recovery state.`;
             )
           : [];
 
+        // Code decides the stage — same escalation ladder used by "recommend".
+        const rewriteEscalation = getEscalationStage(targetClient);
+
         systemPrompt += `
+ESCALATION LADDER (follow exactly — computed from real reminder history):
+Current stage: ${rewriteEscalation.stage}
+Required tone: ${rewriteEscalation.tone}
+Suggested channel to lead with: ${rewriteEscalation.suggestedChannel}
+Reason: ${rewriteEscalation.reason}
+
+Stage meanings:
+- "first": friendly, informative, no pressure.
+- "second": more direct, restate amount/due date, ask for expected payment date, suggest switching channel.
+- "final": firm tone with a real deadline and a real consequence. No apologizing.
+- "stalled": do not demand payment again — offer a payment plan/partial payment and ask what's blocking payment.
+
 Follow this exact layout for Rewrite Reminder.
 
 🤖 Blink
@@ -791,13 +864,12 @@ Explain briefly what this rewritten reminder is designed to accomplish for the c
 ━━━━━━━━━━━━━━━━━━━━
 📝 REWRITTEN REMINDER
 
-Write ONE complete rewritten payment reminder based on the client's CURRENT recovery stage.
+Write ONE complete rewritten payment reminder matching the ESCALATION LADDER stage above exactly.
 
 Rules:
-- Reflect the actual payment status.
-- Reflect the actual overdue duration.
-- Do not repeat an automated reminder that was already sent.
-- If an automated reminder was already sent, make this an appropriate next-stage manual follow-up.
+- Reflect the actual payment status and overdue duration.
+- Match the required tone for the current stage — do not soften "final"/"stalled", do not escalate "first".
+- If stage is "stalled", offer a payment plan/partial payment and ask what's blocking payment instead of repeating a demand.
 - Keep it professional, concise and payment-focused.
 - Do not call an overdue invoice "pending".
 - Do not create a recovery reminder if the client is Paid.
@@ -835,15 +907,8 @@ ${JSON.stringify({
 
 Use the exact Rewrite Reminder layout.
 
-The rewritten reminder must reflect:
-- Current payment status
-- Days overdue
-- Previous automated reminder history
-- Last automated reminder stage
-
-Do not restart the recovery sequence.
-Do not repeat the wording or purpose of an automated reminder already sent.
-If automated reminders have already been sent, create the appropriate next-stage manual follow-up.
+The escalation stage has already been computed: "${rewriteEscalation.stage}" (tone: ${rewriteEscalation.tone}, suggested channel: ${rewriteEscalation.suggestedChannel}).
+Write the rewritten reminder to match this exact stage — do not infer a different stage from the raw data.
 
 Keep it professional, concise and payment-focused.
 
@@ -860,9 +925,9 @@ Email Body:
 `;
 
       } else if (action === "overdue") {
-        const overdueList = activeClients.filter(
-          (c: any) => c.isOverdue === true
-        );
+        const overdueList = activeClients
+          .filter((c: any) => c.isOverdue === true)
+          .map((c: any) => ({ ...c, escalation: getEscalationStage(c) }));
 
         systemPrompt += `
 Follow this exact layout for Find Overdue Clients.
@@ -964,19 +1029,11 @@ Do not add commentary before "Quick Summary" or after "Next Best Action".
 
 ${JSON.stringify(overdueList)}
 
-For each overdue client consider:
-- Amount owed
-- Days overdue
-- Whether automated reminders are enabled
-- Whether an automated reminder was already sent
-- Last automated reminder stage
+Each client object includes a pre-computed "escalation" field (stage, tone, suggestedChannel, reason) — use it directly for that client's "Recovery Stage:" and "Recommended Action:" fields instead of guessing from raw history.
 
-Clearly distinguish clients who need:
-1. Automated recovery
-2. Manual follow-up
-3. Escalation after the automated sequence
-
-Never recommend sending the same automated reminder stage twice.
+For clients at stage "stalled", the Recommended Action must NOT be another reminder — recommend a phone call, payment plan, or asking directly what's blocking payment.
+For clients at stage "final", the Recommended Action must mention a real deadline/consequence.
+Never recommend sending the same reminder tone twice in a row.
 
 After the overdue list, provide:
 

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle } from 'lucide-react';
+import { auth, db } from '@/lib/firebase';
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface FloatingRobotProps {
@@ -438,6 +439,38 @@ export default function FloatingRobot({
     };
   };
 
+  const [sentChannel, setSentChannel] = useState<{ channel: 'email' | 'whatsapp'; clientId: string } | null>(null);
+  const [markingSent, setMarkingSent] = useState(false);
+
+  // Logs a manual send (user copied the drafted message and sent it themselves,
+  // outside the app) so the next time Blink looks at this client it knows a
+  // reminder actually went out — same reminderHistory shape as automated sends,
+  // just with type: 'manual', so escalation stage stays accurate.
+  const markAsSent = async (channel: 'email' | 'whatsapp') => {
+    const targetId = selectedClientId;
+    if (!targetId || markingSent) return;
+
+    setMarkingSent(true);
+    try {
+      await updateDoc(doc(db, 'clients', targetId), {
+        reminderHistory: arrayUnion({
+          type: 'manual',
+          channel,
+          sentAt: new Date().toISOString(),
+          label: channel === 'email' ? 'Manual email sent' : 'Manual WhatsApp sent',
+        }),
+      });
+      setSentChannel({ channel, clientId: targetId });
+      window.dispatchEvent(new Event('clients-updated'));
+      setTimeout(() => setSentChannel(null), 2500);
+    } catch {
+      // Silent fail is acceptable here — worst case the history just isn't logged
+      // and the user can try again; it should never block the Copy action.
+    } finally {
+      setMarkingSent(false);
+    }
+  };
+
   const copyFollowUpEmail = async (text: string) => {
     const followUp = parseFollowUpResponse(text);
 
@@ -534,6 +567,24 @@ export default function FloatingRobot({
       unsubscribe();
     };
   }, [pathname, isPro, clickedSectionText]);
+
+  // Show Blink's "Hi, I'm Blink" greeting bubble automatically the very
+  // first time a Pro user ever lands on the dashboard — persisted in
+  // localStorage so it only shows once, not once per session/tab.
+  useEffect(() => {
+    if (pathname !== '/dashboard' || !isPro || !isLoggedIn) return;
+
+    const alreadyGreeted = localStorage.getItem('blink_dashboard_greeted');
+    if (alreadyGreeted) return;
+
+    const greetTimer = setTimeout(() => {
+      setClickedSectionText(null);
+      setShowMessageBubble(true);
+      localStorage.setItem('blink_dashboard_greeted', '1');
+    }, 1200);
+
+    return () => clearTimeout(greetTimer);
+  }, [pathname, isPro, isLoggedIn]);
 
   useEffect(() => {
     if (externalAction && pathname === '/dashboard') {
@@ -1238,6 +1289,18 @@ export default function FloatingRobot({
                                         <RefreshCw size={10} className="text-[#245B92]" />
                                         Rewrite
                                       </button>
+
+                                      <button
+                                        onClick={() => markAsSent('email')}
+                                        disabled={markingSent || !selectedClientId}
+                                        className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 disabled:opacity-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        {sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId ? (
+                                          <><CheckCircle2 size={10} /> Sent</>
+                                        ) : (
+                                          <><Check size={10} /> Mark as Sent</>
+                                        )}
+                                      </button>
                                     </div>
 
                                   </div>
@@ -1285,6 +1348,18 @@ export default function FloatingRobot({
                                     >
                                       <RefreshCw size={10} className="text-[#159A9F]" />
                                       Rewrite
+                                    </button>
+
+                                    <button
+                                      onClick={() => markAsSent('whatsapp')}
+                                      disabled={markingSent || !selectedClientId}
+                                      className="flex-1 py-1.5 px-2 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 hover:bg-teal-100 disabled:opacity-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                    >
+                                      {sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId ? (
+                                        <><CheckCircle2 size={10} /> Sent</>
+                                      ) : (
+                                        <><Check size={10} /> Mark as Sent</>
+                                      )}
                                     </button>
                                   </div>
 
@@ -2049,7 +2124,7 @@ export default function FloatingRobot({
                     onClick={() => {
                       const clientSpecificActions = ['recommend', 'rewrite'];
 
-                      if (clientSpecificActions.includes(act.id)) {
+                      if (clientSpecificActions.includes(act.id) && clients.length > 0) {
                         setClientPickerAction({
                           id: act.id,
                           name: act.name,
