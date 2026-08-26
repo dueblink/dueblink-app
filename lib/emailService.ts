@@ -1785,7 +1785,8 @@ export async function sendAutomatedReminderEmail(
   toEmail: string,
   subject: string,
   body: string,
-  paymentLink?: string
+  paymentLink?: string,
+  replyTo?: string
 ) {
   try {
     const resend = getResendClient();
@@ -1834,6 +1835,7 @@ export async function sendAutomatedReminderEmail(
     const data = await resend.emails.send({
       from: EMAIL_FROM,
       to: [toEmail],
+      ...(replyTo && replyTo.trim() ? { replyTo: replyTo.trim() } : {}),
       subject,
       html: `
         <!DOCTYPE html>

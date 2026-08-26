@@ -213,11 +213,23 @@ export async function GET(request: Request) {
               : "Write a final but professional follow-up for a payment that is 7 days overdue. Remain respectful and clear.",
         });
 
-        // Send ONLY the email.
+        // Look up the owner's real email first — needed both for the
+        // reply-to on this send, and reused below for the digest email
+        // (avoids fetching it twice per owner in the same run).
+        const ownerEmail = await getOwnerEmail(
+          adminAuth,
+          client.userId
+        );
+
+        // Send the email — now with the payment link (so the "Pay Now"
+        // button actually renders) and the owner's email as reply-to
+        // (so a client hitting "Reply" reaches the freelancer, not no-reply@).
         const sendResult = await sendAutomatedReminderEmail(
           client.email,
           generatedEmail.email_subject,
-          generatedEmail.email_body
+          generatedEmail.email_body,
+          client.paymentLink,
+          ownerEmail || undefined
         );
 
         if (!sendResult.success) {
@@ -250,11 +262,6 @@ export async function GET(request: Request) {
             sentAt: new Date(),
           }),
         });
-
-        const ownerEmail = await getOwnerEmail(
-          adminAuth,
-          client.userId
-        );
 
         if (ownerEmail) {
           const paidToken = createPaymentActionToken(
