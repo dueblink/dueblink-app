@@ -1470,7 +1470,10 @@ export default function FloatingRobot({
                                             </div>
 
                                             <p className="text-[9px] text-slate-500 mt-1 truncate">
-                                              {priority.amount}
+                                              {priority.amount &&
+                                                (priority.amount.trim().startsWith('₹')
+                                                  ? priority.amount
+                                                  : `₹${priority.amount}`)}
                                               {priority.daysOverdue
                                                 ? ` · ${priority.daysOverdue} days overdue`
                                                 : ''}
@@ -1858,7 +1861,9 @@ export default function FloatingRobot({
 
                                           {priority.amount && (
                                             <span className="text-[9px] font-bold text-slate-700">
-                                              {priority.amount}
+                                              {priority.amount.trim().startsWith('₹')
+                                                ? priority.amount
+                                                : `₹${priority.amount}`}
                                             </span>
                                           )}
 
