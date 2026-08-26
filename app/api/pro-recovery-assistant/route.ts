@@ -473,16 +473,16 @@ GENERATE FOLLOW-UP
 ━━━━━━━━━━━━━━━━━━━━
 RECOVERY SNAPSHOT
 
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Automation:
-Last Automated Stage:
-Reminders Sent:
-Escalation Stage:
+Client: ${targetClient.name}
+Company: ${targetClient.company || 'N/A'}
+Amount Due: ₹${targetClient.amount}
+Due Date: ${targetClient.dueDate || 'N/A'}
+Status: ${targetStatus}
+Days Overdue: ${targetClient.daysOverdue || 0}
+Automation: ${reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded'}
+Last Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
+Reminders Sent: ${escalation.sentCount}
+Escalation Stage: ${escalation.stage}
 
 ━━━━━━━━━━━━━━━━━━━━
 RECOVERY STATUS
@@ -513,7 +513,7 @@ ONE specific sentence telling the owner exactly what to do next. Do not repeat t
 ==================================================
 STRICT RULES
 ==================================================
-- Fill in every RECOVERY SNAPSHOT field using ONLY the client data given below. Do not invent values.
+- The RECOVERY SNAPSHOT above already has the correct values filled in — copy it exactly as shown, do not change any value.
 - Escalation Stage must be exactly: "${escalation.stage}"
 - Required tone for this stage: ${escalation.tone}. Suggested channel to lead with: ${escalation.suggestedChannel}.
   - "first": friendly, no pressure.
@@ -944,6 +944,7 @@ Recommended Action:
 Continue PRIORITY 3, PRIORITY 4, PRIORITY 5, etc. until EVERY overdue client has been included.
 
 Use the actual client data supplied. Never invent missing information.
+Never leave a label with no value after it — if a value is genuinely unavailable, write "N/A", never leave it blank.
 
 ━━━━━━━━━━━━━━━━━━━━━━
  Blink Recommendation
