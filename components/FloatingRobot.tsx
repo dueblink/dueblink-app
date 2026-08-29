@@ -40,6 +40,7 @@ export default function FloatingRobot({
 
   // Real-time reactive client count state
   const [savedClientsCount, setSavedClientsCount] = useState(0);
+  const [allClientsPaid, setAllClientsPaid] = useState(false);
 
   // State for in-panel AI response display & interactive commands
   const [aiResponse, setAiResponse] = useState<string | null>(null);
@@ -66,6 +67,10 @@ export default function FloatingRobot({
   const cleanResponseText = (text: string) => {
     return text
       .replace(/\r/g, "")
+      // Strip stray divider lines the AI sometimes appends after a
+      // paragraph (runs of 3+ dashes, underscores, or em-dashes/box-
+      // drawing characters), e.g. "date. ————————————————"
+      .replace(/[\s]*[-_─—━]{3,}[\s]*/g, "\n\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
   };
@@ -100,7 +105,11 @@ export default function FloatingRobot({
     let cutIndex = text.length;
 
     for (const marker of stopMarkers) {
-      const regex = new RegExp(marker.replace(/'/g, "['’]?"), "i");
+      // Only match if the marker starts a new line (a real heading),
+      // not if it's just part of an ordinary sentence — e.g. "Send the
+      // rewritten reminder via WhatsApp" must NOT match "REWRITTEN REMINDER".
+      const escaped = marker.replace(/'/g, "['’]?");
+      const regex = new RegExp(`(?:^|\\n)\\s*${escaped}\\b`, "i");
       const match = text.match(regex);
       if (match && match.index !== undefined && match.index > 0) {
         cutIndex = Math.min(cutIndex, match.index);
@@ -838,6 +847,7 @@ export default function FloatingRobot({
     setActiveActionId(actionId);
     setUiState('processing');
     setAiResponse(null);
+    setAllClientsPaid(false);
 
     if (onTrigger) {
       onTrigger(actionId);
@@ -848,6 +858,21 @@ export default function FloatingRobot({
 
       if (freshClients.length === 0) {
         setSavedClientsCount(0);
+        setUiState('idle');
+        return;
+      }
+
+      const hasActiveClient = freshClients.some(
+        (c: any) => c.status !== 'Paid'
+      );
+
+      if (!hasActiveClient && actionId !== 'welcome_pro') {
+        // Every client is already paid — nothing for the AI to analyze.
+        // Show the dedicated "all caught up" card directly instead of
+        // calling the API and hoping the parser matches a generic
+        // status message it was never designed to parse.
+        setSavedClientsCount(freshClients.length);
+        setAllClientsPaid(true);
         setUiState('idle');
         return;
       }
@@ -989,26 +1014,36 @@ export default function FloatingRobot({
 
   return (
     <div 
-      className={`fixed z-[900] flex flex-col items-end gap-3 transition-all duration-200 ease-in-out ${positioningClass}`}
+      className={`blink-widget-root fixed z-[900] flex flex-col items-end gap-3 transition-all duration-200 ease-in-out ${positioningClass}`}
       suppressHydrationWarning={true}
     >
+      <style>{`
+        @keyframes blinkFadeSlideUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .blink-widget-root .overflow-y-auto {
+          -webkit-overflow-scrolling: touch;
+          scroll-behavior: smooth;
+        }
+      `}</style>
 
       {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
       <AnimatePresence>
         {!isExpanded && showMessageBubble && (isPro || pathname !== '/dashboard') && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            initial={{ opacity: 0, scale: 0.9, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
             className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 max-w-[260px] sm:max-w-[280px] relative text-left transform-gpu will-change-transform"
             suppressHydrationWarning={true}
           >
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2" suppressHydrationWarning={true}>
               <div className="flex items-center gap-2" suppressHydrationWarning={true}>
                 <div className="relative flex items-center justify-center w-2.5 h-2.5">
-                  <div className="absolute w-2.5 h-2.5 rounded-full bg-[#20B8BE] opacity-75" />
-                  <div className="w-2 h-2 rounded-full bg-[#20B8BE]" />
+                  <div className={`absolute w-2.5 h-2.5 rounded-full opacity-75 ${isPro ? 'bg-[#20B8BE]' : 'bg-red-400'}`} />
+                  <div className={`w-2 h-2 rounded-full ${isPro ? 'bg-[#20B8BE]' : 'bg-red-500'}`} />
                 </div>
                 <div className="flex flex-col" suppressHydrationWarning={true}>
                   <p className="text-[10px] font-black text-[#245B92] uppercase tracking-wider leading-none">Blink</p>
@@ -1051,10 +1086,10 @@ export default function FloatingRobot({
       <AnimatePresence>
         {!isExpanded && isLoggedIn && recommendation && showRecommendation && pathname === '/dashboard' && isPro && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            initial={{ opacity: 0, scale: 0.9, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
             className="bg-white/95 backdrop-blur-xl border border-slate-200/85 shadow-2xl rounded-2xl p-4 flex flex-col gap-2.5 cursor-pointer hover:border-[#20B8BE] transition-all max-w-[260px] sm:max-w-[280px] relative group transform-gpu will-change-transform"
             onClick={() => {
               if (!isPro) {
@@ -1110,10 +1145,10 @@ export default function FloatingRobot({
       <AnimatePresence>
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            initial={{ opacity: 0, scale: 0.9, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28, mass: 0.7 }}
             className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-[min(290px,calc(100vw-24px))] sm:w-[320px] max-h-[min(72vh,560px)] flex flex-col overflow-hidden transform-gpu will-change-transform"
             suppressHydrationWarning={true}
           >
@@ -1133,6 +1168,7 @@ export default function FloatingRobot({
                           setActiveActionId(null); 
                           setSelectedClientId(null); 
                           setClientPickerAction(null); 
+                          setAllClientsPaid(false);
                         }
                       }} 
                       className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
@@ -1148,22 +1184,27 @@ export default function FloatingRobot({
                 <div>
                     <div className="flex items-center gap-1.5">
                       <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">Blink</h3>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <span className="text-[8px] font-bold text-white/80 uppercase">Online</span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isPro ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                      <span className="text-[8px] font-bold text-white/80 uppercase">
+                        {isPro ? 'Online' : 'Locked'}
+                      </span>
                     </div>
                     <p className="text-xs font-bold text-white mt-0.5 truncate max-w-[160px]">
                       {clientPickerAction ? clientPickerAction.name : (activeActionName ? activeActionName : 'Your AI Recovery Assistant')}
                     </p>
                   </div>
               </div>
-              <button 
-                onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }} 
-                className="text-white/70 hover:text-white bg-white/15 hover:bg-white/25 p-1.5 rounded-full transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
+              <motion.button 
+                whileHover={{ rotate: 90, scale: 1.08 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); setAllClientsPaid(false); }} 
+                className="text-white/70 hover:text-white bg-white/15 hover:bg-white/25 p-1.5 rounded-full transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
                 aria-label="Close panel"
                 suppressHydrationWarning={true}
               >
                 <X size={12} />
-              </button>
+              </motion.button>
             </div>
 
             {!aiResponse && uiState !== 'processing' && savedClientsCount > 0 && !clientPickerAction && (
@@ -1178,43 +1219,61 @@ export default function FloatingRobot({
           <div className="p-3.5 overflow-y-auto flex-1 text-xs" suppressHydrationWarning={true}>
             {isLoggedIn ? (
               isPro ? (
-                savedClientsCount === 0 && activeActionId ? (
+                (savedClientsCount === 0 || allClientsPaid) && activeActionId ? (
                   <div className="space-y-3 text-left py-1" suppressHydrationWarning={true}>
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
+                    <div className={`border rounded-xl p-3.5 space-y-2.5 ${allClientsPaid ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black text-[#245B92] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-full">Blink Guide</span>
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${allClientsPaid ? 'text-emerald-700 bg-emerald-100' : 'text-[#245B92] bg-blue-50'}`}>
+                          {allClientsPaid ? 'All Caught Up' : 'Blink Guide'}
+                        </span>
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-900 text-xs">
-                          {activeActionId === 'recommend' && "No Clients Found"}
-                          {activeActionId === 'priorities' && "Nothing to Review"}
-                          {activeActionId === 'summarize' && "No Payment Data"}
-                          {activeActionId === 'rewrite' && "No Reminder Available"}
-                          {activeActionId === 'overdue' && "No Overdue Clients"}
+                          {allClientsPaid ? (
+                            "Every Client is Paid 🎉"
+                          ) : (
+                            <>
+                              {activeActionId === 'recommend' && "No Clients Found"}
+                              {activeActionId === 'priorities' && "Nothing to Review"}
+                              {activeActionId === 'summarize' && "No Payment Data"}
+                              {activeActionId === 'rewrite' && "No Reminder Available"}
+                              {activeActionId === 'overdue' && "No Overdue Clients"}
+                            </>
+                          )}
                         </h4>
                         <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
-                          {activeActionId === 'recommend' && "You haven't added any clients yet. Blink needs at least one client to generate an AI follow-up."}
-                          {activeActionId === 'priorities' && "You don't have any clients yet. Once you add clients, Blink will automatically identify who needs your attention first."}
-                          {activeActionId === 'summarize' && "There are no clients or invoices to analyze. Your payment insights will appear here after you add your first client."}
-                          {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet. Generate your first AI reminder after adding a client."}
-                          {activeActionId === 'overdue' && "You haven't added any clients yet. Blink will automatically detect overdue payments after client information is added."}
+                          {allClientsPaid ? (
+                            "All payments have been successfully recovered. There's nothing for Blink to follow up on right now — nice work!"
+                          ) : (
+                            <>
+                              {activeActionId === 'recommend' && "You haven't added any clients yet. Blink needs at least one client to generate an AI follow-up."}
+                              {activeActionId === 'priorities' && "You don't have any clients yet. Once you add clients, Blink will automatically identify who needs your attention first."}
+                              {activeActionId === 'summarize' && "There are no clients or invoices to analyze. Your payment insights will appear here after you add your first client."}
+                              {activeActionId === 'rewrite' && "There isn't a reminder to rewrite yet. Generate your first AI reminder after adding a client."}
+                              {activeActionId === 'overdue' && "You haven't added any clients yet. Blink will automatically detect overdue payments after client information is added."}
+                            </>
+                          )}
                         </p>
                       </div>
-                      <div className="pt-2 border-t border-slate-200/60">
-                        <p className="text-[10px] font-bold text-[#20B8BE] uppercase tracking-wider">Next Step</p>
-                        <p className="text-[11px] text-slate-700 font-semibold mt-0.5">Add your first client to get started.</p>
+                      <div className={`pt-2 border-t ${allClientsPaid ? 'border-emerald-200/60' : 'border-slate-200/60'}`}>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider ${allClientsPaid ? 'text-emerald-600' : 'text-[#20B8BE]'}`}>Next Step</p>
+                        <p className="text-[11px] text-slate-700 font-semibold mt-0.5">
+                          {allClientsPaid ? "Add a new client to keep tracking payments." : "Add your first client to get started."}
+                        </p>
                       </div>
                     </div>
 
-                    <button 
+                    <motion.button 
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={handleAddClientRedirect}
-                      className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition hover:opacity-95 bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#245B92]"
+                      className="w-full py-2.5 rounded-xl text-white font-bold text-[11px] shadow-md transition-shadow hover:shadow-lg bg-gradient-to-r from-[#245B92] to-[#20B8BE] cursor-pointer flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#245B92]"
                     >
                       <UserPlus size={13} /> Add New Client
-                    </button>
+                    </motion.button>
 
                     <button 
-                      onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }}
+                      onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); setAllClientsPaid(false); }}
                       className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1"
                     >
                       <ArrowLeft size={12} /> Back
@@ -1223,12 +1282,27 @@ export default function FloatingRobot({
                 ) : aiResponse || uiState === 'processing' ? (
                   <div className="py-1 space-y-2.5 text-left" suppressHydrationWarning={true}>
                     {uiState === 'processing' ? (
-                      <div className="flex flex-col items-center justify-center py-5 space-y-2 text-slate-400">
-                        <Loader2 size={24} className="animate-spin text-[#20B8BE]" />
-                        <p className="text-[11px] font-bold tracking-wide">Blink is analyzing...</p>
+                      <div className="flex flex-col items-center justify-center py-6 space-y-3 text-slate-400">
+                        <div className="relative w-12 h-12 flex items-center justify-center">
+                          <span className="absolute inset-0 rounded-full bg-[#20B8BE]/20 animate-ping" />
+                          <span className="absolute inset-0 rounded-full bg-gradient-to-br from-[#245B92]/10 to-[#20B8BE]/10" />
+                          <Brain size={20} className="relative text-[#20B8BE] animate-pulse" />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[11px] font-bold tracking-wide text-slate-500">Blink is analyzing</p>
+                          <span className="flex gap-0.5">
+                            <span className="w-1 h-1 rounded-full bg-[#20B8BE] animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1 h-1 rounded-full bg-[#20B8BE] animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1 h-1 rounded-full bg-[#20B8BE] animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </span>
+                        </div>
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                      <div
+                        key={`${activeActionId}-${(aiResponse || '').length}`}
+                        style={{ animation: 'blinkFadeSlideUp 0.4s ease-out' }}
+                        className="space-y-3"
+                      >
                         {activeActionId === 'recommend' ? (
                           (() => {
                             const followUp = parseFollowUpResponse(aiResponse || '');
@@ -1268,7 +1342,7 @@ export default function FloatingRobot({
                                         )
                                         .map(line =>
                                           line
-                                            .replace(/^amount due:\s*/i, '₹')
+                                            .replace(/^amount due:\s*/i, '')
                                             .replace(/^due date:\s*/i, 'Due ')
                                             .replace(/^status:\s*/i, '')
                                             .replace(/^days overdue:\s*/i, '')
@@ -1312,17 +1386,39 @@ export default function FloatingRobot({
                                       </span>
                                     </div>
 
-                                    <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[110px] overflow-y-auto">
+                                    <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[110px] overflow-y-auto scroll-smooth">
                                       {followUp.email}
                                     </div>
 
                                     <div className="flex gap-1.5 mt-2">
                                       <button
                                         onClick={() => copyFollowUpEmail(aiResponse || '')}
-                                        className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                        className="py-1.5 px-2.5 rounded-lg bg-white text-[#245B92] border border-slate-200 hover:border-[#245B92]/40 hover:bg-blue-50/40 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
                                       >
-                                        {copied ? <Check size={10} /> : <Copy size={10} />}
-                                        {copied ? 'Copied' : 'Copy'}
+                                        <AnimatePresence mode="wait" initial={false}>
+                                          {copied ? (
+                                            <motion.span
+                                              key="copied"
+                                              initial={{ opacity: 0, scale: 0.4, rotate: -30 }}
+                                              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                              exit={{ opacity: 0, scale: 0.4 }}
+                                              transition={{ type: "spring", stiffness: 500, damping: 18 }}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Check size={10} /> Copied
+                                            </motion.span>
+                                          ) : (
+                                            <motion.span
+                                              key="copy"
+                                              initial={{ opacity: 0 }}
+                                              animate={{ opacity: 1 }}
+                                              exit={{ opacity: 0 }}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Copy size={10} /> Copy
+                                            </motion.span>
+                                          )}
+                                        </AnimatePresence>
                                       </button>
 
                                       <button
@@ -1333,23 +1429,52 @@ export default function FloatingRobot({
                                             selectedClientId || undefined
                                           )
                                         }
-                                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                        className="py-1.5 px-2.5 rounded-lg bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
                                       >
-                                        <RefreshCw size={10} className="text-[#245B92]" />
+                                        <RefreshCw size={10} className="text-slate-400" />
                                         Rewrite
                                       </button>
 
-                                      <button
+                                      <motion.button
                                         onClick={() => markAsSent('email')}
                                         disabled={markingSent || !selectedClientId}
-                                        className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 disabled:opacity-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                        animate={
+                                          sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
+                                            ? { scale: [1, 1.12, 1] }
+                                            : { scale: 1 }
+                                        }
+                                        transition={{ duration: 0.4, ease: "easeOut" }}
+                                        className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[9px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                          sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
+                                        }`}
                                       >
-                                        {sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId ? (
-                                          <><CheckCircle2 size={10} /> Sent</>
-                                        ) : (
-                                          <><Check size={10} /> Mark as Sent</>
-                                        )}
-                                      </button>
+                                        <AnimatePresence mode="wait" initial={false}>
+                                          {sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId ? (
+                                            <motion.span
+                                              key="sent"
+                                              initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+                                              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                              exit={{ opacity: 0, scale: 0.5 }}
+                                              transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <CheckCircle2 size={11} /> Sent
+                                            </motion.span>
+                                          ) : (
+                                            <motion.span
+                                              key="mark"
+                                              initial={{ opacity: 0 }}
+                                              animate={{ opacity: 1 }}
+                                              exit={{ opacity: 0 }}
+                                              className="flex items-center gap-1"
+                                            >
+                                              <Check size={11} /> Mark as Sent
+                                            </motion.span>
+                                          )}
+                                        </AnimatePresence>
+                                      </motion.button>
                                     </div>
 
                                   </div>
@@ -1372,17 +1497,39 @@ export default function FloatingRobot({
                                     </span>
                                   </div>
 
-                                  <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[14vh] sm:max-h-[85px] overflow-y-auto">
+                                  <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[14vh] sm:max-h-[85px] overflow-y-auto scroll-smooth">
                                     {followUp.whatsapp}
                                   </div>
 
                                   <div className="flex gap-1.5 mt-2">
                                     <button
                                       onClick={() => copyFollowUpWhatsApp(aiResponse || '')}
-                                      className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-50 text-[#159A9F] border border-emerald-100 hover:bg-emerald-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      className="py-1.5 px-2.5 rounded-lg bg-white text-[#159A9F] border border-emerald-100 hover:border-[#159A9F]/40 hover:bg-emerald-50/40 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
                                     >
-                                      {copied ? <Check size={10} /> : <Copy size={10} />}
-                                      {copied ? 'Copied' : 'Copy'}
+                                      <AnimatePresence mode="wait" initial={false}>
+                                        {copied ? (
+                                          <motion.span
+                                            key="copied"
+                                            initial={{ opacity: 0, scale: 0.4, rotate: -30 }}
+                                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                            exit={{ opacity: 0, scale: 0.4 }}
+                                            transition={{ type: "spring", stiffness: 500, damping: 18 }}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Check size={10} /> Copied
+                                          </motion.span>
+                                        ) : (
+                                          <motion.span
+                                            key="copy"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Copy size={10} /> Copy
+                                          </motion.span>
+                                        )}
+                                      </AnimatePresence>
                                     </button>
 
                                     <button
@@ -1393,23 +1540,52 @@ export default function FloatingRobot({
                                           selectedClientId || undefined
                                         )
                                       }
-                                      className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-50 text-[#159A9F] border border-emerald-100 hover:bg-emerald-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      className="py-1.5 px-2.5 rounded-lg bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
                                     >
-                                      <RefreshCw size={10} className="text-[#159A9F]" />
+                                      <RefreshCw size={10} className="text-slate-400" />
                                       Rewrite
                                     </button>
 
-                                    <button
+                                    <motion.button
                                       onClick={() => markAsSent('whatsapp')}
                                       disabled={markingSent || !selectedClientId}
-                                      className="flex-1 py-1.5 px-2 rounded-lg bg-teal-50 text-teal-700 border border-teal-100 hover:bg-teal-100 disabled:opacity-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                      animate={
+                                        sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId
+                                          ? { scale: [1, 1.12, 1] }
+                                          : { scale: 1 }
+                                      }
+                                      transition={{ duration: 0.4, ease: "easeOut" }}
+                                      className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[9px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                        sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId
+                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                          : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
+                                      }`}
                                     >
-                                      {sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId ? (
-                                        <><CheckCircle2 size={10} /> Sent</>
-                                      ) : (
-                                        <><Check size={10} /> Mark as Sent</>
-                                      )}
-                                    </button>
+                                      <AnimatePresence mode="wait" initial={false}>
+                                        {sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId ? (
+                                          <motion.span
+                                            key="sent"
+                                            initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+                                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                            exit={{ opacity: 0, scale: 0.5 }}
+                                            transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <CheckCircle2 size={11} /> Sent
+                                          </motion.span>
+                                        ) : (
+                                          <motion.span
+                                            key="mark"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="flex items-center gap-1"
+                                          >
+                                            <Check size={11} /> Mark as Sent
+                                          </motion.span>
+                                        )}
+                                      </AnimatePresence>
+                                    </motion.button>
                                   </div>
 
                                 </div>
@@ -1737,7 +1913,7 @@ export default function FloatingRobot({
                                         </span>
                                       </div>
 
-                                      <div className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[120px] overflow-y-auto">
+                                      <div className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[120px] overflow-y-auto scroll-smooth">
                                         {rewrite.message}
                                       </div>
 
@@ -1984,7 +2160,7 @@ export default function FloatingRobot({
                               );
                             })()
                         ) : (
-                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-[10px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto">
+                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-[10px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto scroll-smooth">
                             {aiResponse}
                           </div>
                         )}
@@ -2014,6 +2190,7 @@ export default function FloatingRobot({
                         setActiveActionId(null);
                         setSelectedClientId(null);
                         setClientPickerAction(null);
+                        setAllClientsPaid(false);
                       }}
                       className="flex-1 py-1.5 px-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
                     >
@@ -2068,6 +2245,7 @@ export default function FloatingRobot({
                           setActiveActionId(null);
                           setSelectedClientId(null);
                           setClientPickerAction(null);
+                          setAllClientsPaid(false);
                         }}
                         className="py-1.5 px-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
@@ -2123,9 +2301,22 @@ export default function FloatingRobot({
                   </p>
                 </div>
 
-                {clients.map((client: any) => (
-                  <button
+                {clients.filter((client: any) => client.status !== 'Paid').length === 0 ? (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
+                    <p className="text-[11px] font-bold text-emerald-700">All caught up! 🎉</p>
+                    <p className="text-[10px] text-emerald-600 mt-1">
+                      Every client is marked Paid, so there's nothing to follow up on right now.
+                    </p>
+                  </div>
+                ) : (
+                  clients.filter((client: any) => client.status !== 'Paid').map((client: any, index: number) => (
+                  <motion.button
                     key={client.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04, type: "spring", stiffness: 320, damping: 26 }}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => {
                       setClientPickerAction(null);
                       handleActionClick(
@@ -2134,7 +2325,7 @@ export default function FloatingRobot({
                         client.id
                       );
                     }}
-                    className="w-full text-left p-2.5 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-all flex items-center justify-between cursor-pointer"
+                    className="w-full text-left p-2.5 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-colors flex items-center justify-between cursor-pointer"
                   >
                     <div className="min-w-0">
                       <p className="font-bold text-[11px] text-slate-800 truncate">
@@ -2149,8 +2340,9 @@ export default function FloatingRobot({
                       size={13}
                       className="text-slate-300 flex-shrink-0"
                     />
-                  </button>
-                ))}
+                  </motion.button>
+                  ))
+                )}
 
                 <button
                   onClick={() => setClientPickerAction(null)}
@@ -2172,9 +2364,14 @@ export default function FloatingRobot({
                   { name: 'Outstanding Summary', id: 'summarize', icon: <BarChart3 size={13}/>, desc: 'Analyze your outstanding payments' },
                   { name: 'Rewrite Reminder', id: 'rewrite', icon: <Clock size={13}/>, desc: 'Rewrite your reminder professionally' },
                   { name: 'Find Overdue Clients', id: 'overdue', icon: <Users size={13}/>, desc: 'Find clients with overdue payments' },
-                ].map((act) => (
-                  <button 
+                ].map((act, index) => (
+                  <motion.button 
                     key={act.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05, type: "spring", stiffness: 320, damping: 26 }}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={() => {
                       const clientSpecificActions = ['recommend', 'rewrite'];
 
@@ -2187,7 +2384,7 @@ export default function FloatingRobot({
                         handleActionClick(act.id, act.name);
                       }
                     }}
-                    className="w-full text-left p-2 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
+                    className="w-full text-left p-2 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-colors duration-150 flex items-center justify-between group cursor-pointer shadow-2xs"
                     suppressHydrationWarning={true}
                   >
                     <div className="flex items-center gap-2 truncate">
@@ -2200,7 +2397,7 @@ export default function FloatingRobot({
                       </div>
                     </div>
                     <ChevronRight size={12} className="text-slate-300 group-hover:text-[#20B8BE] group-hover:translate-x-0.5 transition-all flex-shrink-0 ml-1" />
-                  </button>
+                  </motion.button>
                 ))}
 
                 <div className="pt-2 text-center border-t border-slate-100 mt-2">
@@ -2248,13 +2445,18 @@ export default function FloatingRobot({
 
     {/* 4. WIDGET BUTTON */}
     <motion.button 
-      whileHover={{ scale: 1.05 }} 
+      animate={{ y: [0, -5, 0] }}
+      transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+      whileHover={{ scale: 1.05, y: -2 }} 
       whileTap={{ scale: 0.95 }}
       onClick={handleRobotClick}
       aria-label="Open Blink AI Assistant"
-      className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform focus:outline-none focus:ring-4 focus:ring-[#20B8BE]/40"
+      className="relative w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-[#245B92] to-[#20B8BE] rounded-full shadow-2xl flex items-center justify-center border-4 border-white cursor-pointer overflow-hidden flex-shrink-0 transform-gpu will-change-transform focus:outline-none focus:ring-4 focus:ring-[#20B8BE]/40"
       suppressHydrationWarning={true}
     >
+      {uiState === 'processing' && (
+        <span className="absolute -inset-1 rounded-full bg-[#20B8BE]/40 animate-ping pointer-events-none" />
+      )}
       <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
     </motion.button>
    </div>
