@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
@@ -500,6 +500,7 @@ export default function LandingPage() {
   };
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
         
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
@@ -612,7 +613,7 @@ export default function LandingPage() {
                         <div className="absolute bottom-1 left-3 right-3 h-0.5 bg-[#245B92] rounded-full" />
                       )}
                     </motion.button>
-                    <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 hidden group-hover:block z-50">
+                    <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 z-50 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 ease-out">
                       <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
                     </div>
                   </div>
@@ -721,9 +722,11 @@ export default function LandingPage() {
     {/* --- SECTION 1: HERO ZONE WITH SMOOTH REVEAL --- */}
 <motion.section
   id="hero"
-  initial={{ opacity: 0, y: 10 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.3, ease: "easeOut" }}
+  initial="hidden"
+  animate="visible"
+  variants={{
+    visible: { transition: { staggerChildren: 0.12 } }
+  }}
   className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
   suppressHydrationWarning={true}
 >
@@ -746,7 +749,9 @@ export default function LandingPage() {
     <SeasonalLandingAccent />
 
     {/* HERO BADGE */}
-    <div
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
       className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden"
       suppressHydrationWarning={true}
     >
@@ -773,10 +778,12 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
         />
       </span>
-    </div>
+    </motion.div>
 
     {/* HERO HEADING */}
-    <h1
+    <motion.h1
+      variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className="text-3xl sm:text-5xl lg:text-7xl font-[800] tracking-[-0.025em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
       suppressHydrationWarning={true}
     >
@@ -788,10 +795,12 @@ export default function LandingPage() {
       >
         GET PAID FASTER.
       </span>
-    </h1>
+    </motion.h1>
 
     {/* SUPPORTING HEADLINE */}
-    <div
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
       className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600"
       suppressHydrationWarning={true}
     >
@@ -808,18 +817,22 @@ export default function LandingPage() {
       >
         Start getting paid faster.
       </p>
-    </div>
+    </motion.div>
 
     {/* DESCRIPTION */}
-    <p
+    <motion.p
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
       className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
       suppressHydrationWarning={true}
     >
       Generate professional payment reminders, track unpaid invoices, and recover payments faster with AI.
-    </p>
+    </motion.p>
 
     {/* CTA */}
-    <div
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
       className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4"
       suppressHydrationWarning={true}
     >
@@ -892,7 +905,7 @@ export default function LandingPage() {
           </span>
         </div>
       )}
-  </div>
+  </motion.div>
   </div>
 </motion.section>
 
@@ -965,6 +978,7 @@ export default function LandingPage() {
     <motion.div 
       initial={{ opacity: 0, scale: 0.99 }}
       whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: 0.3, delay: 0.1 }}
       className="max-w-3xl mx-auto border border-slate-100 rounded-3xl p-6 sm:p-8 bg-slate-50/40 space-y-6"
       suppressHydrationWarning={true}
@@ -1545,6 +1559,7 @@ export default function LandingPage() {
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-50px" }}
           transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
           className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-3xs text-left overflow-x-auto"
           suppressHydrationWarning={true}
@@ -1624,6 +1639,7 @@ export default function LandingPage() {
       <motion.div 
         initial={{ opacity: 0, x: -10 }}
         whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.3, delay: 0.05 }}
         className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-6 flex flex-col justify-between"
         suppressHydrationWarning={true}
@@ -1678,28 +1694,28 @@ export default function LandingPage() {
             <form onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
               <div suppressHydrationWarning={true}>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Client Name *</label>
-                <input type="text" required placeholder="e.g. ABC Agency" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none" suppressHydrationWarning={true} />
+                <input type="text" required placeholder="e.g. ABC Agency" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20" suppressHydrationWarning={true} />
               </div>
               <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
                 <div suppressHydrationWarning={true}>
               <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Currency</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none appearance-none" suppressHydrationWarning={true}>
+              <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 appearance-none" suppressHydrationWarning={true}>
                 <option value="₹ INR" suppressHydrationWarning={true}>₹ INR</option><option value="$ USD" suppressHydrationWarning={true}>$ USD</option><option value="€ EUR" suppressHydrationWarning={true}>€ EUR</option>
               </select>
                 </div>
                 <div suppressHydrationWarning={true}>
               <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Amount Due *</label>
-              <input type="number" required placeholder="25000" value={amount} onChange={e => setAmount(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none placeholder:text-slate-300" suppressHydrationWarning={true} />
+              <input type="number" required placeholder="25000" value={amount} onChange={e => setAmount(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300" suppressHydrationWarning={true} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
                 <div suppressHydrationWarning={true}>
               <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Days Overdue</label>
-              <input type="number" value={daysOverdue} onChange={e => setDaysOverdue(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none" suppressHydrationWarning={true} />
+              <input type="number" value={daysOverdue} onChange={e => setDaysOverdue(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20" suppressHydrationWarning={true} />
               </div>
                 <div suppressHydrationWarning={true}>
               <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Invoice #</label>
-              <input type="text" placeholder="INV-2025-042" value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none placeholder:text-slate-300" suppressHydrationWarning={true} />
+              <input type="text" placeholder="INV-2025-042" value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300" suppressHydrationWarning={true} />
               </div>
               </div>
               <div suppressHydrationWarning={true}>
@@ -1731,6 +1747,7 @@ export default function LandingPage() {
       <motion.div 
         initial={{ opacity: 0, x: 10 }}
         whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true, margin: "-50px" }}
         transition={{ duration: 0.3, delay: 0.1 }}
         className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xl flex flex-col justify-between"
         suppressHydrationWarning={true}
@@ -2606,5 +2623,6 @@ export default function LandingPage() {
     <FloatingRobot />
 
 </div>
+    </MotionConfig>
   );
 }
