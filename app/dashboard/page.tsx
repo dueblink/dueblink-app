@@ -9,473 +9,8 @@ import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, upd
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
+import AddClientModal from '@/components/AddClientModal';
 import { useCompletion } from 'ai/react';
-
-function AddClientModal({ isOpen, onClose, user, isPro, clientToEdit, onClientSaved }: { isOpen: boolean; onClose: () => void; user: any; isPro?: boolean; clientToEdit?: any; onClientSaved?: () => void }) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [successStep, setSuccessStep] = useState(false);
-  const [automatedReminders, setAutomatedReminders] = useState(false);
-
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    company: '', 
-    email: '', 
-    whatsapp: '', 
-    amount: '', 
-    dueDate: '', 
-    invoiceNumber: '',
-    paymentLink: ''
-  });
-
-  useEffect(() => {
-    if (clientToEdit) {
-      setFormData({
-        name: clientToEdit.name || '',
-        company: clientToEdit.company || '',
-        email: clientToEdit.email || '',
-        whatsapp: clientToEdit.whatsapp || '',
-        amount: clientToEdit.amount || '',
-        dueDate: clientToEdit.dueDate || '',
-        invoiceNumber: clientToEdit.invoiceNumber || '',
-        paymentLink: clientToEdit.paymentLink || ''
-      });
-      setAutomatedReminders(clientToEdit.automatedReminders || false);
-    } else {
-      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '' });
-      setAutomatedReminders(false);
-    }
-  }, [clientToEdit, isOpen]);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      alert("You must be logged in to save a client.");
-      return;
-    }
-    if (!formData.name || !formData.email || !formData.amount || !formData.dueDate) {
-      alert("Please fill in all required fields (*).");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (clientToEdit) {
-        await updateDoc(doc(db, 'clients', clientToEdit.id), {
-          name: formData.name,
-          company: formData.company,
-          email: formData.email,
-          whatsapp: formData.whatsapp,
-          amount: formData.amount,
-          dueDate: formData.dueDate,
-          invoiceNumber: formData.invoiceNumber,
-          paymentLink: formData.paymentLink.trim(),
-          automatedReminders: isPro && automatedReminders,
-          automationStatus: isPro && automatedReminders ? 'active' : 'off'
-        });
-      } else {
-        await addDoc(collection(db, 'clients'), {
-          userId: user.uid,
-          name: formData.name,
-          company: formData.company,
-          email: formData.email,
-          whatsapp: formData.whatsapp,
-          amount: formData.amount,
-          dueDate: formData.dueDate,
-          invoiceNumber: formData.invoiceNumber,
-          paymentLink: formData.paymentLink.trim(),
-          status: 'Pending',
-          createdAt: serverTimestamp(),
-          reminderHistory: [],
-          automatedReminders: isPro && automatedReminders,
-          automationStatus: isPro && automatedReminders ? 'active' : 'off'
-        });
-      }
-
-      window.dispatchEvent(new Event('clients-updated'));
-      if (onClientSaved) onClientSaved();
-
-      setLoading(false);
-      if (!clientToEdit) {
-        setSuccessStep(true);
-      } else {
-        onClose();
-      }
-      router.refresh();
-    } catch (error) {
-      console.error("Error saving client: ", error);
-      alert("Failed to save client.");
-      setLoading(false);
-    }
-  };
-
-  const handleResetAndClose = () => {
-    setFormData({
-      name: '',
-      company: '',
-      email: '',
-      whatsapp: '',
-      amount: '',
-      dueDate: '',
-      invoiceNumber: '',
-      paymentLink: ''
-    });
-
-    setAutomatedReminders(false);
-    setSuccessStep(false);
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs" suppressHydrationWarning={true}>
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: 15 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-        className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto text-slate-900"
-        suppressHydrationWarning={true}
-      >
-        <button 
-          onClick={handleResetAndClose} 
-          className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-full bg-slate-50 transition"
-          suppressHydrationWarning={true}
-        >
-          <X size={20} />
-        </button>
-
-        {!successStep ? (
-          <>
-            <div className="mb-6" suppressHydrationWarning={true}>
-              <h2 className="text-xl font-black uppercase tracking-tight text-slate-900" suppressHydrationWarning={true}>
-                {clientToEdit ? 'Edit Client' : 'Add New Client'}
-              </h2>
-              <p className="text-xs text-slate-500 font-medium mt-1" suppressHydrationWarning={true}>
-                {clientToEdit ? 'Update client details and payment status.' : 'Add a client to start tracking payments and managing invoices.'}
-              </p>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleSave} suppressHydrationWarning={true}>
-              <div className="space-y-1.5" suppressHydrationWarning={true}>
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Client Name *</label>
-                <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <User className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                  <input 
-                    type="text" 
-                    required 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900" 
-                    placeholder="John Doe" 
-                    value={formData.name} 
-                    onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                    suppressHydrationWarning={true}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5" suppressHydrationWarning={true}>
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Company (Optional)</label>
-                <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <Building className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                  <input 
-                    type="text" 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900" 
-                    placeholder="ABC Agency" 
-                    value={formData.company} 
-                    onChange={(e) => setFormData({...formData, company: e.target.value})} 
-                    suppressHydrationWarning={true}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5" suppressHydrationWarning={true}>
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Client Email *</label>
-                <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <Mail className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                  <input 
-                    type="email" 
-                    required 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900" 
-                    placeholder="client@company.com" 
-                    value={formData.email} 
-                    onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                    suppressHydrationWarning={true}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5" suppressHydrationWarning={true}>
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>WhatsApp Number (Optional)</label>
-                <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <Phone className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                  <input 
-                    type="tel" 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900" 
-                    placeholder="+91 98765 43210" 
-                    value={formData.whatsapp} 
-                    onChange={(e) => setFormData({...formData, whatsapp: e.target.value})} 
-                    suppressHydrationWarning={true}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" suppressHydrationWarning={true}>
-                <div className="space-y-1.5" suppressHydrationWarning={true}>
-                  <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Amount Due *</label>
-                  <div className="relative flex items-center" suppressHydrationWarning={true}>
-                    <IndianRupee className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                    <input 
-                      type="number" 
-                      required 
-                      className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900" 
-                      placeholder="25000" 
-                      value={formData.amount} 
-                      onChange={(e) => setFormData({...formData, amount: e.target.value})} 
-                      suppressHydrationWarning={true}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5" suppressHydrationWarning={true}>
-                  <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Due Date *</label>
-                  <div className="relative flex items-center" suppressHydrationWarning={true}>
-                    <Calendar className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                    <input 
-                      type="date" 
-                      required 
-                      className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-600" 
-                      value={formData.dueDate} 
-                      onChange={(e) => setFormData({...formData, dueDate: e.target.value})} 
-                      suppressHydrationWarning={true}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5" suppressHydrationWarning={true}>
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Invoice Number (Optional)</label>
-                <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <FileText className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
-                  <input 
-                    type="text" 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900" 
-                    placeholder="INV-2026-001" 
-                    value={formData.invoiceNumber} 
-                    onChange={(e) => setFormData({...formData, invoiceNumber: e.target.value})} 
-                    suppressHydrationWarning={true}
-                  />
-                </div>
-              </div>
-
-              {/* Payment Link */}
-              <div className="space-y-1.5" suppressHydrationWarning={true}>
-                <label
-                  className="text-xs font-bold text-slate-500 uppercase"
-                  suppressHydrationWarning={true}
-                >
-                  Payment Link{' '}
-                  <span className="text-slate-400 font-normal lowercase">
-                    (Optional)
-                  </span>
-                </label>
-
-                <div
-                  className="relative flex items-center"
-                  suppressHydrationWarning={true}
-                >
-                  <input
-                    type="url"
-                    className="w-full px-4 py-3 border border-slate-200 bg-transparent rounded-xl text-sm focus:outline-none focus:border-[#245B92] transition text-slate-900"
-                    placeholder="https://rzp.io/l/..."
-                    value={formData.paymentLink}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        paymentLink: e.target.value
-                      })
-                    }
-                    suppressHydrationWarning={true}
-                  />
-                </div>
-
-                <p className="text-[10px] text-slate-400 pl-1">
-                  Add a payment link if you want the client to pay directly from the reminder email.
-                </p>
-              </div>
-
-              {/* Automated Email Reminders Block */}
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: 0.21 }}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                suppressHydrationWarning={true}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-[#0F172A]">
-                        Automated Email Reminders
-                      </p>
-
-                      <span className="rounded-full bg-[#E8F8F8] px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#159A9F]">
-                        PRO
-                      </span>
-                    </div>
-
-                    <p className="mt-1 max-w-md text-[11px] font-medium leading-relaxed text-slate-500">
-                      Let DueBlink automatically follow up with this client until payment is received.
-                    </p>
-                  </div>
-
-                  {/* ON / OFF */}
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wide ${
-                        automatedReminders && isPro
-                          ? 'text-[#159A9F]'
-                          : 'text-slate-400'
-                      }`}
-                    >
-                      {automatedReminders && isPro ? 'ON' : 'OFF'}
-                    </span>
-
-                    <button
-                      type="button"
-                      disabled={!isPro}
-                      aria-label="Toggle automated email reminders"
-                      aria-pressed={automatedReminders && isPro}
-                      onClick={() => {
-                        if (isPro) {
-                          setAutomatedReminders((prev) => !prev);
-                        }
-                      }}
-                      className={`relative h-7 w-12 rounded-full p-1 transition-all duration-200 ${
-                        automatedReminders && isPro
-                          ? 'bg-[#20B8BE]'
-                          : 'bg-slate-200'
-                      } ${
-                        !isPro
-                          ? 'cursor-not-allowed opacity-60'
-                          : 'cursor-pointer'
-                      }`}
-                    >
-                      <span
-                        className={`block h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${
-                          automatedReminders && isPro
-                            ? 'translate-x-5'
-                            : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Automation details */}
-                {isPro && automatedReminders && (
-                  <div className="mt-5 rounded-xl border border-[#D8F1F2] bg-[#F7FCFC] p-4">
-                    <p className="mb-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      Automatic follow-up sequence
-                    </p>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#DDF7F7] text-[10px] font-black text-[#159A9F]">
-                          ✓
-                        </span>
-                        <div className="flex flex-1 items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-600">
-                            First reminder
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            Due date
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#DDF7F7] text-[10px] font-black text-[#159A9F]">
-                          ✓
-                        </span>
-                        <div className="flex flex-1 items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-600">
-                            Follow-up
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            3 days later
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#DDF7F7] text-[10px] font-black text-[#159A9F]">
-                          ✓
-                        </span>
-                        <div className="flex flex-1 items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-600">
-                            Final follow-up
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            7 days later
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="mt-4 border-t border-[#D8F1F2] pt-3 text-[10px] font-medium leading-relaxed text-slate-400">
-                      Reminders automatically stop when the invoice is marked as paid.
-                    </p>
-                  </div>
-                )}
-
-                {/* Free user */}
-                {!isPro && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-[10px]"></span>
-                    <p className="text-[10px] font-bold text-slate-400">
-                      Upgrade to Pro to enable automated reminders.
-                    </p>
-                  </div>
-                )}
-              </motion.div>
-
-              <button 
-                type="submit" 
-                disabled={loading} 
-                className="w-full py-3.5 rounded-xl font-bold text-white text-sm mt-6 shadow-md transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer" 
-                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                suppressHydrationWarning={true}
-              >
-                {loading ? <><Loader2 className="animate-spin" size={16} /> Saving...</> : (clientToEdit ? 'Update Client' : 'Save Client')}
-              </button>
-            </form>
-          </>
-        ) : (
-          <div className="py-8 text-center space-y-6" suppressHydrationWarning={true}>
-            <div className="w-16 h-16 bg-teal-50 text-[#2BB6A8] rounded-full flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
-              <CheckCircle2 size={36} />
-            </div>
-            <div suppressHydrationWarning={true}>
-              <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>Client Added Successfully</h3>
-              <p className="text-sm text-slate-500 mt-1" suppressHydrationWarning={true}>What would you like to do next?</p>
-            </div>
-
-            <div className="space-y-3 pt-2" suppressHydrationWarning={true}>
-              <button 
-                onClick={() => { handleResetAndClose(); }} 
-                className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                suppressHydrationWarning={true}
-              >
-                Go to Dashboard Overview
-              </button>
-            </div>
-          </div>
-        )}
-      </motion.div>
-    </div>
-  );
-}
 
 function CustomSelectDropdown({ 
   value, 
@@ -879,7 +414,12 @@ export default function DashboardPage() {
       
       <AnimatePresence>
         {upgradeModalOpen && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.98, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -888,12 +428,15 @@ export default function DashboardPage() {
               className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6 relative text-slate-900"
               suppressHydrationWarning={true}
             >
-              <button 
+              <motion.button 
+                whileHover={{ rotate: 90, scale: 1.08 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
                 onClick={() => setUpgradeModalOpen(false)} 
-                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-full bg-slate-50 transition"
+                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-full bg-slate-50 transition-colors"
               >
                 <X size={20} />
-              </button>
+              </motion.button>
 
               <div className="w-16 h-16 bg-blue-50 text-[#245B92] rounded-2xl flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
                 <Sparkles size={32} />
@@ -907,33 +450,42 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-2" suppressHydrationWarning={true}>
-                <button 
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setUpgradeModalOpen(false)} 
-                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-3xs"
+                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-3xs"
                   suppressHydrationWarning={true}
                 >
                   Maybe Later
-                </button>
-                <button 
+                </motion.button>
+                <motion.button 
+                  whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(36,91,146,0.25)' }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => {
                     setUpgradeModalOpen(false);
                     router.push('/pricing');
                   }} 
-                  className="flex-1 py-3.5 rounded-xl text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2 hover:opacity-95"
+                  className="flex-1 py-3.5 rounded-xl text-white font-bold text-xs shadow-md transition-shadow cursor-pointer flex items-center justify-center gap-2"
                   style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                   suppressHydrationWarning={true}
                 >
                   Upgrade Now 🚀
-                </button>
+                </motion.button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {cancelModalOpen && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.98, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -954,30 +506,39 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-2" suppressHydrationWarning={true}>
-                <button 
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setCancelModalOpen(false)} 
-                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-3xs"
+                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-3xs"
                   suppressHydrationWarning={true}
                 >
                   Keep Pro Plan ✨
-                </button>
-                <button 
+                </motion.button>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={handleCancelSubscription} 
                   disabled={loading}
-                  className="flex-1 py-3.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition-colors cursor-pointer flex items-center justify-center gap-2"
                   suppressHydrationWarning={true}
                 >
                   {loading ? <Loader2 className="animate-spin" size={14} /> : 'Yes, Cancel Plan'}
-                </button>
+                </motion.button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {clientToDelete && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs" suppressHydrationWarning={true}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs" suppressHydrationWarning={true}>
             <motion.div 
               initial={{ opacity: 0, scale: 0.98, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -994,23 +555,27 @@ export default function DashboardPage() {
                 <p className="text-xs text-slate-500 mt-1" suppressHydrationWarning={true}>Are you sure you want to delete <span className="font-bold text-slate-700" suppressHydrationWarning={true}>{clientToDelete.name}</span>? This action cannot be undone.</p>
               </div>
               <div className="flex gap-3 pt-2" suppressHydrationWarning={true}>
-                <button 
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={() => setClientToDelete(null)} 
-                  className="flex-1 py-3 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  className="flex-1 py-3 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                   suppressHydrationWarning={true}
                 >
                   Cancel
-                </button>
-                <button 
+                </motion.button>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
                   onClick={confirmDeleteClient} 
-                  className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition cursor-pointer"
+                  className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition-colors cursor-pointer"
                   suppressHydrationWarning={true}
                 >
                   Yes, Delete
-                </button>
+                </motion.button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
       
@@ -1147,9 +712,9 @@ export default function DashboardPage() {
                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">✓</div>
                 <p className="text-xs font-bold tracking-wide">{successMessage}</p>
               </div>
-              <button onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer">
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer">
                 <X size={16} />
-              </button>
+              </motion.button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1179,12 +744,14 @@ export default function DashboardPage() {
                   <span className="bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md">
                     Active Pro Plan
                   </span>
-                  <button 
+                  <motion.button 
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={() => setCancelModalOpen(true)}
-                    className="bg-white/10 hover:bg-white/25 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md transition cursor-pointer"
+                    className="bg-white/10 hover:bg-white/25 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md transition-colors cursor-pointer"
                   >
                     Cancel Plan
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             ) : (
@@ -1193,13 +760,15 @@ export default function DashboardPage() {
                   <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>Unlock Pro Recovery Assistant</h2>
                   <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Automate follow-ups, analyze payment trends, and recover money faster.</p>
                 </div>
-                <button 
+                <motion.button 
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.96 }}
                   onClick={() => setUpgradeModalOpen(true)}
-                  className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition cursor-pointer whitespace-nowrap"
+                  className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap"
                   suppressHydrationWarning={true}
                 >
                   Upgrade to Pro 🚀
-                </button>
+                </motion.button>
               </div>
             )}
 
@@ -1381,6 +950,7 @@ export default function DashboardPage() {
               </div>
               
               <div className="space-y-4" suppressHydrationWarning={true}>
+                <AnimatePresence mode="popLayout">
                 {filteredAndSortedClients.length === 0 ? (
                   <motion.div 
                     initial={{ opacity: 0 }}
@@ -1428,7 +998,14 @@ export default function DashboardPage() {
                     const isExpanded = expandedClientId === c.id;
 
                     return (
-                      <div key={c.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30 transition-all duration-150 space-y-4 cursor-pointer" suppressHydrationWarning={true}>
+                      <motion.div 
+                        key={c.id} 
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.97 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30 transition-colors duration-150 space-y-4 cursor-pointer" suppressHydrationWarning={true}>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
                           <div className="space-y-1" suppressHydrationWarning={true}>
                             <div className="flex items-center gap-3 flex-wrap" suppressHydrationWarning={true}>
@@ -1454,51 +1031,59 @@ export default function DashboardPage() {
                           </div>
 
                           <div className="flex items-center gap-3 w-full sm:w-auto" suppressHydrationWarning={true}>
-                            <button 
+                            <motion.button 
+                              whileHover={{ y: -1 }}
+                              whileTap={{ scale: 0.96 }}
                               onClick={() => setExpandedClientId(isExpanded ? null : c.id)} 
-                              className="flex-1 sm:flex-none text-xs font-bold bg-white border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 shadow-xs transition cursor-pointer text-slate-700 flex items-center justify-center gap-1.5"
+                              className="flex-1 sm:flex-none text-xs font-bold bg-white border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 shadow-xs transition-colors cursor-pointer text-slate-700 flex items-center justify-center gap-1.5"
                               suppressHydrationWarning={true}
                             >
                               <Eye size={14} suppressHydrationWarning={true} /> {isExpanded ? 'Hide Details' : 'View'}
                               <ChevronDown size={14} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
-                            </button>
+                            </motion.button>
 
                             {c.status === 'Pending' ? (
-                              <button 
+                              <motion.button 
+                                whileHover={{ y: -1, boxShadow: '0 4px 10px rgba(36,91,146,0.25)' }}
+                                whileTap={{ scale: 0.96 }}
                                 onClick={async (e) => { 
                                   e.stopPropagation(); 
                                   await updateDoc(doc(db, 'clients', c.id), { status: 'Paid' }); 
                                   window.dispatchEvent(new Event('clients-updated'));
                                 }} 
-                                className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2.5 rounded-xl shadow-xs hover:opacity-95 transition cursor-pointer flex items-center justify-center gap-1.5" 
+                                className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition-shadow cursor-pointer flex items-center justify-center gap-1.5" 
                                 style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                                 suppressHydrationWarning={true}
                               >
                                 <CheckCircle2 size={14} suppressHydrationWarning={true} /> Mark Paid
-                              </button>
+                              </motion.button>
                             ) : (
                               <span className="text-[11px] font-bold text-[#2BB6A8] bg-[#2BB6A8]/10 px-4 py-2.5 rounded-xl flex items-center gap-2" suppressHydrationWarning={true}>
                                 <CheckCircle2 size={14} suppressHydrationWarning={true} /> Paid
                               </span>
                             )}
                             
-                            <button 
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
                               onClick={(e) => { e.stopPropagation(); setClientToEdit(c); setIsModalOpen(true); }} 
-                              className="p-2.5 rounded-xl text-slate-400 hover:text-[#245B92] hover:bg-blue-50 transition cursor-pointer"
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-[#245B92] hover:bg-blue-50 transition-colors cursor-pointer"
                               title="Edit Client"
                               suppressHydrationWarning={true}
                             >
                               <Edit3 size={16} suppressHydrationWarning={true} />
-                            </button>
+                            </motion.button>
 
-                            <button 
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
                               onClick={(e) => { e.stopPropagation(); setClientToDelete(c); }} 
-                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                               title="Delete Client"
                               suppressHydrationWarning={true}
                             >
                               <Trash2 size={16} suppressHydrationWarning={true} />
-                            </button>
+                            </motion.button>
                           </div>
                         </div>
 
@@ -1601,10 +1186,11 @@ export default function DashboardPage() {
                             </motion.div>
                           )}
                         </AnimatePresence>
-                      </div>
+                      </motion.div>
                     );
                   })
                 )}
+                </AnimatePresence>
               </div>
             </section>
           </motion.div>
@@ -1654,20 +1240,24 @@ export default function DashboardPage() {
                 {isPro ? (
                   <div className="flex items-center gap-3">
                     <span className="bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-full">Active Pro</span>
-                    <button 
+                    <motion.button 
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.96 }}
                       onClick={() => setCancelModalOpen(true)} 
-                      className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-xs hover:bg-red-50 transition cursor-pointer"
+                      className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-xs hover:bg-red-50 transition-colors cursor-pointer"
                     >
                       Cancel Subscription
-                    </button>
+                    </motion.button>
                   </div>
                 ) : (
-                  <button 
+                  <motion.button 
+                    whileHover={{ y: -1, scale: 1.02 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={() => router.push('/pricing')} 
-                    className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-xs hover:opacity-95 transition cursor-pointer"
+                    className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-xs transition-shadow cursor-pointer"
                   >
                     Upgrade to Pro ✨
-                  </button>
+                  </motion.button>
                 )}
               </div>
               

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2, CheckCircle2, Sparkles, Loader2, ArrowRight } from 'lucide-react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -12,13 +12,17 @@ interface AddClientModalProps {
   onClose: () => void;
   user: any;
   isPro: boolean;
+  clientToEdit?: any;
+  onClientSaved?: () => void;
 }
 
 export default function AddClientModal({
   isOpen,
   onClose,
   user,
-  isPro
+  isPro,
+  clientToEdit,
+  onClientSaved
 }: AddClientModalProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -53,6 +57,27 @@ export default function AddClientModal({
   const dueDateInputRef = useRef<HTMLInputElement>(null);
   const invoiceInputRef = useRef<HTMLInputElement>(null);
   const paymentLinkInputRef = useRef<HTMLInputElement>(null);
+
+  // Populate form when editing an existing client; reset when adding new
+  useEffect(() => {
+    if (clientToEdit) {
+      setFormData({
+        name: clientToEdit.name || '',
+        company: clientToEdit.company || '',
+        email: clientToEdit.email || '',
+        whatsapp: clientToEdit.whatsapp || '',
+        amount: clientToEdit.amount || '',
+        dueDate: clientToEdit.dueDate || '',
+        invoiceNumber: clientToEdit.invoiceNumber || '',
+        paymentLink: clientToEdit.paymentLink || ''
+      });
+      setAutomatedReminders(clientToEdit.automatedReminders || false);
+    } else {
+      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '' });
+      setAutomatedReminders(false);
+    }
+    setErrors({ name: '', email: '', amount: '', dueDate: '' });
+  }, [clientToEdit, isOpen]);
 
   // Auto-focus Client Name on open & ESC key listener
   useEffect(() => {
@@ -141,6 +166,29 @@ export default function AddClientModal({
 
     setLoading(true);
     try {
+      if (clientToEdit) {
+        await updateDoc(doc(db, 'clients', clientToEdit.id), {
+          name: formData.name,
+          company: formData.company,
+          email: formData.email,
+          whatsapp: formData.whatsapp,
+          amount: formData.amount,
+          dueDate: formData.dueDate,
+          invoiceNumber: formData.invoiceNumber,
+          paymentLink: formData.paymentLink.trim(),
+          automatedReminders: isPro && automatedReminders,
+          automationStatus: isPro && automatedReminders ? 'active' : 'off'
+        });
+
+        window.dispatchEvent(new Event('clients-updated'));
+        if (onClientSaved) onClientSaved();
+
+        setLoading(false);
+        handleResetAndClose();
+        router.refresh();
+        return;
+      }
+
       // Check existing clients count from local storage to detect if first client
       const existingClients = JSON.parse(localStorage.getItem('dueblink_clients') || '[]');
       if (existingClients.length === 0) {
@@ -158,12 +206,14 @@ export default function AddClientModal({
         invoiceNumber: formData.invoiceNumber,
         paymentLink: formData.paymentLink.trim(),
         automatedReminders: isPro && automatedReminders,
+        automationStatus: isPro && automatedReminders ? 'active' : 'off',
         status: 'Pending',
         createdAt: serverTimestamp(),
         reminderHistory: []
       });
 
       window.dispatchEvent(new Event('clients-updated'));
+      if (onClientSaved) onClientSaved();
 
       setLoading(false);
       setSuccessStep(true);
@@ -192,10 +242,14 @@ export default function AddClientModal({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div 
+    <AnimatePresence>
+      {isOpen && (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
       className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs" 
       onClick={handleResetAndClose}
       suppressHydrationWarning={true}
@@ -206,22 +260,25 @@ export default function AddClientModal({
         exit={{ opacity: 0, scale: 0.96, y: 10 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 relative max-h-[90vh] flex flex-col overflow-hidden text-slate-900"
+        className="bg-white rounded-3xl max-w-md sm:max-w-lg w-full shadow-2xl border border-slate-100 relative max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden text-slate-900"
         suppressHydrationWarning={true}
       >
         {/* STICKY HEADER */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 sm:px-8 pt-6 pb-4 border-b border-slate-100 z-10 flex items-center justify-between" suppressHydrationWarning={true}>
           <div suppressHydrationWarning={true}>
-            <h2 className="text-xl font-black text-[#0F172A] uppercase tracking-tight" suppressHydrationWarning={true}>Add New Client</h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5" suppressHydrationWarning={true}>Add a client to start tracking payments.</p>
+            <h2 className="text-xl font-black text-[#0F172A] uppercase tracking-tight" suppressHydrationWarning={true}>{clientToEdit ? 'Edit Client' : 'Add New Client'}</h2>
+            <p className="text-xs text-slate-500 font-medium mt-0.5" suppressHydrationWarning={true}>{clientToEdit ? 'Update client details and payment status.' : 'Add a client to start tracking payments.'}</p>
           </div>
-          <button 
+          <motion.button 
+            whileHover={{ rotate: 90, scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20 }}
             onClick={handleResetAndClose} 
-            className="text-slate-400 hover:text-slate-600 cursor-pointer p-2 rounded-full bg-slate-50 hover:bg-slate-100 transition"
+            className="text-slate-400 hover:text-slate-600 cursor-pointer p-2 rounded-full bg-slate-50 hover:bg-slate-100 transition-colors"
             suppressHydrationWarning={true}
           >
             <X size={18} />
-          </button>
+          </motion.button>
         </div>
 
         {/* SCROLLABLE FORM BODY */}
@@ -239,7 +296,18 @@ export default function AddClientModal({
               >
                 <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                   <span>Client Name *</span>
-                  {formData.name.trim() && !errors.name && <CheckCircle2 size={14} className="text-[#2BB6A8]" />}
+                  <AnimatePresence>
+                    {formData.name.trim() && !errors.name && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.4 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.4 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                      >
+                        <CheckCircle2 size={14} className="text-[#2BB6A8]" />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
                   <User className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
@@ -254,7 +322,20 @@ export default function AddClientModal({
                     suppressHydrationWarning={true}
                   />
                 </div>
-                {errors.name && <p className="text-[11px] font-bold text-red-500 pl-1" suppressHydrationWarning={true}>{errors.name}</p>}
+                <AnimatePresence>
+                  {errors.name && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -4, height: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="text-[11px] font-bold text-red-500 pl-1"
+                      suppressHydrationWarning={true}
+                    >
+                      {errors.name}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </motion.div>
 
               {/* Company */}
@@ -293,7 +374,18 @@ export default function AddClientModal({
               >
                 <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                   <span>Client Email *</span>
-                  {formData.email.trim() && !errors.email && <CheckCircle2 size={14} className="text-[#2BB6A8]" />}
+                  <AnimatePresence>
+                    {formData.email.trim() && !errors.email && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.4 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.4 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                      >
+                        <CheckCircle2 size={14} className="text-[#2BB6A8]" />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
                   <Mail className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
@@ -308,7 +400,20 @@ export default function AddClientModal({
                     suppressHydrationWarning={true}
                   />
                 </div>
-                {errors.email && <p className="text-[11px] font-bold text-red-500 pl-1" suppressHydrationWarning={true}>{errors.email}</p>}
+                <AnimatePresence>
+                  {errors.email && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -4, height: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="text-[11px] font-bold text-red-500 pl-1"
+                      suppressHydrationWarning={true}
+                    >
+                      {errors.email}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </motion.div>
 
               {/* WhatsApp Number */}
@@ -348,7 +453,18 @@ export default function AddClientModal({
                 <div className="space-y-1.5" suppressHydrationWarning={true}>
                   <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                     <span>Amount Due *</span>
-                    {formData.amount.trim() && !errors.amount && <CheckCircle2 size={14} className="text-[#2BB6A8]" />}
+                    <AnimatePresence>
+                    {formData.amount.trim() && !errors.amount && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.4 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.4 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                      >
+                        <CheckCircle2 size={14} className="text-[#2BB6A8]" />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                   </label>
                   <div className="relative flex items-center" suppressHydrationWarning={true}>
                     <IndianRupee className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
@@ -363,13 +479,37 @@ export default function AddClientModal({
                       suppressHydrationWarning={true}
                     />
                   </div>
-                  {errors.amount && <p className="text-[11px] font-bold text-red-500 pl-1" suppressHydrationWarning={true}>{errors.amount}</p>}
+                  <AnimatePresence>
+                  {errors.amount && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -4, height: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="text-[11px] font-bold text-red-500 pl-1"
+                      suppressHydrationWarning={true}
+                    >
+                      {errors.amount}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
                 </div>
 
                 <div className="space-y-1.5" suppressHydrationWarning={true}>
                   <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                     <span>Due Date *</span>
-                    {formData.dueDate.trim() && !errors.dueDate && <CheckCircle2 size={14} className="text-[#2BB6A8]" />}
+                    <AnimatePresence>
+                    {formData.dueDate.trim() && !errors.dueDate && (
+                      <motion.span
+                        initial={{ opacity: 0, scale: 0.4 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.4 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 20 }}
+                      >
+                        <CheckCircle2 size={14} className="text-[#2BB6A8]" />
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                   </label>
                   <div className="relative flex items-center" suppressHydrationWarning={true}>
                     <Calendar className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
@@ -383,7 +523,20 @@ export default function AddClientModal({
                       suppressHydrationWarning={true}
                     />
                   </div>
-                  {errors.dueDate && <p className="text-[11px] font-bold text-red-500 pl-1" suppressHydrationWarning={true}>{errors.dueDate}</p>}
+                  <AnimatePresence>
+                  {errors.dueDate && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: "auto" }}
+                      exit={{ opacity: 0, y: -4, height: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="text-[11px] font-bold text-red-500 pl-1"
+                      suppressHydrationWarning={true}
+                    >
+                      {errors.dueDate}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
                 </div>
               </motion.div>
 
@@ -464,12 +617,12 @@ export default function AddClientModal({
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-bold text-slate-900">
                         Automated Email Reminders
                       </p>
 
-                      <span className="text-[9px] font-black uppercase tracking-wide px-2 py-1 rounded-full bg-[#245B92] text-white">
+                      <span className="text-[9px] font-black uppercase tracking-wide px-2 py-1 rounded-full bg-[#245B92] text-white whitespace-nowrap">
                         PRO
                       </span>
                     </div>
@@ -479,8 +632,9 @@ export default function AddClientModal({
                     </p>
                   </div>
 
-                  <button
+                  <motion.button
                     type="button"
+                    whileTap={{ scale: 0.94 }}
                     onClick={() => {
                       if (!isPro) {
                         alert('Automated Email Reminders are available with DueBlink Pro.');
@@ -490,21 +644,20 @@ export default function AddClientModal({
 
                       setAutomatedReminders(prev => !prev);
                     }}
-                    className={`relative shrink-0 w-12 h-7 rounded-full transition-colors ${
+                    className={`relative shrink-0 w-12 h-7 rounded-full transition-colors duration-200 ${
                       automatedReminders
                         ? 'bg-[#20B8BE]'
                         : 'bg-slate-300'
                     }`}
                     aria-label="Toggle automated email reminders"
                   >
-                    <span
-                      className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
-                        automatedReminders
-                          ? 'translate-x-6'
-                          : 'translate-x-1'
-                      }`}
+                    <motion.span
+                      layout
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      className="absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm"
+                      style={{ left: automatedReminders ? '26px' : '4px' }}
                     />
-                  </button>
+                  </motion.button>
                 </div>
 
                 {!isPro && (
@@ -546,9 +699,15 @@ export default function AddClientModal({
               className="py-6 text-center space-y-6" 
               suppressHydrationWarning={true}
             >
-              <div className="w-16 h-16 bg-teal-50 text-[#2BB6A8] rounded-full flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
+              <motion.div
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 350, damping: 18, delay: 0.1 }}
+                className="w-16 h-16 bg-teal-50 text-[#2BB6A8] rounded-full flex items-center justify-center mx-auto shadow-inner"
+                suppressHydrationWarning={true}
+              >
                 <CheckCircle2 size={36} />
-              </div>
+              </motion.div>
               <div suppressHydrationWarning={true}>
                 {isFirstClient ? (
                   <div className="space-y-2">
@@ -566,25 +725,36 @@ export default function AddClientModal({
               </div>
 
               <div className="space-y-3 pt-2" suppressHydrationWarning={true}>
-                <button 
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={handleResetAndClose} 
-                  className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs group"
                   suppressHydrationWarning={true}
                 >
-                  Go to Dashboard <ArrowRight size={16} />
-                </button>
+                  Go to Dashboard
+                  <motion.span
+                    className="inline-flex"
+                    animate={{ x: [0, 3, 0] }}
+                    transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <ArrowRight size={16} />
+                  </motion.span>
+                </motion.button>
                 
-                <button 
+                <motion.button 
+                  whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(36,91,146,0.25)' }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => { 
                     handleResetAndClose(); 
                     router.push('/dashboard'); 
                   }} 
-                  className="w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition-shadow flex items-center justify-center gap-2 cursor-pointer"
                   style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                   suppressHydrationWarning={true}
                 >
                   <Sparkles size={16} /> Generate Reminder
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           )}
@@ -603,11 +773,13 @@ export default function AddClientModal({
               style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
               suppressHydrationWarning={true}
             >
-              {loading ? <><Loader2 className="animate-spin" size={16} /> Saving Client...</> : 'Save Client'}
+              {loading ? <><Loader2 className="animate-spin" size={16} /> {clientToEdit ? 'Updating...' : 'Saving Client...'}</> : (clientToEdit ? 'Update Client' : 'Save Client')}
             </motion.button>
           </div>
         )}
       </motion.div>
-    </div>
+    </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
