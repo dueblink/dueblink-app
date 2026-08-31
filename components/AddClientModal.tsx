@@ -250,7 +250,7 @@ export default function AddClientModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs" 
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-3 py-4 sm:p-4 sm:py-4 bg-slate-900/30 backdrop-blur-xs" 
       onClick={handleResetAndClose}
       suppressHydrationWarning={true}
     >
@@ -260,31 +260,31 @@ export default function AddClientModal({
         exit={{ opacity: 0, scale: 0.96, y: 10 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl max-w-md sm:max-w-lg w-full shadow-2xl border border-slate-100 relative max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden text-slate-900"
+        className="bg-white rounded-2xl sm:rounded-3xl max-w-md sm:max-w-lg w-full shadow-2xl border border-slate-100 relative max-h-[90vh] flex flex-col overflow-hidden text-slate-900"
         suppressHydrationWarning={true}
       >
         {/* STICKY HEADER */}
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-6 sm:px-8 pt-6 pb-4 border-b border-slate-100 z-10 flex items-center justify-between" suppressHydrationWarning={true}>
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pt-4 pb-3 sm:px-8 sm:pt-6 sm:pb-4 border-b border-slate-100 z-10 flex items-center justify-between" suppressHydrationWarning={true}>
           <div suppressHydrationWarning={true}>
-            <h2 className="text-xl font-black text-[#0F172A] uppercase tracking-tight" suppressHydrationWarning={true}>{clientToEdit ? 'Edit Client' : 'Add New Client'}</h2>
-            <p className="text-xs text-slate-500 font-medium mt-0.5" suppressHydrationWarning={true}>{clientToEdit ? 'Update client details and payment status.' : 'Add a client to start tracking payments.'}</p>
+            <h2 className="text-base sm:text-xl font-black text-[#0F172A] uppercase tracking-tight" suppressHydrationWarning={true}>{clientToEdit ? 'Edit Client' : 'Add New Client'}</h2>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-0.5" suppressHydrationWarning={true}>{clientToEdit ? 'Update client details and payment status.' : 'Add a client to start tracking payments.'}</p>
           </div>
           <motion.button 
             whileHover={{ rotate: 90, scale: 1.08 }}
             whileTap={{ scale: 0.9 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
             onClick={handleResetAndClose} 
-            className="text-slate-400 hover:text-slate-600 cursor-pointer p-2 rounded-full bg-slate-50 hover:bg-slate-100 transition-colors"
+            className="text-slate-400 hover:text-slate-600 cursor-pointer p-1.5 sm:p-2 rounded-full bg-slate-50 hover:bg-slate-100 transition-colors shrink-0"
             suppressHydrationWarning={true}
           >
-            <X size={18} />
+            <X size={16} className="sm:w-[18px] sm:h-[18px]" />
           </motion.button>
         </div>
 
         {/* SCROLLABLE FORM BODY */}
-        <div className="p-6 sm:p-8 overflow-y-auto space-y-5" suppressHydrationWarning={true}>
+        <div className="p-4 sm:p-8 overflow-y-auto space-y-3 sm:space-y-5" suppressHydrationWarning={true}>
           {!successStep ? (
-            <form id="add-client-form" className="space-y-4" onSubmit={handleSave} suppressHydrationWarning={true}>
+            <form id="add-client-form" className="space-y-3 sm:space-y-4" onSubmit={handleSave} suppressHydrationWarning={true}>
               
               {/* Client Name */}
               <motion.div 
@@ -294,7 +294,7 @@ export default function AddClientModal({
                 className="space-y-1.5" 
                 suppressHydrationWarning={true}
               >
-                <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
+                <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                   <span>Client Name *</span>
                   <AnimatePresence>
                     {formData.name.trim() && !errors.name && (
@@ -310,11 +310,11 @@ export default function AddClientModal({
                   </AnimatePresence>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <User className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <User className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input 
                     ref={nameInputRef}
                     type="text" 
-                    className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.name ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
+                    className={`w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.name ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
                     placeholder="John Doe" 
                     value={formData.name} 
                     onChange={(e) => handleChange('name', e.target.value)}
@@ -346,15 +346,15 @@ export default function AddClientModal({
                 className="space-y-1.5" 
                 suppressHydrationWarning={true}
               >
-                <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
+                <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                   <span>Company <span className="text-slate-400 font-normal lowercase">(Optional)</span></span>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <Building className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <Building className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input 
                     ref={companyInputRef}
                     type="text" 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
+                    className="w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
                     placeholder="ABC Agency" 
                     value={formData.company} 
                     onChange={(e) => handleChange('company', e.target.value)}
@@ -372,7 +372,7 @@ export default function AddClientModal({
                 className="space-y-1.5" 
                 suppressHydrationWarning={true}
               >
-                <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
+                <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                   <span>Client Email *</span>
                   <AnimatePresence>
                     {formData.email.trim() && !errors.email && (
@@ -388,11 +388,11 @@ export default function AddClientModal({
                   </AnimatePresence>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <Mail className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <Mail className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input 
                     ref={emailInputRef}
                     type="email" 
-                    className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.email ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
+                    className={`w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.email ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
                     placeholder="client@company.com" 
                     value={formData.email} 
                     onChange={(e) => handleChange('email', e.target.value)}
@@ -424,15 +424,15 @@ export default function AddClientModal({
                 className="space-y-1.5" 
                 suppressHydrationWarning={true}
               >
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>
+                <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>
                   WhatsApp Number <span className="text-slate-400 font-normal lowercase">(Optional)</span>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <Phone className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <Phone className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input 
                     ref={whatsappInputRef}
                     type="tel" 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
+                    className="w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
                     placeholder="+91 98765 43210" 
                     value={formData.whatsapp} 
                     onChange={(e) => handleChange('whatsapp', e.target.value)}
@@ -447,11 +447,11 @@ export default function AddClientModal({
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: 0.15 }}
-                className="grid grid-cols-1 sm:grid-cols-2 gap-4" 
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4" 
                 suppressHydrationWarning={true}
               >
                 <div className="space-y-1.5" suppressHydrationWarning={true}>
-                  <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
+                  <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                     <span>Amount Due *</span>
                     <AnimatePresence>
                     {formData.amount.trim() && !errors.amount && (
@@ -467,11 +467,11 @@ export default function AddClientModal({
                   </AnimatePresence>
                   </label>
                   <div className="relative flex items-center" suppressHydrationWarning={true}>
-                    <IndianRupee className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                    <IndianRupee className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                     <input 
                       ref={amountInputRef}
                       type="text" 
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.amount ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
+                      className={`w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.amount ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
                       placeholder="25,000" 
                       value={formData.amount ? Number(formData.amount).toLocaleString('en-IN') : ''} 
                       onChange={(e) => handleChange('amount', e.target.value)}
@@ -496,7 +496,7 @@ export default function AddClientModal({
                 </div>
 
                 <div className="space-y-1.5" suppressHydrationWarning={true}>
-                  <label className="text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
+                  <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
                     <span>Due Date *</span>
                     <AnimatePresence>
                     {formData.dueDate.trim() && !errors.dueDate && (
@@ -512,11 +512,11 @@ export default function AddClientModal({
                   </AnimatePresence>
                   </label>
                   <div className="relative flex items-center" suppressHydrationWarning={true}>
-                    <Calendar className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                    <Calendar className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                     <input 
                       ref={dueDateInputRef}
                       type="date" 
-                      className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-700 ${errors.dueDate ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
+                      className={`w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-700 ${errors.dueDate ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
                       value={formData.dueDate} 
                       onChange={(e) => handleChange('dueDate', e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, invoiceInputRef)}
@@ -548,15 +548,15 @@ export default function AddClientModal({
                 className="space-y-1.5" 
                 suppressHydrationWarning={true}
               >
-                <label className="text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>
+                <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>
                   Invoice Number <span className="text-slate-400 font-normal lowercase">(Optional)</span>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
-                  <FileText className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <FileText className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input 
                     ref={invoiceInputRef}
                     type="text" 
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
+                    className="w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
                     placeholder="INV-2026-001" 
                     value={formData.invoiceNumber} 
                     onChange={(e) => handleChange('invoiceNumber', e.target.value)}
@@ -575,7 +575,7 @@ export default function AddClientModal({
                 suppressHydrationWarning={true}
               >
                 <label
-                  className="text-xs font-bold text-slate-500 uppercase"
+                  className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase"
                   suppressHydrationWarning={true}
                 >
                   Payment Link{' '}
@@ -588,11 +588,11 @@ export default function AddClientModal({
                   className="relative flex items-center"
                   suppressHydrationWarning={true}
                 >
-                  <Link2 className="absolute left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <Link2 className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input
                     ref={paymentLinkInputRef}
                     type="url"
-                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition"
+                    className="w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition"
                     placeholder="https://rzp.io/l/..."
                     value={formData.paymentLink}
                     onChange={(e) =>
@@ -612,7 +612,7 @@ export default function AddClientModal({
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: 0.24 }}
-                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4"
                 suppressHydrationWarning={true}
               >
                 <div className="flex items-center justify-between gap-4">
@@ -696,40 +696,41 @@ export default function AddClientModal({
             <motion.div 
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="py-6 text-center space-y-6" 
+              className="py-4 sm:py-6 text-center space-y-4 sm:space-y-6" 
               suppressHydrationWarning={true}
             >
               <motion.div
                 initial={{ scale: 0, rotate: -30 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: "spring", stiffness: 350, damping: 18, delay: 0.1 }}
-                className="w-16 h-16 bg-teal-50 text-[#2BB6A8] rounded-full flex items-center justify-center mx-auto shadow-inner"
+                className="w-14 h-14 sm:w-16 sm:h-16 bg-teal-50 text-[#2BB6A8] rounded-full flex items-center justify-center mx-auto shadow-inner"
                 suppressHydrationWarning={true}
               >
-                <CheckCircle2 size={36} />
+                <CheckCircle2 size={30} className="sm:hidden" />
+                <CheckCircle2 size={36} className="hidden sm:block" />
               </motion.div>
               <div suppressHydrationWarning={true}>
                 {isFirstClient ? (
                   <div className="space-y-2">
-                    <h3 className="text-xl font-black text-[#0F172A]" suppressHydrationWarning={true}>Great start! 🎉</h3>
+                    <h3 className="text-lg sm:text-xl font-black text-[#0F172A]" suppressHydrationWarning={true}>Great start! 🎉</h3>
                     <p className="text-sm text-slate-500 font-medium px-4" suppressHydrationWarning={true}>
                       You've added your first client. Now generate your first AI reminder.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    <h3 className="text-xl font-black text-[#0F172A]" suppressHydrationWarning={true}>Client Added Successfully</h3>
+                    <h3 className="text-lg sm:text-xl font-black text-[#0F172A]" suppressHydrationWarning={true}>Client Added Successfully</h3>
                     <p className="text-sm text-slate-500 mt-1" suppressHydrationWarning={true}>What would you like to do next?</p>
                   </div>
                 )}
               </div>
 
-              <div className="space-y-3 pt-2" suppressHydrationWarning={true}>
+              <div className="space-y-2.5 sm:space-y-3 pt-2" suppressHydrationWarning={true}>
                 <motion.button 
                   whileHover={{ y: -1 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleResetAndClose} 
-                  className="w-full py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs group"
+                  className="w-full py-3 sm:py-3.5 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs group"
                   suppressHydrationWarning={true}
                 >
                   Go to Dashboard
@@ -749,7 +750,7 @@ export default function AddClientModal({
                     handleResetAndClose(); 
                     router.push('/dashboard'); 
                   }} 
-                  className="w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition-shadow flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3 sm:py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition-shadow flex items-center justify-center gap-2 cursor-pointer"
                   style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                   suppressHydrationWarning={true}
                 >
@@ -762,14 +763,14 @@ export default function AddClientModal({
 
         {/* STICKY FOOTER SAVE BUTTON */}
         {!successStep && (
-          <div className="sticky bottom-0 bg-white/95 backdrop-blur-md px-6 sm:px-8 py-4 border-t border-slate-100 z-10" suppressHydrationWarning={true}>
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-md px-4 py-3 sm:px-8 sm:py-4 border-t border-slate-100 z-10" suppressHydrationWarning={true}>
             <motion.button 
               whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(36,91,146,0.2)' }}
               whileTap={{ scale: 0.98 }}
               type="submit" 
               form="add-client-form"
               disabled={loading} 
-              className="w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer" 
+              className="w-full py-3 sm:py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer" 
               style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
               suppressHydrationWarning={true}
             >
