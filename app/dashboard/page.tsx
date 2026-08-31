@@ -997,6 +997,16 @@ export default function DashboardPage() {
 
                     const isExpanded = expandedClientId === c.id;
 
+                    // Same escalation logic as the Pro Recovery Assistant's
+                    // getEscalationStage: 3+ reminders sent and still unpaid
+                    // (or 2 sent and 21+ days overdue) means reminders alone
+                    // aren't working — flag it visibly instead of burying
+                    // that signal inside the AI panel.
+                    const reminderCount = Array.isArray(c.reminderHistory) ? c.reminderHistory.length : 0;
+                    const isStalled = c.status !== 'Paid' && (
+                      reminderCount >= 3 || (reminderCount === 2 && daysOverdue >= 21)
+                    );
+
                     return (
                       <motion.div 
                         key={c.id} 
@@ -1005,7 +1015,11 @@ export default function DashboardPage() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.97 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30 transition-colors duration-150 space-y-4 cursor-pointer" suppressHydrationWarning={true}>
+                        className={`p-6 border rounded-2xl transition-colors duration-150 space-y-4 cursor-pointer ${
+                          isStalled
+                            ? 'border-orange-200 border-l-4 border-l-orange-400 bg-orange-50/30 hover:bg-orange-50/50'
+                            : 'border-slate-100 bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30'
+                        }`} suppressHydrationWarning={true}>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
                           <div className="space-y-1" suppressHydrationWarning={true}>
                             <div className="flex items-center gap-3 flex-wrap" suppressHydrationWarning={true}>
@@ -1019,6 +1033,19 @@ export default function DashboardPage() {
                               }`} suppressHydrationWarning={true}>
                                 {c.status === 'Paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Pending'}
                               </span>
+
+                              {isStalled && (
+                                <motion.span
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase bg-orange-50 text-orange-600 border border-orange-200 flex items-center gap-1"
+                                  title="Reminders haven't worked — try a different approach (call, payment plan, or ask what's blocking payment)"
+                                  suppressHydrationWarning={true}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                  Needs Attention
+                                </motion.span>
+                              )}
 
                               {c.automatedReminders === true && c.status !== 'Paid' && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E8F8F8] text-[#159A9F]">

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, MotionValue } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
@@ -15,6 +15,66 @@ import { doc, getDoc } from 'firebase/firestore';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing } from '@/lib/seasonalPricing';
+
+// --- 3D SCROLL-TILT WRAPPER ---
+// Wraps any block of content and, as it scrolls through the viewport,
+// rotates it in 3D space (rotateX) while fading/scaling it in — giving
+// a "card flipping up out of the page" feel instead of a flat fade.
+function Tilt3D({
+  children,
+  className = '',
+  intensity = 14,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  intensity?: number;
+  delay?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ['start 95%', 'start 40%'],
+  });
+
+  const rotateX = useTransform(scrollYProgress, [0, 1], [intensity, 0]);
+  const opacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
+  const y = useTransform(scrollYProgress, [0, 1], [40, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], [0.94, 1]);
+
+  return (
+    <motion.div
+      ref={ref}
+      style={{ rotateX, opacity, y, scale, transformPerspective: 1200 }}
+      transition={{ delay }}
+      className={className}
+      suppressHydrationWarning={true}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// A background layer that drifts at a different speed than the page as
+// you scroll — the classic parallax "depth" illusion.
+function ParallaxLayer({
+  scrollYProgress,
+  range,
+  children,
+  className = '',
+}: {
+  scrollYProgress: MotionValue<number>;
+  range: [number, number];
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  const y = useTransform(scrollYProgress, [0, 1], range);
+  return (
+    <motion.div style={{ y }} className={className} suppressHydrationWarning={true}>
+      {children}
+    </motion.div>
+  );
+}
 
 export default function LandingPage() {
   const router = useRouter();
@@ -98,6 +158,14 @@ export default function LandingPage() {
   const [modalTitle, setModalTitle] = useState('');
 
   const generatorSectionRef = useRef<HTMLDivElement>(null);
+
+  // Page-level scroll progress, used to drive parallax depth on the
+  // hero's background blobs (they move slower/faster than the content).
+  const pageRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress: pageScrollProgress } = useScroll({
+    target: pageRef,
+    offset: ['start start', 'end end'],
+  });
 
   const [isAtTop, setIsAtTop] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
@@ -501,7 +569,7 @@ export default function LandingPage() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
+    <div ref={pageRef} className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
         
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
@@ -728,16 +796,19 @@ export default function LandingPage() {
     visible: { transition: { staggerChildren: 0.12 } }
   }}
   className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
+  style={{ perspective: 1200 }}
   suppressHydrationWarning={true}
 >
-  <div
+  <ParallaxLayer
+    scrollYProgress={pageScrollProgress}
+    range={[0, 220]}
     className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70"
-    suppressHydrationWarning={true}
   />
 
-  <div
+  <ParallaxLayer
+    scrollYProgress={pageScrollProgress}
+    range={[0, -180]}
     className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60"
-    suppressHydrationWarning={true}
   />
 
   <div
@@ -942,14 +1013,9 @@ export default function LandingPage() {
       </p>
     </div>
 
-    <motion.div 
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, margin: "-50px" }}
-      variants={{
-        visible: { transition: { staggerChildren: 0.05, delayChildren: 0.05 } }
-      }}
+    <div
       className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto text-left"
+      style={{ perspective: 1200 }}
       suppressHydrationWarning={true}
     >
       {[
@@ -958,22 +1024,18 @@ export default function LandingPage() {
         "How much am I still owed?", 
         "What should I do next?"
       ].map((question, qIdx) => (
-        <motion.div 
+        <Tilt3D
           key={qIdx}
-          variants={{
-            hidden: { opacity: 0, y: 10 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
+          delay={qIdx * 0.05}
           className="flex items-center gap-3.5 bg-white border border-slate-200/85 rounded-2xl p-4 shadow-3xs transition hover:border-amber-300 hover:shadow-xs group"
-          suppressHydrationWarning={true}
         >
           <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0 group-hover:bg-amber-100/60 transition" suppressHydrationWarning={true}>
             <AlertTriangle className="w-4 h-4" suppressHydrationWarning={true} />
           </div>
           <span className="text-sm font-semibold text-slate-700 tracking-wide" suppressHydrationWarning={true}>{question}</span>
-        </motion.div>
+        </Tilt3D>
       ))}
-    </motion.div>
+    </div>
 
     <motion.div 
       initial={{ opacity: 0, scale: 0.99 }}
@@ -1047,14 +1109,9 @@ export default function LandingPage() {
         </p>
       </div>
 
-      <motion.div 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-50px" }}
-        variants={{
-            visible: { transition: { staggerChildren: 0.05 } }
-        }}
+      <div
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-left"
+        style={{ perspective: 1400 }}
         suppressHydrationWarning={true}
       >
         {[
@@ -1067,26 +1124,25 @@ export default function LandingPage() {
         { title: "One-Click Payment Updates (Pro)", desc: "Mark payments as paid directly from your email — no dashboard required.", icon: <CheckCircle className="w-5 h-5 text-white" suppressHydrationWarning={true} /> },
         { title: "Recover Payments Faster", desc: "Recover payments sooner with AI-powered recommendations.", icon: <Zap className="w-5 h-5 text-white" suppressHydrationWarning={true} /> }
         ].map((card, cIdx) => (
-        <motion.div 
-          key={cIdx}
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          whileHover={{ y: -2 }}
-          className="bg-white border border-slate-200/60 rounded-2xl p-6 shadow-3xs flex flex-col justify-between space-y-4 hover:shadow-xs transition-shadow duration-150"
-          suppressHydrationWarning={true}
-        >
-          <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-3xs" suppressHydrationWarning={true}>
-            {card.icon}
-          </div>
-          <div className="space-y-1" suppressHydrationWarning={true}>
-            <h3 className="text-base font-bold text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>{card.title}</h3>
-            <p className="text-sm text-slate-400 font-medium leading-relaxed" suppressHydrationWarning={true}>{card.desc}</p>
-          </div>
-        </motion.div>
+        <Tilt3D key={cIdx} delay={(cIdx % 3) * 0.05} className="group">
+          <motion.div
+            whileHover={{ y: -4, rotateX: -6, scale: 1.015 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            style={{ transformPerspective: 1000 }}
+            className="bg-white border border-slate-200/60 rounded-2xl p-6 shadow-3xs flex flex-col justify-between space-y-4 group-hover:shadow-lg transition-shadow duration-150 h-full"
+            suppressHydrationWarning={true}
+          >
+            <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-3xs" suppressHydrationWarning={true}>
+              {card.icon}
+            </div>
+            <div className="space-y-1" suppressHydrationWarning={true}>
+              <h3 className="text-base font-bold text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>{card.title}</h3>
+              <p className="text-sm text-slate-400 font-medium leading-relaxed" suppressHydrationWarning={true}>{card.desc}</p>
+            </div>
+          </motion.div>
+        </Tilt3D>
         ))}
-      </motion.div>
+      </div>
 
       <div className="pt-4" suppressHydrationWarning={true}>
         <p className="text-sm font-medium text-slate-400 italic" suppressHydrationWarning={true}>Everything you need to manage overdue payments in one place.</p>
