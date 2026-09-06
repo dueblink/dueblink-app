@@ -76,6 +76,23 @@ function ParallaxLayer({
   );
 }
 
+// Strips everything except digits (and a single decimal point) — this is
+// the "clean" value that gets sent to the API / stored in state.
+function stripToDigits(val: string): string {
+  const cleaned = val.replace(/[^\d.]/g, '');
+  const parts = cleaned.split('.');
+  return parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+}
+
+// Formats a clean digit string with thousand separators for display,
+// e.g. "25000" -> "25,000", "25000.5" -> "25,000.5".
+function formatWithCommas(val: string): string {
+  if (!val) return '';
+  const [intPart, decPart] = val.split('.');
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -140,19 +157,42 @@ export default function LandingPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+
+  // Micro-interaction state: which field is focused (label lift + focus
+  // scale) and which required fields should shake on failed validation.
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [shakeFields, setShakeFields] = useState<string[]>([]);
   const [result, setResult] = useState<{ email_subject: string; email_body: string; whatsapp_message: string; sms_text: string; psychology_note: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'strategy'>('email');
   const [copied, setCopied] = useState(false);
 
-  // Added previousReminders state for uniqueness handling
-  const [previousReminders, setPreviousReminders] = useState<
-    Array<{
-      email_subject: string;
-      email_body: string;
-      whatsapp_message: string;
-      sms_text: string;
-    }>
-  >([]);
+  // ============================================================
+  // Reminder Variation Memory (per-client, persisted)
+  // ============================================================
+  // Keeps the last 5 generated reminders PER CLIENT NAME, saved to
+  // localStorage so uniqueness survives a page refresh — and so
+  // switching between clients doesn't leak one client's reminder
+  // history into another client's variation context.
+  const [reminderHistoryMap, setReminderHistoryMap] = useState<
+    Record<
+      string,
+      Array<{
+        email_subject: string;
+        email_body: string;
+        whatsapp_message: string;
+        sms_text: string;
+      }>
+    >
+  >({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('dueblink_reminder_variations');
+      if (raw) setReminderHistoryMap(JSON.parse(raw));
+    } catch {
+      // Corrupt or missing storage — start fresh, non-fatal.
+    }
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
@@ -438,7 +478,11 @@ export default function LandingPage() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName || !amount) {
-      alert("Please fill in Client Name and Amount Due!"); 
+      const missing: string[] = [];
+      if (!clientName) missing.push('clientName');
+      if (!amount) missing.push('amount');
+      setShakeFields(missing);
+      window.setTimeout(() => setShakeFields([]), 500);
       return;
     }
     if (limitReached) { handleOpenActionModal(user ? 'Member Limit Reached' : 'Free Limit Reached'); return; }
@@ -476,6 +520,9 @@ export default function LandingPage() {
         localStorage.setItem('dueblink_guest_id', guestId);
       }
 
+      const clientKey = clientName.trim().toLowerCase();
+      const previousReminders = reminderHistoryMap[clientKey] || [];
+
       const response = await fetch('/api/generate-reminder', {
         method: 'POST',
         headers: {
@@ -507,18 +554,27 @@ export default function LandingPage() {
         setShowSuccessAnimation(false);
       }, 1100);
 
-      setPreviousReminders((previous) => {
+      setReminderHistoryMap((prevMap) => {
+        const existing = prevMap[clientKey] || [];
         const updated = [
-          ...previous,
+          ...existing,
           {
             email_subject: data.email_subject || '',
             email_body: data.email_body || '',
             whatsapp_message: data.whatsapp_message || '',
             sms_text: data.sms_text || ''
           }
-        ];
+        ].slice(-5);
 
-        return updated.slice(-5);
+        const nextMap = { ...prevMap, [clientKey]: updated };
+
+        try {
+          localStorage.setItem('dueblink_reminder_variations', JSON.stringify(nextMap));
+        } catch {
+          // Storage full or unavailable — variation memory just won't persist this time.
+        }
+
+        return nextMap;
       });
 
       if (!isPro) {
@@ -1749,36 +1805,162 @@ export default function LandingPage() {
 
             <form onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
               <div suppressHydrationWarning={true}>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Client Name *</label>
-                <input type="text" required placeholder="e.g. ABC Agency" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20" suppressHydrationWarning={true} />
+                <motion.label
+                  animate={{ color: focusedField === 'clientName' ? '#20B8BE' : '#334155', y: focusedField === 'clientName' ? -1 : 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="block text-xs font-bold mb-1.5"
+                >
+                  Client Name *
+                </motion.label>
+                <div className="relative" suppressHydrationWarning={true}>
+                  <motion.input
+                    type="text"
+                    required
+                    placeholder="e.g. ABC Agency"
+                    value={clientName}
+                    onChange={e => setClientName(e.target.value)}
+                    onFocus={() => setFocusedField('clientName')}
+                    onBlur={() => setFocusedField((f) => (f === 'clientName' ? null : f))}
+                    whileFocus={{ scale: 1.012 }}
+                    animate={{ x: shakeFields.includes('clientName') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                    transition={{ duration: 0.4 }}
+                    className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 ${shakeFields.includes('clientName') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+                    suppressHydrationWarning={true}
+                  />
+                  <AnimatePresence>
+                    {clientName && focusedField !== 'clientName' && !shakeFields.includes('clientName') && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
+                      >
+                        <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
                 <div suppressHydrationWarning={true}>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Currency</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 appearance-none" suppressHydrationWarning={true}>
+              <motion.label
+                animate={{ color: focusedField === 'currency' ? '#20B8BE' : '#334155', y: focusedField === 'currency' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Currency
+              </motion.label>
+              <motion.select
+                value={currency}
+                onChange={e => setCurrency(e.target.value)}
+                onFocus={() => setFocusedField('currency')}
+                onBlur={() => setFocusedField((f) => (f === 'currency' ? null : f))}
+                whileFocus={{ scale: 1.012 }}
+                transition={{ duration: 0.15 }}
+                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 appearance-none"
+                suppressHydrationWarning={true}
+              >
                 <option value="₹ INR" suppressHydrationWarning={true}>₹ INR</option><option value="$ USD" suppressHydrationWarning={true}>$ USD</option><option value="€ EUR" suppressHydrationWarning={true}>€ EUR</option>
-              </select>
+              </motion.select>
                 </div>
                 <div suppressHydrationWarning={true}>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Amount Due *</label>
-              <input type="number" required placeholder="25000" value={amount} onChange={e => setAmount(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300" suppressHydrationWarning={true} />
+              <motion.label
+                animate={{ color: focusedField === 'amount' ? '#20B8BE' : '#334155', y: focusedField === 'amount' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Amount Due *
+              </motion.label>
+              <div className="relative" suppressHydrationWarning={true}>
+                <motion.input
+                  type="text"
+                  inputMode="decimal"
+                  required
+                  placeholder="25,000"
+                  value={formatWithCommas(amount)}
+                  onChange={e => setAmount(stripToDigits(e.target.value))}
+                  onFocus={() => setFocusedField('amount')}
+                  onBlur={() => setFocusedField((f) => (f === 'amount' ? null : f))}
+                  whileFocus={{ scale: 1.012 }}
+                  animate={{ x: shakeFields.includes('amount') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                  transition={{ duration: 0.4 }}
+                  className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300 ${shakeFields.includes('amount') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+                  suppressHydrationWarning={true}
+                />
+                <AnimatePresence>
+                  {amount && focusedField !== 'amount' && !shakeFields.includes('amount') && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
+                    >
+                      <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
                 <div suppressHydrationWarning={true}>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Days Overdue</label>
-              <input type="number" value={daysOverdue} onChange={e => setDaysOverdue(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20" suppressHydrationWarning={true} />
+              <motion.label
+                animate={{ color: focusedField === 'daysOverdue' ? '#20B8BE' : '#334155', y: focusedField === 'daysOverdue' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Days Overdue
+              </motion.label>
+              <motion.input
+                type="number"
+                value={daysOverdue}
+                onChange={e => setDaysOverdue(e.target.value)}
+                onFocus={() => setFocusedField('daysOverdue')}
+                onBlur={() => setFocusedField((f) => (f === 'daysOverdue' ? null : f))}
+                whileFocus={{ scale: 1.012 }}
+                transition={{ duration: 0.15 }}
+                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20"
+                suppressHydrationWarning={true}
+              />
               </div>
                 <div suppressHydrationWarning={true}>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Invoice #</label>
-              <input type="text" placeholder="INV-2025-042" value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-all duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300" suppressHydrationWarning={true} />
+              <motion.label
+                animate={{ color: focusedField === 'invoiceRef' ? '#20B8BE' : '#334155', y: focusedField === 'invoiceRef' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Invoice #
+              </motion.label>
+              <motion.input
+                type="text"
+                placeholder="INV-2025-042"
+                value={invoiceRef}
+                onChange={e => setInvoiceRef(e.target.value)}
+                onFocus={() => setFocusedField('invoiceRef')}
+                onBlur={() => setFocusedField((f) => (f === 'invoiceRef' ? null : f))}
+                whileFocus={{ scale: 1.012 }}
+                transition={{ duration: 0.15 }}
+                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300"
+                suppressHydrationWarning={true}
+              />
               </div>
               </div>
               <div suppressHydrationWarning={true}>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Tone</label>
-                <div className="grid grid-cols-3 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
+                <div className="relative grid grid-cols-3 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
               {['gentle', 'professional', 'firm'].map((t) => (
-                <button key={t} type="button" onClick={() => handleToneChange(t)} className={`capitalize h-full cursor-pointer ${tone === t ? 'bg-[#0F172A] text-white' : 'bg-white text-slate-500'}`} suppressHydrationWarning={true}>{t}</button>
+                <button key={t} type="button" onClick={() => handleToneChange(t)} className={`relative z-10 capitalize h-full cursor-pointer transition-colors duration-150 ${tone === t ? 'text-white' : 'text-slate-500'}`} suppressHydrationWarning={true}>
+                  {tone === t && (
+                    <motion.div
+                      layoutId="landing-tone-pill"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      className="absolute inset-0 -z-10 bg-[#0F172A]"
+                    />
+                  )}
+                  {t}
+                </button>
               ))}
                 </div>
               </div>
