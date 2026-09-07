@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, MotionValue } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
@@ -440,11 +441,14 @@ export default function LandingPage() {
 
   // Effect: Scroll Tracking & Active Section detection with clean boundary checks
   useEffect(() => {
-    const handleScroll = () => {
+    let ticking = false;
+
+    const updateScrollState = () => {
       setIsAtTop(window.scrollY < 100);
 
       if (window.scrollY < 200) {
         setActiveSection('');
+        ticking = false;
         return;
       }
 
@@ -464,6 +468,17 @@ export default function LandingPage() {
         }
       }
       setActiveSection(currentActive);
+      ticking = false;
+    };
+
+    // Cap the layout-reading work to once per animation frame, no
+    // matter how many raw scroll events fire during a fast/momentum
+    // scroll — avoids layout thrashing on mobile.
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateScrollState);
+        ticking = true;
+      }
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -672,7 +687,7 @@ export default function LandingPage() {
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
 
           {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
@@ -789,7 +804,7 @@ export default function LandingPage() {
           <motion.button 
             whileTap={{ scale: 0.9 }}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none"
+            className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1C2E8F]/40"
             aria-label="Toggle Menu"
             suppressHydrationWarning={true}
           >
@@ -1299,7 +1314,7 @@ export default function LandingPage() {
     </motion.section>
 
     {/* --- AUTOMATED REMINDERS GUIDE SECTION --- */}
-    <section id="automated-reminders" className="py-12 sm:py-16 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
+    <section id="automated-reminders" className="py-16 sm:py-20 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
       <div className="max-w-5xl mx-auto px-4" suppressHydrationWarning={true}>
         <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6 sm:p-10 text-center" suppressHydrationWarning={true}>
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
@@ -1766,7 +1781,7 @@ export default function LandingPage() {
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true, margin: "-50px" }}
     transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-16 scroll-mt-24 px-4"
+    className="bg-white py-16 sm:py-20 scroll-mt-24 px-4"
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
@@ -1791,7 +1806,7 @@ export default function LandingPage() {
     >
         <div suppressHydrationWarning={true}>
           {limitReached ? (
-          <div className="bg-gradient-to-b from-slate-900 to-[#1e293b] text-white border border-slate-800 rounded-2xl p-6 sm:p-8 text-center space-y-6 my-auto shadow-2xl relative overflow-hidden">
+          <div className="bg-gradient-to-b from-slate-900 to-[#1E293B] text-white border border-slate-800 rounded-2xl p-6 sm:p-8 text-center space-y-6 my-auto shadow-2xl relative overflow-hidden">
           <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#20B8BE]/10 rounded-full blur-2xl pointer-events-none" />
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
             <Sparkles className="w-6 h-6 text-white" />
@@ -2543,7 +2558,7 @@ export default function LandingPage() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="max-w-xl mx-auto bg-gradient-to-br from-slate-900 to-[#1e293b] p-8 sm:p-12 rounded-3xl border border-slate-800 text-white text-center space-y-6 shadow-2xl"
+          className="max-w-xl mx-auto bg-gradient-to-br from-slate-900 to-[#1E293B] p-8 sm:p-12 rounded-3xl border border-slate-800 text-white text-center space-y-6 shadow-2xl"
         >
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
             <Sparkles className="w-6 h-6 text-white" />
@@ -2790,7 +2805,7 @@ export default function LandingPage() {
     whileInView={{ opacity: 1, scale: 1 }}
     viewport={{ once: true, margin: "-50px" }}
     transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-16 px-4"
+    className="bg-white py-20 sm:py-24 px-4"
     suppressHydrationWarning={true}
     >
     <div className="max-w-4xl mx-auto" suppressHydrationWarning={true}>
@@ -2871,7 +2886,7 @@ export default function LandingPage() {
           
       <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
         <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-          <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+          <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
         </div>
         <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
           Know who owes you money.<br />Know exactly what to do next.
