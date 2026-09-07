@@ -12,7 +12,7 @@ import {
 // IMPORT FIREBASE
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing } from '@/lib/seasonalPricing';
@@ -304,6 +304,42 @@ export default function LandingPage() {
               ? 0
               : aiRemindersUsed
           );
+
+          // Verify the REAL Pro status from Firestore instead of
+          // trusting only the cached localStorage flag — this is
+          // what makes Pro/expiry show correctly on a fresh visit,
+          // not just after having already been to the dashboard.
+          try {
+            if (userData.isPro && userData.proExpiresAt) {
+              const expirationDate = userData.proExpiresAt.toDate();
+              const now = new Date();
+
+              if (now > expirationDate) {
+                await updateDoc(
+                  doc(db, 'users', currentUser.uid),
+                  { isPro: false, proExpiresAt: null }
+                );
+                setIsPro(false);
+                localStorage.removeItem('dueblink_pro_active');
+                localStorage.removeItem('dueblink_is_pro');
+              } else {
+                setIsPro(true);
+                localStorage.setItem('dueblink_pro_active', 'true');
+              }
+            } else if (userData.isPro) {
+              setIsPro(true);
+              localStorage.setItem('dueblink_pro_active', 'true');
+            } else {
+              setIsPro(false);
+              localStorage.removeItem('dueblink_pro_active');
+              localStorage.removeItem('dueblink_is_pro');
+            }
+          } catch (proCheckError) {
+            console.error('Failed to verify Pro status:', proCheckError);
+            // Leave whatever the localStorage-based optimistic
+            // value already set — don't downgrade on a transient
+            // network/read error.
+          }
         } else {
           // New account fallback.
           setReminderCount(0);
