@@ -10,6 +10,61 @@ const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// ============================================================
+// UNIQUENESS SAFEGUARD
+// ============================================================
+// The prompt already instructs the model to avoid repeating itself,
+// but that's a request, not a guarantee. This adds a real check:
+// after generation, compare the new reminder's wording against the
+// client's stored history. If it's too close to something already
+// sent, we regenerate with a stronger instruction instead of just
+// hoping the model listened.
+
+type GeneratedReminder = {
+  email_subject: string;
+  email_body: string;
+  whatsapp_message: string;
+  sms_text: string;
+  psychology_note?: string;
+};
+
+function normalizeForComparison(text: string): string[] {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+// Jaccard similarity over word sets — cheap, no extra API call,
+// and a reasonable proxy for "does this read like the same message."
+function similarity(a: string, b: string): number {
+  const setA = new Set(normalizeForComparison(a));
+  const setB = new Set(normalizeForComparison(b));
+  if (setA.size === 0 || setB.size === 0) return 0;
+
+  let intersection = 0;
+  for (const word of setA) {
+    if (setB.has(word)) intersection++;
+  }
+  const unionSize = setA.size + setB.size - intersection;
+  return unionSize === 0 ? 0 : intersection / unionSize;
+}
+
+const SIMILARITY_THRESHOLD = 0.6;
+
+function tooSimilarToHistory(
+  candidate: GeneratedReminder,
+  previousReminders: GeneratedReminder[]
+): boolean {
+  const candidateText = `${candidate.email_body} ${candidate.whatsapp_message} ${candidate.sms_text}`;
+
+  return previousReminders.some((prev) => {
+    const prevText = `${prev.email_body || ''} ${prev.whatsapp_message || ''} ${prev.sms_text || ''}`;
+    return similarity(candidateText, prevText) >= SIMILARITY_THRESHOLD;
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -190,7 +245,7 @@ export async function POST(req: NextRequest) {
     // ============================================================
     // Reminder Variation Context
     // ============================================================
-    // These are sent by ReminderForm.tsx.
+    // These are sent by the landing page generator (page.tsx).
     // They are only used to make repeated generations different.
 
     const previousReminders = Array.isArray(
@@ -229,24 +284,10 @@ ${reminder.sms_text || ''}
         : 'No previous reminders are available.';
 
     // ============================================================
-    // AI GENERATION
+    // AI GENERATION (with uniqueness-enforcing retry)
     // ============================================================
 
-    const result = await generateObject({
-      model: openai('gpt-4o-mini'),
-
-      // Slightly higher creativity for more natural variation.
-      temperature: 0.85,
-
-      schema: z.object({
-        email_subject: z.string(),
-        email_body: z.string(),
-        whatsapp_message: z.string(),
-        sms_text: z.string(),
-        psychology_note: z.string(),
-      }),
-
-      prompt: `
+    const buildPrompt = (extraNote: string) => `
         You are an expert Payment Recovery Specialist for freelancers.
         Your goal is to recover payments quickly while maintaining great client relationships.
        
@@ -290,6 +331,7 @@ ${reminder.sms_text || ''}
         - Keep the selected tone.
         - Keep all payment information accurate.
         - Make Email, WhatsApp, and SMS naturally suited to their channels.
+        ${extraNote}
 
         IMPORTANT:
 
@@ -306,6 +348,11 @@ ${reminder.sms_text || ''}
         - Promises
 
         that were not provided.
+
+        The Amount Due is given above exactly as it should appear.
+        Reproduce it exactly as given, including any comma thousand
+        separators (e.g. "25,000", not "25000"). Do not reformat,
+        round, or remove the separators.
 
         ============================================================
         OUTPUT RULES
@@ -327,8 +374,58 @@ ${reminder.sms_text || ''}
           tone and approach is best for this situation.
 
         Return only the requested structured fields.
-      `,
-    });
+      `;
+
+    const MAX_ATTEMPTS = 3;
+    let generated: GeneratedReminder | null = null;
+    let extraNote = '';
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const attemptResult = await generateObject({
+        model: openai('gpt-4o-mini'),
+
+        // Slightly higher creativity for more natural variation.
+        // Bump it further on retries so a stubbornly similar model
+        // has a real chance to actually diverge.
+        temperature: attempt === 1 ? 0.85 : 0.95,
+
+        schema: z.object({
+          email_subject: z.string(),
+          email_body: z.string(),
+          whatsapp_message: z.string(),
+          sms_text: z.string(),
+          psychology_note: z.string(),
+        }),
+
+        prompt: buildPrompt(extraNote),
+      });
+
+      const candidate = attemptResult.object;
+      const duplicate = tooSimilarToHistory(candidate, previousReminders);
+
+      if (!duplicate || attempt === MAX_ATTEMPTS) {
+        generated = candidate;
+        if (duplicate) {
+          // Ran out of attempts — log it so it's visible in server
+          // logs, but still return the closest attempt rather than
+          // failing the request outright.
+          console.warn(
+            `Reminder for ${body.clientName}: still similar to a previous version after ${MAX_ATTEMPTS} attempts.`
+          );
+        }
+        break;
+      }
+
+      extraNote = `
+        NOTE: Your previous attempt (attempt ${attempt}) was too
+        similar in wording to an earlier reminder for this client.
+        This is attempt ${attempt + 1}. Use a noticeably different
+        opening, sentence structure, and phrasing this time — do not
+        reuse patterns from your own prior attempt either.
+      `;
+    }
+
+    const result = { object: generated as GeneratedReminder };
 
     // ============================================================
     // Increment AI reminder usage AFTER successful generation
