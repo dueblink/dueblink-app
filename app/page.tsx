@@ -17,10 +17,10 @@ import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing } from '@/lib/seasonalPricing';
 
-// --- 3D SCROLL-TILT WRAPPER ---
-// Wraps any block of content and, as it scrolls through the viewport,
-// rotates it in 3D space (rotateX) while fading/scaling it in — giving
-// a "card flipping up out of the page" feel instead of a flat fade.
+// --- SCROLL REVEAL ---
+// Wraps any block of content and, as it scrolls into view, fades and
+// lifts it in slightly — calm and controlled rather than a flashy
+// 3D flip, to match a fintech-adjacent B2B tool's tone.
 function Tilt3D({
   children,
   className = '',
@@ -38,15 +38,13 @@ function Tilt3D({
     offset: ['start 95%', 'start 40%'],
   });
 
-  const rotateX = useTransform(scrollYProgress, [0, 1], [intensity, 0]);
   const opacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
-  const y = useTransform(scrollYProgress, [0, 1], [40, 0]);
-  const scale = useTransform(scrollYProgress, [0, 1], [0.94, 1]);
+  const y = useTransform(scrollYProgress, [0, 1], [24, 0]);
 
   return (
     <motion.div
       ref={ref}
-      style={{ rotateX, opacity, y, scale, transformPerspective: 1200 }}
+      style={{ opacity, y }}
       transition={{ delay }}
       className={className}
       suppressHydrationWarning={true}
@@ -158,6 +156,7 @@ export default function LandingPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Cycles through distinct "what the AI is doing" phases while
   // generating, instead of a single static "AI Thinking…" label.
@@ -573,6 +572,7 @@ export default function LandingPage() {
      
     setIsGenerating(true);
     setResult(null);
+    setGenerationError(null);
      
     try {
       const variationStrategies = [
@@ -677,7 +677,7 @@ export default function LandingPage() {
       }
     } catch (error) {
       console.error("AI GENERATION ERROR:", error);
-      alert("AI generation failed. Check F12 console for the specific error.");
+      setGenerationError("Something went wrong generating your reminder. Please try again in a moment.");
     } finally {
       setIsGenerating(false);
     }
@@ -936,7 +936,6 @@ export default function LandingPage() {
     visible: { transition: { staggerChildren: 0.12 } }
   }}
   className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
-  style={{ perspective: 1200 }}
   suppressHydrationWarning={true}
 >
   <ParallaxLayer
@@ -1155,7 +1154,6 @@ export default function LandingPage() {
 
     <div
       className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto text-left"
-      style={{ perspective: 1200 }}
       suppressHydrationWarning={true}
     >
       {[
@@ -1251,7 +1249,6 @@ export default function LandingPage() {
 
       <div
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-left"
-        style={{ perspective: 1400 }}
         suppressHydrationWarning={true}
       >
         {[
@@ -1266,9 +1263,8 @@ export default function LandingPage() {
         ].map((card, cIdx) => (
         <Tilt3D key={cIdx} delay={(cIdx % 3) * 0.05} className="group">
           <motion.div
-            whileHover={{ y: -4, rotateX: -6, scale: 1.015 }}
+            whileHover={{ y: -4, scale: 1.015 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            style={{ transformPerspective: 1000 }}
             className="bg-white border border-slate-200/60 rounded-2xl p-6 shadow-3xs flex flex-col justify-between space-y-4 group-hover:shadow-lg transition-shadow duration-150 h-full"
             suppressHydrationWarning={true}
           >
@@ -2376,6 +2372,30 @@ export default function LandingPage() {
               </>
           )}
           </button>
+              </motion.div>
+            ) : generationError ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="my-auto py-12 flex flex-col items-center text-center"
+                suppressHydrationWarning={true}
+              >
+                <div className="w-11 h-11 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-500 mb-3" suppressHydrationWarning={true}>
+                  <AlertTriangle className="w-5 h-5" suppressHydrationWarning={true} />
+                </div>
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Couldn't generate that reminder</h4>
+                <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>{generationError}</p>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={(e) => handleGenerate(e as unknown as React.FormEvent)}
+                  className="mt-4 text-xs font-bold text-white px-4 py-2 rounded-lg bg-[#1C2E8F] hover:bg-[#1C2E8F]/90 transition-colors cursor-pointer"
+                >
+                  Try Again
+                </motion.button>
               </motion.div>
             ) : (
               <div className="my-auto py-12" suppressHydrationWarning={true}>
