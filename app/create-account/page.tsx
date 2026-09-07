@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { track } from '@vercel/analytics';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -41,6 +42,8 @@ export default function RegisterPage() {
   aiRemindersUsed: 0,
   createdAt: serverTimestamp(),
 });
+
+      track('Signup', { method: 'email' });
 
       
       // Send automated SaaS welcome email through the server API endpoint

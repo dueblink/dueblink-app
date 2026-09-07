@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const inter = Inter({
@@ -70,6 +71,7 @@ export default function RootLayout({
       >
         {/* Main Content */}
         {children}
+        <Analytics />
 
         {/*
           REMOVED: The FloatingRobot instance was deleted from here.
