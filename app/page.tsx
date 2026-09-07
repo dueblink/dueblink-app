@@ -158,6 +158,39 @@ export default function LandingPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
+  // Cycles through distinct "what the AI is doing" phases while
+  // generating, instead of a single static "AI Thinking…" label.
+  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
+  const loadingPhrases = [
+    'Reading the situation…',
+    'Choosing the right tone…',
+    clientName ? `Personalizing for ${clientName}…` : 'Personalizing the message…',
+    'Polishing the wording…',
+    'Almost ready…',
+  ];
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setLoadingPhaseIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setLoadingPhaseIndex((i) => (i + 1) % loadingPhrases.length);
+    }, 1100);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGenerating]);
+
+  // Channel-specific loading phases for the results panel — cycles
+  // through what's actually being drafted instead of one static
+  // "AI is thinking" message the whole time.
+  const resultLoadingPhases = [
+    { icon: Mail, label: 'Drafting your email…', sub: 'Finding the right subject line and opening.' },
+    { icon: MessageCircle, label: 'Writing the WhatsApp message…', sub: 'Keeping it warm and conversational.' },
+    { icon: Send, label: 'Trimming down the SMS…', sub: 'Short, sharp, under 160 characters.' },
+    { icon: Brain, label: 'Building your AI strategy note…', sub: 'Explaining why this approach fits.' },
+  ];
+
   // Micro-interaction state: which field is focused (label lift + focus
   // scale) and which required fields should shake on failed validation.
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -531,7 +564,7 @@ export default function LandingPage() {
         },
         body: JSON.stringify({ 
           clientName, 
-          amount, 
+          amount: formatWithCommas(amount), 
           currency, 
           invoiceRef: invoiceRef || 'INV-2026-042', 
           daysOverdue, 
@@ -1965,15 +1998,41 @@ export default function LandingPage() {
                 </div>
               </div>
               <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={!isGenerating ? { scale: 1.02 } : {}}
+                whileTap={!isGenerating ? { scale: 0.98 } : {}}
                 type="submit" 
                 disabled={isGenerating || limitReached} 
                 style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
-                className="w-full text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-lg transition flex items-center justify-center gap-2 cursor-pointer mt-4"
+                className="relative overflow-hidden w-full text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-lg transition-opacity flex items-center justify-center gap-2 cursor-pointer mt-4"
               >
-                {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />} 
-                {isGenerating ? 'AI Thinking…' : 'Generate Reminder'}
+                {isGenerating && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                    initial={{ x: '-100%' }}
+                    animate={{ x: '100%' }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  <motion.span
+                    animate={isGenerating ? { rotate: 360 } : { rotate: 0 }}
+                    transition={isGenerating ? { repeat: Infinity, duration: 1, ease: 'linear' } : { duration: 0.2 }}
+                    className="flex"
+                  >
+                    {isGenerating ? <RefreshCw className="w-4 h-4" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />}
+                  </motion.span>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={isGenerating ? `loading-${loadingPhaseIndex}` : 'idle'}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      {isGenerating ? loadingPhrases[loadingPhaseIndex] : 'Generate Reminder'}
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
               </motion.button>
             </form>
           </div>
@@ -2002,18 +2061,63 @@ export default function LandingPage() {
                 initial={{ opacity: 0, scale: 0.95 }} 
                 animate={{ opacity: 1, scale: 1 }} 
                 exit={{ opacity: 0, scale: 0.95 }} 
-                className="py-12 flex flex-col items-center justify-center space-y-4 w-full"
+                className="py-12 flex flex-col items-center justify-center space-y-5 w-full"
               >
-                <motion.div 
-                  animate={{ scale: [1, 1.15, 1], rotate: [0, 5, -5, 0] }} 
-                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }} 
-                  className="w-14 h-14 bg-blue-100/80 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner mx-auto"
-                >
-                  <Brain className="w-7 h-7 animate-pulse text-[#1C2E8F]" />
-                </motion.div>
-                <div className="space-y-1">
-                  <p className="text-xs font-black text-slate-900 uppercase tracking-widest">Blink AI is analyzing recovery psychology...</p>
-                  <p className="text-[11px] text-slate-500 font-medium">Drafting multi-channel high-conversion follow-ups</p>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`icon-${loadingPhaseIndex % resultLoadingPhases.length}`}
+                    initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.7, rotate: 8 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="w-14 h-14 bg-gradient-to-br from-[#1C2E8F]/10 to-[#20B8BE]/10 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner mx-auto"
+                  >
+                    {(() => {
+                      const CurrentIcon = resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].icon;
+                      return <CurrentIcon className="w-7 h-7" />;
+                    })()}
+                  </motion.div>
+                </AnimatePresence>
+
+                <div className="space-y-1 min-h-[34px]">
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={`label-${loadingPhaseIndex % resultLoadingPhases.length}`}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.25 }}
+                      className="text-xs font-black text-slate-900 uppercase tracking-widest"
+                    >
+                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].label}
+                    </motion.p>
+                  </AnimatePresence>
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={`sub-${loadingPhaseIndex % resultLoadingPhases.length}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.25, delay: 0.05 }}
+                      className="text-[11px] text-slate-500 font-medium"
+                    >
+                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].sub}
+                    </motion.p>
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {resultLoadingPhases.map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="h-1.5 rounded-full bg-[#1C2E8F]"
+                      animate={{
+                        width: i === loadingPhaseIndex % resultLoadingPhases.length ? 18 : 6,
+                        opacity: i === loadingPhaseIndex % resultLoadingPhases.length ? 1 : 0.25,
+                      }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  ))}
                 </div>
               </motion.div>
             ) : showSuccessAnimation ? (
