@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Send, AlertTriangle, FileText, MapPin, Clock, ArrowRight, Menu, X, ChevronDown, Mail, RefreshCw } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -61,12 +62,19 @@ export default function ContactPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [shakeFields, setShakeFields] = useState<string[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!fullName || !email || !subject || !message) {
-      alert("Please fill in all required fields.");
+      const missing: string[] = [];
+      if (!fullName) missing.push('fullName');
+      if (!email) missing.push('email');
+      if (!subject) missing.push('subject');
+      if (!message) missing.push('message');
+      setShakeFields(missing);
+      window.setTimeout(() => setShakeFields([]), 500);
       return;
     }
 
@@ -129,7 +137,7 @@ export default function ContactPage() {
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
 
           {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
@@ -215,7 +223,7 @@ export default function ContactPage() {
             <motion.button 
               whileTap={{ scale: 0.9 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none"
+              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#245B92]/40"
               aria-label="Toggle Menu"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -375,49 +383,57 @@ export default function ContactPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">Full Name *</label>
-                    <input 
+                    <motion.input 
                       type="text" 
                       required 
                       placeholder="John Doe" 
                       value={fullName} 
                       onChange={e => setFullName(e.target.value)} 
-                      className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#245B92]" 
+                      animate={{ x: shakeFields.includes('fullName') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                      transition={{ duration: 0.4 }}
+                      className={`w-full text-sm px-4 py-3 bg-white border rounded-xl outline-none transition-colors focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 ${shakeFields.includes('fullName') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`} 
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address *</label>
-                    <input 
+                    <motion.input 
                       type="email" 
                       required 
                       placeholder="john@example.com" 
                       value={email} 
                       onChange={e => setEmail(e.target.value)} 
-                      className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#245B92]" 
+                      animate={{ x: shakeFields.includes('email') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                      transition={{ duration: 0.4 }}
+                      className={`w-full text-sm px-4 py-3 bg-white border rounded-xl outline-none transition-colors focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 ${shakeFields.includes('email') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`} 
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Subject *</label>
-                  <input 
+                  <motion.input 
                     type="text" 
                     required 
                     placeholder="e.g. Question about Pro subscription" 
                     value={subject} 
                     onChange={e => setSubject(e.target.value)} 
-                    className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#245B92]" 
+                    animate={{ x: shakeFields.includes('subject') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                    transition={{ duration: 0.4 }}
+                    className={`w-full text-sm px-4 py-3 bg-white border rounded-xl outline-none transition-colors focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 ${shakeFields.includes('subject') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`} 
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Message *</label>
-                  <textarea 
+                  <motion.textarea 
                     required 
                     rows={5}
                     placeholder="Describe your question or issue in detail..." 
                     value={message} 
                     onChange={e => setMessage(e.target.value)} 
-                    className="w-full text-sm px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-[#245B92] resize-none" 
+                    animate={{ x: shakeFields.includes('message') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                    transition={{ duration: 0.4 }}
+                    className={`w-full text-sm px-4 py-3 bg-white border rounded-xl outline-none transition-colors resize-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 ${shakeFields.includes('message') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`} 
                   />
                 </div>
 
@@ -436,7 +452,7 @@ export default function ContactPage() {
                     type="submit" 
                     disabled={isSubmitting} 
                     style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
-                    className="w-full text-white font-bold text-sm uppercase tracking-wider py-4 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs disabled:opacity-50"
+                    className="w-full text-white font-bold text-sm uppercase tracking-wider py-3 sm:py-4 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-3xs disabled:opacity-50"
                   >
                     {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     {isSubmitting ? 'Sending Message…' : 'Send Message'}
@@ -530,7 +546,7 @@ export default function ContactPage() {
             
           <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
             <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-              <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+              <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
             </div>
             <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
               Know who owes you money.<br />Know exactly what to do next.
