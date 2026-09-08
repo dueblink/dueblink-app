@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -22,6 +23,7 @@ export default function PricingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paymentSuccessModal, setPaymentSuccessModal] = useState(false);
   const [isUserPro, setIsUserPro] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const seasonalPricing = getSeasonalPricing();
 
@@ -117,9 +119,8 @@ export default function PricingPage() {
   }
 
   if (!isIndia) {
-    alert(
-      "International payments are coming soon! Please use the Indian version (₹ INR) for now."
-    );
+    setErrorMessage("International payments are coming soon! Please use the Indian version (₹ INR) for now.");
+    setTimeout(() => setErrorMessage(null), 6000);
     return;
   }
 
@@ -159,16 +160,6 @@ export default function PricingPage() {
         orderData.message || 'Failed to create Razorpay order'
       );
     }
-
-    console.log(
-      'Razorpay Order Created:',
-      orderData.orderId
-    );
-
-    console.log(
-      'Razorpay Amount:',
-      orderData.amount
-    );
 
     // ======================================================
     // 2. Open Razorpay Checkout
@@ -211,21 +202,6 @@ export default function PricingPage() {
       // ====================================================
 
       handler: async function (response: any) {
-        console.log(
-          'Razorpay Payment ID:',
-          response.razorpay_payment_id
-        );
-
-        console.log(
-          'Razorpay Order ID:',
-          response.razorpay_order_id
-        );
-
-        console.log(
-          'Razorpay Signature:',
-          response.razorpay_signature
-        );
-
         try {
           // ==================================================
           // 4. Verify payment on SERVER
@@ -268,9 +244,10 @@ export default function PricingPage() {
               verifyData
             );
 
-            alert(
-              'Payment was received, but verification failed. Please contact support.'
-            );
+            // Critical: money may have been charged but we couldn't
+            // verify it — do NOT auto-dismiss this, the user needs
+            // to actually read and act on it.
+            setErrorMessage('Payment was received, but verification failed. Please contact support so we can confirm your payment.');
 
             return;
           }
@@ -278,10 +255,6 @@ export default function PricingPage() {
           // ==================================================
           // 5. Payment verified successfully
           // ==================================================
-
-          console.log(
-            'Payment verified successfully'
-          );
 
           // Keep existing Pro state behavior
 
@@ -318,9 +291,8 @@ export default function PricingPage() {
             verifyError
           );
 
-          alert(
-            'Payment verification failed. Please contact support if money was deducted.'
-          );
+          // Critical: same reasoning as above — no auto-dismiss.
+          setErrorMessage('Payment verification failed. Please contact support if money was deducted from your account.');
         }
       },
 
@@ -330,9 +302,6 @@ export default function PricingPage() {
 
       modal: {
         ondismiss: function () {
-          console.log(
-            'Razorpay checkout closed'
-          );
         },
       },
     };
@@ -356,10 +325,11 @@ export default function PricingPage() {
           response.error
         );
 
-        alert(
+        setErrorMessage(
           response.error?.description ||
             'Payment failed. Please try again.'
         );
+        setTimeout(() => setErrorMessage(null), 6000);
       }
     );
 
@@ -375,9 +345,8 @@ export default function PricingPage() {
       error
     );
 
-    alert(
-      'Something went wrong with checkout. Please try again.'
-    );
+    setErrorMessage('Something went wrong with checkout. Please try again.');
+    setTimeout(() => setErrorMessage(null), 6000);
 
   } finally {
     setIsProcessing(false);
@@ -389,6 +358,28 @@ return (
     className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20"
     suppressHydrationWarning={true}
   >
+
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-[92%] max-w-lg bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl flex items-center justify-between gap-3 shadow-lg"
+            suppressHydrationWarning={true}
+          >
+            <p className="text-xs font-bold tracking-wide leading-relaxed">{errorMessage}</p>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setErrorMessage(null)}
+              className="text-red-500 hover:text-red-700 p-1 cursor-pointer shrink-0"
+            >
+              <X size={16} />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       
       
@@ -403,7 +394,7 @@ return (
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
 
           <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
@@ -475,7 +466,7 @@ return (
             <motion.button 
               whileTap={{ scale: 0.9 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none"
+              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1C2E8F]/40"
               aria-label="Toggle Menu"
               suppressHydrationWarning={true}
             >
@@ -616,7 +607,7 @@ return (
               </div>
               <button 
                 onClick={() => handleUpgradeClick('free')} 
-                className="w-full py-4 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                className="w-full py-3 sm:py-4 rounded-xl border border-slate-200 font-bold text-sm text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 suppressHydrationWarning={true}
               >
                 {user ? 'Go to Dashboard' : 'Start Free'}
@@ -718,7 +709,7 @@ return (
                   }
                 }} 
                 disabled={isProcessing || !isIndia}
-                className={`w-full py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 ${!isIndia ? 'bg-slate-400 cursor-not-allowed opacity-75' : 'bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95'}`}
+                className={`w-full py-3 sm:py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 ${!isIndia ? 'bg-slate-400 cursor-not-allowed opacity-75' : 'bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95'}`}
                 suppressHydrationWarning={true}
               >
                 {isProcessing ? (
@@ -779,7 +770,7 @@ return (
                   localStorage.setItem('just_upgraded', 'true');
                   router.push('/dashboard');
                 }}
-                className="w-full py-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer shadow-md"
+                className="w-full py-3 sm:py-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer shadow-md"
               >
                 Go to Dashboard
               </button>
@@ -800,7 +791,7 @@ return (
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
           <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
             <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-              <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+              <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
             </div>
             <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
               Know who owes you money.<br />Know exactly what to do next.

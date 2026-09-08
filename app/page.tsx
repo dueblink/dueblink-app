@@ -1057,7 +1057,7 @@ export default function LandingPage() {
         style={{
           background: "linear-gradient(to right, #245B92, #20B8BE)",
         }}
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-8 sm:px-10 py-4 rounded-xl transition shadow-xs cursor-pointer"
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-6 sm:px-10 py-3 sm:py-4 rounded-xl transition shadow-xs cursor-pointer"
         suppressHydrationWarning={true}
       >
         {isPro ? (
@@ -1424,7 +1424,7 @@ export default function LandingPage() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleAssistantCta}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-white text-sm shadow-xs transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold text-white text-sm shadow-xs transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
             style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
             suppressHydrationWarning={true}
         >
@@ -2050,7 +2050,7 @@ export default function LandingPage() {
                 type="submit" 
                 disabled={isGenerating || limitReached} 
                 style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
-                className="relative overflow-hidden w-full text-white font-bold text-xs uppercase tracking-wider py-3.5 rounded-lg transition-opacity flex items-center justify-center gap-2 cursor-pointer mt-4"
+                className="relative overflow-hidden w-full text-white font-bold text-xs uppercase tracking-wider py-3 sm:py-3.5 rounded-lg transition-opacity flex items-center justify-center gap-2 cursor-pointer mt-4"
               >
                 {isGenerating && (
                   <motion.div
@@ -2625,7 +2625,7 @@ export default function LandingPage() {
         </div>
         <button 
           onClick={() => router.push('/dashboard')}
-          className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-md"
+          className="w-full py-3 sm:py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-md"
         >
           Open Dashboard
         </button>
@@ -2667,7 +2667,7 @@ export default function LandingPage() {
             </div>
             <button 
           onClick={() => router.push('/pricing')} 
-          className="w-full py-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-50 transition cursor-pointer text-sm"
+          className="w-full py-3 sm:py-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-50 transition cursor-pointer text-sm"
           suppressHydrationWarning={true}
             >
           {user ? 'Current Plan' : 'Start Free'}
@@ -2766,7 +2766,7 @@ export default function LandingPage() {
             </div>
             <button 
           onClick={() => router.push('/pricing')} 
-          className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
+          className="w-full py-3 sm:py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
           suppressHydrationWarning={true}
             >
           Upgrade to Pro
@@ -2901,7 +2901,7 @@ export default function LandingPage() {
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         onClick={() => user ? router.push('/dashboard') : handleScrollToGenerator()} 
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#245B92] px-8 py-3.5 rounded-xl font-black text-sm hover:bg-slate-50 transition cursor-pointer shadow-xs"
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#245B92] px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-black text-sm hover:bg-slate-50 transition cursor-pointer shadow-xs"
         suppressHydrationWarning={true}
           >
         <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
@@ -2913,7 +2913,7 @@ export default function LandingPage() {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => router.push('/pricing')} 
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#0F172A] text-white px-8 py-3.5 rounded-xl font-black text-sm hover:bg-slate-900 transition cursor-pointer border border-white/20 shadow-xs"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#0F172A] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-black text-sm hover:bg-slate-900 transition cursor-pointer border border-white/20 shadow-xs"
           suppressHydrationWarning={true}
         >
           <Sparkles className="w-4 h-4 text-[#20B8BE]" suppressHydrationWarning={true} /> 
@@ -3021,9 +3021,9 @@ export default function LandingPage() {
     <button
     onClick={() => {
       if (isAtTop) {
-        window.scrollTo({ top: document.body.scrollHeight, height: 'smooth' } as any);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
       } else {
-        window.scrollTo({ top: 0, height: 'smooth' } as any);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }}
       className="fixed bottom-6 right-6 z-[90] bg-[#0F172A] text-white p-3 rounded-full shadow-lg hover:bg-[#245B92] hover:scale-105 transition-all duration-150 cursor-pointer border border-white/10"

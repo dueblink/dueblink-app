@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -110,6 +111,7 @@ export default function DashboardPage() {
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
@@ -246,7 +248,8 @@ export default function DashboardPage() {
 
   const handleCancelSubscription = async () => {
     if (!user) {
-      alert("No active user found. Please log in again.");
+      setErrorMessage("No active user found. Please log in again.");
+      setTimeout(() => setErrorMessage(null), 4000);
       return;
     }
     
@@ -275,7 +278,8 @@ export default function DashboardPage() {
       
     } catch (error: any) {
       console.error("Detailed Cancellation Error:", error);
-      alert(`Failed to cancel subscription: ${error.message || "Please try again."}`);
+      setErrorMessage(`Failed to cancel subscription: ${error.message || "Please try again."}`);
+      setTimeout(() => setErrorMessage(null), 4000);
       setLoading(false);
     }
   };
@@ -288,7 +292,8 @@ export default function DashboardPage() {
       window.dispatchEvent(new Event('clients-updated'));
     } catch (error) {
       console.error("Error deleting client:", error);
-      alert("Failed to delete client.");
+      setErrorMessage("Failed to delete client. Please try again.");
+      setTimeout(() => setErrorMessage(null), 4000);
     }
   };
 
@@ -604,7 +609,7 @@ export default function DashboardPage() {
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
 
           <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
@@ -664,7 +669,7 @@ export default function DashboardPage() {
             <motion.button 
               whileTap={{ scale: 0.9 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none"
+              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#245B92]/40"
               aria-label="Toggle Menu"
               suppressHydrationWarning={true}
             >
@@ -713,6 +718,28 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold tracking-wide">{successMessage}</p>
               </div>
               <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer">
+                <X size={16} />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {errorMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl flex items-center justify-between shadow-xs"
+              suppressHydrationWarning={true}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                  <AlertTriangle size={16} />
+                </div>
+                <p className="text-xs font-bold tracking-wide">{errorMessage}</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-700 p-1 cursor-pointer">
                 <X size={16} />
               </motion.button>
             </motion.div>
@@ -856,7 +883,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4" suppressHydrationWarning={true}>
                   <div suppressHydrationWarning={true}>
                     <p className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>{recommendation.name}</p>
-                    <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>{recommendation.company || recommendation.email} • ₹{recommendation.amount} Outstanding</p>
+                    <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>{recommendation.company || recommendation.email} • ₹{Number(recommendation.amount || 0).toLocaleString()} Outstanding</p>
                   </div>
                   <motion.button 
                     whileHover={{ scale: 1.02 }}
@@ -886,7 +913,7 @@ export default function DashboardPage() {
                       placeholder="Search clients..." 
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#245B92] transition text-slate-900"
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 transition text-slate-900"
                     />
                   </div>
 
@@ -1364,7 +1391,7 @@ export default function DashboardPage() {
                   onClick={async () => {
                     try {
                       if (!user?.email) {
-                        alert("No registered email address found.");
+                        setErrorMessage("No registered email address found.");
                         return;
                       }
 
@@ -1395,7 +1422,8 @@ export default function DashboardPage() {
                       }, 4000);
                     } catch (err) {
                       console.error("Password reset error:", err);
-                      alert("Failed to send password reset email. Please try again.");
+                      setErrorMessage("Failed to send password reset email. Please try again.");
+                      setTimeout(() => setErrorMessage(null), 4000);
                     }
                   }}
                   className="px-5 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer"
@@ -1433,15 +1461,15 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
                 <a href="/contact" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
                   <span>Contact Support</span>
-                  <span className="#245B92">→</span>
+                  <span className="text-[#245B92]">→</span>
                 </a>
                 <a href="/#faq" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
                   <span>FAQ</span>
-                  <span className="#245B92">→</span>
+                  <span className="text-[#245B92]">→</span>
                 </a>
                 <a href="/pricing" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
                   <span>Pricing & Plans</span>
-                  <span className="#245B92">→</span>
+                  <span className="text-[#245B92]">→</span>
                 </a>
               </div>
             </div>
