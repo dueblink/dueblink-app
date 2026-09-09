@@ -935,7 +935,7 @@ export default function LandingPage() {
   variants={{
     visible: { transition: { staggerChildren: 0.12 } }
   }}
-  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
+  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-16 sm:pb-24 border-b border-slate-50 px-4"
   suppressHydrationWarning={true}
 >
   <ParallaxLayer
@@ -951,7 +951,7 @@ export default function LandingPage() {
   />
 
   <div
-    className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
+    className="max-w-4xl mx-auto text-center space-y-4 sm:space-y-8"
     suppressHydrationWarning={true}
   >
 
@@ -1011,7 +1011,7 @@ export default function LandingPage() {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600"
+      className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-0 sm:pt-2 text-sm sm:text-base font-semibold text-slate-600"
       suppressHydrationWarning={true}
     >
       <p
@@ -1043,7 +1043,7 @@ export default function LandingPage() {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4"
+      className="pt-0 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4"
       suppressHydrationWarning={true}
     >
       <motion.button
@@ -1078,7 +1078,7 @@ export default function LandingPage() {
       {/* TRUST POINTS */}
       {!user && (
         <div
-          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-2 text-xs font-bold text-[#475569] uppercase tracking-wider"
+          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-0 sm:pt-2 text-xs font-bold text-[#475569] uppercase tracking-wider"
           suppressHydrationWarning={true}
         >
           <span

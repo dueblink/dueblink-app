@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Zap, Menu, X, ChevronDown, ArrowRight, ShieldCheck, Clock, BellRing } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -66,7 +67,7 @@ export default function AutomatedRemindersPage() {
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
 
           {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
@@ -152,7 +153,7 @@ export default function AutomatedRemindersPage() {
             <motion.button 
               whileTap={{ scale: 0.9 }}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none"
+              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1C2E8F]/40"
               aria-label="Toggle Menu"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -199,7 +200,7 @@ export default function AutomatedRemindersPage() {
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="relative overflow-hidden bg-white pt-16 pb-12 border-b border-slate-50 text-center"
+        className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-16 sm:pb-20 border-b border-slate-50 text-center"
         suppressHydrationWarning={true}
       >
         <div className="absolute top-[-10%] left-[5%] -z-10 h-[500px] w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70" suppressHydrationWarning={true}></div>
@@ -281,14 +282,18 @@ export default function AutomatedRemindersPage() {
       <section className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4" suppressHydrationWarning={true}>
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center text-left" suppressHydrationWarning={true}>
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#20B8BE]">Timing & Background</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight uppercase">You Don't Need to Keep DueBlink Open</h2>
-            <p className="text-sm text-slate-500 font-medium leading-relaxed">
-              Once automated reminders are enabled, they run in the background. You can close your browser, leave your dashboard, or turn off your computer entirely.
-            </p>
-            <p className="text-sm text-slate-500 font-medium leading-relaxed">
-              DueBlink automatically checks for due reminders and dispatches them securely via our email delivery infrastructure within seconds.
-            </p>
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#20B8BE]">Timing & Background</span>
+              <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight uppercase">You Don't Need to Keep DueBlink Open</h2>
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                Once automated reminders are enabled, they run in the background. You can close your browser, leave your dashboard, or turn off your computer entirely.
+              </p>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                DueBlink automatically checks for due reminders and dispatches them securely via our email delivery infrastructure within seconds.
+              </p>
+            </div>
           </div>
 
           <div className="bg-[#FAFBFD] border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-6 shadow-3xs">
@@ -384,7 +389,7 @@ export default function AutomatedRemindersPage() {
             
           <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
             <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-              <img src="/logo.png" alt="DueBlink Logo" className="h-full w-full object-contain object-left" suppressHydrationWarning={true} />
+              <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
             </div>
             <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
               Know who owes you money.<br />Know exactly what to do next.
