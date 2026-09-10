@@ -18,7 +18,16 @@ interface FloatingRobotProps {
   } | null;
   isPro?: boolean;
   externalAction?: string | null;
+  // Optional client id to target when externalAction fires — lets a
+  // parent-triggered action (e.g. a "Generate Follow-up" button on a
+  // specific client row) open the assistant for THAT client instead of
+  // silently falling back to the globally recommended one.
+  externalActionClientId?: string | null;
   onOpenAddClient?: () => void;
+  // Reports whether FloatingRobot is actively processing an action, so a
+  // parent-side button (e.g. "View Recovery Summary") can show a real
+  // loading state without needing its own separate API call.
+  onProcessingChange?: (isProcessing: boolean) => void;
 }
 
 export default function FloatingRobot({
@@ -27,13 +36,24 @@ export default function FloatingRobot({
   recommendation,
   isPro = false,
   externalAction = null,
-  onOpenAddClient
+  externalActionClientId = null,
+  onOpenAddClient,
+  onProcessingChange
 }: FloatingRobotProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('User');
   const [isExpanded, setIsExpanded] = useState(false);
   const [showRecommendation, setShowRecommendation] = useState(true);
+
+  // Dismissing the recommendation card should only hide it for THAT
+  // client — not silence the feature for the rest of the session. So
+  // whenever the top recommendation actually changes to a different
+  // client (new client added, someone paid, dates shifted), bring the
+  // card back.
+  useEffect(() => {
+    setShowRecommendation(true);
+  }, [recommendation?.id]);
   const [uiState, setUiState] = useState<'idle' | 'processing'>('idle');
   const [remainingFreeReminders, setRemainingFreeReminders] = useState(3);
   const [greeting, setGreeting] = useState('');
@@ -651,10 +671,12 @@ export default function FloatingRobot({
       if (externalAction === 'summarize') {
         handleActionClick('summarize', 'Outstanding Summary');
       } else if (externalAction === 'recommend') {
-        handleActionClick('recommend', 'Generate Follow-up');
+        handleActionClick('recommend', 'Generate Follow-up', externalActionClientId || undefined);
+      } else if (externalAction === 'welcome_pro') {
+        handleActionClick('welcome_pro', 'Welcome to Pro');
       }
     }
-  }, [externalAction, pathname]);
+  }, [externalAction, externalActionClientId, pathname]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -694,6 +716,15 @@ export default function FloatingRobot({
 
   const currentSectionIndexRef = useRef(currentSectionIndex);
   currentSectionIndexRef.current = currentSectionIndex;
+
+  // Let the parent know when a real assistant call starts/finishes, so it
+  // can drive its own loading UI (e.g. the "View Recovery Summary" button)
+  // off the actual request instead of firing a second, unrendered one.
+  useEffect(() => {
+    onProcessingChange?.(uiState === 'processing');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiState]);
+
 
   useEffect(() => {
     if (pathname === '/dashboard') return;
@@ -856,7 +887,7 @@ export default function FloatingRobot({
     try {
       const freshClients = clients;
 
-      if (freshClients.length === 0) {
+      if (freshClients.length === 0 && actionId !== 'welcome_pro') {
         setSavedClientsCount(0);
         setUiState('idle');
         return;

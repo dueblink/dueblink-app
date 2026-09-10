@@ -11,7 +11,6 @@ import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
 import AddClientModal from '@/components/AddClientModal';
-import { useCompletion } from 'ai/react';
 
 function CustomSelectDropdown({ 
   value, 
@@ -120,26 +119,8 @@ export default function DashboardPage() {
   const [reminderNotifs, setReminderNotifs] = useState(true);
 
   const [robotAction, setRobotAction] = useState<string | null>(null);
-
- const { completion, complete, isLoading: isStreaming } = useCompletion({
-  api: '/api/pro-recovery-assistant',
-
-  fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-    const idToken = await auth.currentUser?.getIdToken();
-
-    if (!idToken) {
-      throw new Error('Authentication required');
-    }
-
-    const headers = new Headers(init?.headers);
-    headers.set('Authorization', `Bearer ${idToken}`);
-
-    return fetch(input, {
-      ...init,
-      headers,
-    });
-  },
-});
+  const [robotActionClientId, setRobotActionClientId] = useState<string | null>(null);
+  const [isRobotProcessing, setIsRobotProcessing] = useState(false);
 
 
   useEffect(() => {
@@ -156,12 +137,12 @@ export default function DashboardPage() {
       
       const timer = setTimeout(() => {
         setIsPro(true);
-        complete(JSON.stringify({ action: "welcome_pro", clients, history: [] }));
+        setRobotAction('welcome_pro');
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [clients, complete]);
+  }, [clients]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -321,46 +302,27 @@ export default function DashboardPage() {
     return "Juned";
   };
 
-  const handleAssistantAction = async (action: string) => {
-    if (!isPro) {
-      setUpgradeModalOpen(true);
-      return;
-    }
-
-    await complete(
-      JSON.stringify({
-        action,
-        clients,
-        history: clients.flatMap(
-          (client: any) => client.reminderHistory || []
-        ),
-      })
-    );
-  };
-
-  const handleProRecovery = async (client: any) => {
-    if (!isPro) {
-      setUpgradeModalOpen(true);
-      return;
-    }
-    await complete(JSON.stringify({ client, history: client.reminderHistory || [] }));
-  };
-
-  const handleSummarizeOutstanding = async () => {
+  const handleSummarizeOutstanding = () => {
     if (!isPro) {
       setUpgradeModalOpen(true);
       return;
     }
     setRobotAction('summarize');
-    await complete(JSON.stringify({ 
-      action: "summarize_outstanding", 
-      clients: clients, 
-      total: totalOutstanding,
-      recovered: totalRecovered
-    }));
   };
 
   const recommendation = clients.filter(c => c.status === 'Pending').sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0)).pop();
+
+  // Same days-overdue formula used for the client list and the backend's
+  // getDaysOverdue — kept in sync so the popup shows the real number
+  // instead of a hardcoded 0.
+  const getRecommendationDaysOverdue = (c: any): number => {
+    if (!c?.dueDate) return 0;
+    const due = new Date(c.dueDate);
+    const today = new Date();
+    const diffTime = today.getTime() - due.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
 
   const filteredAndSortedClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -588,14 +550,9 @@ export default function DashboardPage() {
         clients={clients}
         isPro={isPro}
         externalAction={robotAction}
-        onTrigger={(action) => {
-          if (!isPro) {
-            setUpgradeModalOpen(true);
-            return;
-          }
-          handleAssistantAction(action);
-        }} 
-        recommendation={recommendation ? { name: recommendation.name, amount: recommendation.amount, daysOverdue: 0 } : null} 
+        externalActionClientId={robotActionClientId}
+        onProcessingChange={setIsRobotProcessing}
+        recommendation={recommendation ? { id: recommendation.id, name: recommendation.name, amount: recommendation.amount, daysOverdue: getRecommendationDaysOverdue(recommendation) } : null} 
         onOpenAddClient={() => { setClientToEdit(null); setIsModalOpen(true); }}
       />
 
@@ -826,12 +783,12 @@ export default function DashboardPage() {
                   }
                   handleSummarizeOutstanding();
                 }} 
-                disabled={isStreaming && isPro} 
+                disabled={isRobotProcessing && isPro} 
                 className="text-xs font-bold text-white bg-[#0F172A] px-5 py-3 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
                 suppressHydrationWarning={true}
               >
-                {isStreaming && isPro ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
-                {isStreaming && isPro ? 'Summarizing...' : 'View Recovery Summary'}
+                {isRobotProcessing && isPro ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
+                {isRobotProcessing && isPro ? 'Summarizing...' : 'View Recovery Summary'}
               </motion.button>
             </header>
 
@@ -889,8 +846,8 @@ export default function DashboardPage() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => { 
+                      setRobotActionClientId(recommendation.id);
                       setRobotAction('recommend'); 
-                      handleProRecovery(recommendation); 
                     }} 
                     className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xs hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
                     suppressHydrationWarning={true}
@@ -1229,7 +1186,7 @@ export default function DashboardPage() {
                               {isPro && (
                                 <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
                                   <button 
-                                    onClick={() => { setRobotAction('recommend'); handleProRecovery(c); }} 
+                                    onClick={() => { setRobotActionClientId(c.id); setRobotAction('recommend'); }} 
                                     className="text-xs font-bold text-[#245B92] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                                     suppressHydrationWarning={true}
                                   >

@@ -188,6 +188,16 @@ export async function POST(req: Request) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Format a raw numeric amount with Indian-style comma grouping,
+    // e.g. 100000 -> "1,00,000". Every place that injects an amount into
+    // the AI prompt/system text must use this, so the model (which is
+    // told to copy amountDue verbatim) always outputs it correctly.
+    const formatAmount = (amount: unknown): string => {
+      const num = Number(amount);
+      if (!Number.isFinite(num)) return String(amount ?? "0");
+      return num.toLocaleString("en-IN");
+    };
+
     const getDaysOverdue = (dueDate: string | undefined): number => {
       if (!dueDate) return 0;
 
@@ -475,7 +485,7 @@ RECOVERY SNAPSHOT
 
 Client: ${targetClient.name}
 Company: ${targetClient.company || 'N/A'}
-Amount Due: ₹${targetClient.amount}
+Amount Due: ₹${formatAmount(targetClient.amount)}
 Due Date: ${targetClient.dueDate || 'N/A'}
 Status: ${targetStatus}
 Days Overdue: ${targetClient.daysOverdue || 0}
@@ -529,7 +539,7 @@ STRICT RULES
 ${JSON.stringify({
   client: targetClient.name,
   company: targetClient.company || 'N/A',
-  amountDue: `₹${targetClient.amount}`,
+  amountDue: `₹${formatAmount(targetClient.amount)}`,
   dueDate: targetClient.dueDate || 'N/A',
   status: targetStatus,
   daysOverdue: targetClient.daysOverdue || 0,
@@ -707,7 +717,7 @@ Complete breakdown of the current outstanding portfolio based on active unpaid r
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
-• Outstanding Amount: ₹${computedTotal}
+• Outstanding Amount: ₹${formatAmount(computedTotal)}
 • Pending Clients: ${pendingCount}
 • Overdue Clients: ${overdueCount}
 • Paid Clients: ${paidClients.length}
@@ -802,7 +812,7 @@ Explain briefly what this rewritten reminder is designed to accomplish for the c
 ━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
 • Client: ${targetClient.name}
-• Amount Due: ₹${targetClient.amount}
+• Amount Due: ₹${formatAmount(targetClient.amount)}
 • Due Date: ${targetClient.dueDate || 'N/A'}
 • Status: ${targetClient.status || 'Pending'}
 • Days Overdue: ${targetClient.daysOverdue || 0}
@@ -880,7 +890,7 @@ Email Body:
             return {
               name: c.name,
               company: c.company || 'N/A',
-              amountDue: `₹${c.amount}`,
+              amountDue: `₹${formatAmount(c.amount)}`,
               dueDate: c.dueDate || 'N/A',
               status: c.liveStatus || 'Overdue',
               daysOverdue: c.daysOverdue || 0,
@@ -1035,7 +1045,7 @@ Tailored multi-channel reminder generated for active client ${client.name}.
 📌 Important Information
 • Client: ${client.name}
 • Company: ${client.company || 'N/A'}
-• Amount Due: ₹${client.amount}
+• Amount Due: ₹${formatAmount(client.amount)}
 • Due Date: ${client.dueDate || 'N/A'}
 • Status: ${client.status || 'Pending'}
 
@@ -1057,7 +1067,7 @@ The message must reflect the client's current recovery stage and should not rest
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💬 AI WhatsApp
-Hi ${client.name}! Just following up on the pending invoice of ₹${client.amount}. Let's get this settled this week. Thanks!
+Hi ${client.name}! Just following up on the pending invoice of ₹${formatAmount(client.amount)}. Let's get this settled this week. Thanks!
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
