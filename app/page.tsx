@@ -997,7 +997,8 @@ export default function LandingPage() {
       className="text-3xl sm:text-5xl lg:text-7xl font-[800] tracking-[-0.025em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
       suppressHydrationWarning={true}
     >
-      STOP CHASING CLIENTS. <br />
+      STOP CHASING CLIENTS.{' '}
+      <br className="hidden sm:block" />
 
       <span
         className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent"
@@ -1018,7 +1019,9 @@ export default function LandingPage() {
         className="text-slate-400 font-medium lowercase"
         suppressHydrationWarning={true}
       >
-        Stop using spreadsheets. Stop forgetting follow-ups.
+        Stop using spreadsheets.
+        <br />
+        Stop forgetting follow-ups.
       </p>
 
       <p
@@ -1036,7 +1039,9 @@ export default function LandingPage() {
       className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
       suppressHydrationWarning={true}
     >
-      Generate professional payment reminders, track unpaid invoices, and recover payments faster with AI.
+      Generate professional payment reminders, track unpaid invoices,
+      <br />
+      and recover payments faster with AI.
     </motion.p>
 
     {/* CTA */}
