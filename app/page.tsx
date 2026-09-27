@@ -713,13 +713,13 @@ export default function LandingPage() {
         
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-24 md:h-32 flex items-center justify-between" suppressHydrationWarning={true}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
             
           {/* LOGO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="flex items-center justify-start cursor-pointer h-16 sm:h-20 md:h-28 w-[160px] sm:w-[200px] md:w-[380px] lg:w-[500px] relative select-none" 
+            className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none" 
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
@@ -1121,6 +1121,56 @@ export default function LandingPage() {
         </div>
       )}
   </motion.div>
+
+      {/* HERO PRODUCT VISUAL */}
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+        className="pt-8 sm:pt-12 max-w-xl mx-auto"
+        suppressHydrationWarning={true}
+      >
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden text-left" suppressHydrationWarning={true}>
+          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50/70" suppressHydrationWarning={true}>
+            <span className="w-2.5 h-2.5 rounded-full bg-red-300" suppressHydrationWarning={true} />
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-300" suppressHydrationWarning={true} />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" suppressHydrationWarning={true} />
+            <span className="ml-3 text-[10px] font-semibold text-slate-400 truncate" suppressHydrationWarning={true}>dueblink.com/dashboard</span>
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-3" suppressHydrationWarning={true}>
+            <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
+              <div className="flex items-center gap-2.5 min-w-0" suppressHydrationWarning={true}>
+                <div style={{ background: '#245B92' }} className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[11px] shrink-0" suppressHydrationWarning={true}>AA</div>
+                <div className="min-w-0" suppressHydrationWarning={true}>
+                  <p className="text-xs font-bold text-slate-800 truncate" suppressHydrationWarning={true}>ABC Agency</p>
+                  <p className="text-[11px] text-slate-400 font-medium" suppressHydrationWarning={true}>₹15,000</p>
+                </div>
+              </div>
+              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}>
+                <span className="w-1 h-1 rounded-full bg-amber-500" suppressHydrationWarning={true} /> Pending
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
+              <div className="flex items-center gap-2.5 min-w-0" suppressHydrationWarning={true}>
+                <div style={{ background: '#147D75' }} className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[11px] shrink-0" suppressHydrationWarning={true}>B</div>
+                <div className="min-w-0" suppressHydrationWarning={true}>
+                  <p className="text-xs font-bold text-slate-800 truncate" suppressHydrationWarning={true}>BrightLabs</p>
+                  <p className="text-[11px] text-slate-400 font-medium" suppressHydrationWarning={true}>₹45,000</p>
+                </div>
+              </div>
+              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}>
+                <span className="w-1 h-1 rounded-full bg-emerald-500" suppressHydrationWarning={true} /> Paid
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px] font-bold text-white rounded-lg px-3 py-2.5 mt-1" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
+              <Sparkles className="w-3.5 h-3.5 shrink-0" suppressHydrationWarning={true} />
+              <span className="truncate" suppressHydrationWarning={true}>AI: "Follow up with ABC Agency — 15 days overdue"</span>
+            </div>
+          </div>
+        </div>
+      </motion.div>
   </div>
 </motion.section>
 
