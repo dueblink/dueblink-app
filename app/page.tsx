@@ -92,6 +92,348 @@ function formatWithCommas(val: string): string {
   return decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
 }
 
+// --- HERO LIVE DEMO ---
+// A self-contained, looping animation that plays out the "Generate Your
+// Reminder" flow (typing the client + amount, generating, revealing the
+// email) purely for show in the hero. No API calls, no shared state with
+// the real generator further down the page — just a lightweight visual
+// loop so the hero shows the product in motion instead of a static shot.
+function HeroLiveDemo() {
+  type Phase = 'typingName' | 'typingAmount' | 'generating' | 'result' | 'hold';
+  const FULL_NAME = 'ABC agency';
+  const FULL_AMOUNT = '10,000';
+  const EMAIL_SUBJECT = 'Payment Reminder for Invoice INV-2026-042';
+  const EMAIL_BODY = `Dear ${FULL_NAME},\n\nI hope this message finds you well. I want to gently remind you that payment of ₹ INR 10,000 for invoice INV-2026-042 is now 7 days overdue. If you could please take a moment to check on this, it would be greatly appreciated. You can complete the payment through the following link: [Payment Link].\n\nThank you for your attention to this matter, and I look forward to your prompt response.`;
+  const FULL_TEXT = `Subject: ${EMAIL_SUBJECT}\n\n${EMAIL_BODY}`;
+
+  // Same copy as the real generator's loading states.
+  const loadingPhrases = [
+    'Reading the situation…',
+    'Choosing the right tone…',
+    `Personalizing for ${FULL_NAME}…`,
+    'Polishing the wording…',
+    'Almost ready…',
+  ];
+  const resultLoadingPhases = [
+    { icon: Mail, label: 'Drafting your email…', sub: 'Finding the right subject line and opening.' },
+    { icon: MessageCircle, label: 'Writing the WhatsApp message…', sub: 'Keeping it warm and conversational.' },
+    { icon: Send, label: 'Trimming down the SMS…', sub: 'Short, sharp, under 160 characters.' },
+    { icon: Brain, label: 'Building your AI strategy note…', sub: 'Explaining why this approach fits.' },
+  ];
+  const tabs = [
+    { id: 'email', label: 'Email' },
+    { id: 'whatsapp', label: 'WhatsApp' },
+    { id: 'sms', label: 'SMS' },
+    { id: 'strategy', label: 'AI Strategy' },
+  ];
+
+  const [phase, setPhase] = useState<Phase>('typingName');
+  const [typedName, setTypedName] = useState('');
+  const [typedAmount, setTypedAmount] = useState('');
+  const [genIndex, setGenIndex] = useState(0);
+  const [typedText, setTypedText] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [reminderCount, setReminderCount] = useState(0);
+
+  useEffect(() => {
+    let timeouts: ReturnType<typeof setTimeout>[] = [];
+    let intervals: ReturnType<typeof setInterval>[] = [];
+
+    if (phase === 'typingName') {
+      let i = 0;
+      const iv = setInterval(() => {
+        i++;
+        setTypedName(FULL_NAME.slice(0, i));
+        if (i >= FULL_NAME.length) {
+          clearInterval(iv);
+          timeouts.push(setTimeout(() => setPhase('typingAmount'), 450));
+        }
+      }, 60);
+      intervals.push(iv);
+    }
+
+    if (phase === 'typingAmount') {
+      let i = 0;
+      const iv = setInterval(() => {
+        i++;
+        setTypedAmount(FULL_AMOUNT.slice(0, i));
+        if (i >= FULL_AMOUNT.length) {
+          clearInterval(iv);
+          timeouts.push(setTimeout(() => setPhase('generating'), 550));
+        }
+      }, 90);
+      intervals.push(iv);
+    }
+
+    if (phase === 'generating') {
+      setGenIndex(0);
+      let tick = 0;
+      const iv = setInterval(() => {
+        tick++;
+        if (tick > 4) {
+          clearInterval(iv);
+          setReminderCount((c) => (c + 1) % 6);
+          setPhase('result');
+        } else {
+          setGenIndex(tick);
+        }
+      }, 1100);
+      intervals.push(iv);
+    }
+
+    if (phase === 'result') {
+      let i = 0;
+      const iv = setInterval(() => {
+        i += 4;
+        setTypedText(FULL_TEXT.slice(0, i));
+        if (i >= FULL_TEXT.length) {
+          clearInterval(iv);
+          timeouts.push(setTimeout(() => setCopied(true), 500));
+          timeouts.push(setTimeout(() => setPhase('hold'), 2800));
+        }
+      }, 10);
+      intervals.push(iv);
+    }
+
+    if (phase === 'hold') {
+      timeouts.push(setTimeout(() => {
+        setTypedName('');
+        setTypedAmount('');
+        setTypedText('');
+        setCopied(false);
+        setGenIndex(0);
+        setPhase('typingName');
+      }, 1400));
+    }
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+      intervals.forEach(clearInterval);
+    };
+  }, [phase]);
+
+  const isGenerating = phase === 'generating';
+  const showResult = phase === 'result' || phase === 'hold';
+  const currentResultPhase = resultLoadingPhases[genIndex % resultLoadingPhases.length];
+  const CurrentIcon = currentResultPhase.icon;
+
+  return (
+    <div
+      role="presentation"
+      aria-hidden="true"
+      className="w-full select-none pointer-events-none text-left"
+      suppressHydrationWarning={true}
+    >
+    <div
+      className="rounded-2xl p-[1.5px]"
+      style={{
+        background: 'linear-gradient(135deg, #245B92, #2BB6A8, #20B8BE)',
+        boxShadow: '0 22px 45px -16px rgba(36,91,146,0.45), 0 12px 28px -12px rgba(32,184,190,0.4)',
+      }}
+      suppressHydrationWarning={true}
+    >
+    <div className="bg-white rounded-[15px] overflow-hidden flex flex-col sm:flex-row items-stretch" suppressHydrationWarning={true}>
+      {/* Left: form */}
+      <div className="flex-1 min-w-0 p-3.5 sm:p-4 space-y-2.5 sm:space-y-3 border-b sm:border-b-0 sm:border-r border-slate-100" suppressHydrationWarning={true}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-100 pb-2.5" suppressHydrationWarning={true}>
+            <div suppressHydrationWarning={true}>
+              <h3 className="text-[11px] sm:text-xs font-black text-slate-800 flex items-center gap-1.5 truncate" suppressHydrationWarning={true}>
+                <Sparkles className="w-3.5 h-3.5 text-[#2BB6A8] shrink-0" suppressHydrationWarning={true} /> <span className="truncate" suppressHydrationWarning={true}>Generate Your Reminder</span>
+              </h3>
+              <p className="text-[9px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>{reminderCount}/5 Free Reminders Used</p>
+            </div>
+            <span className="self-start sm:self-center text-[8.5px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full shrink-0" suppressHydrationWarning={true}>Stage 2 · Professional Follow-Up</span>
+          </div>
+
+          <div suppressHydrationWarning={true}>
+            <label className="block text-[10px] font-bold text-slate-600 mb-1" suppressHydrationWarning={true}>Client Name *</label>
+            <div className="relative" suppressHydrationWarning={true}>
+              <div className={`w-full h-[34px] flex items-center text-xs px-3 pr-8 bg-white border rounded-lg overflow-hidden whitespace-nowrap transition-colors duration-150 ${phase === 'typingName' ? 'border-[#20B8BE]' : 'border-slate-200'}`} suppressHydrationWarning={true}>
+                <span className="truncate" suppressHydrationWarning={true}>{typedName}</span>
+                {phase === 'typingName' && <span className="inline-block w-[2px] h-3 bg-[#20B8BE] ml-0.5 shrink-0 animate-pulse" suppressHydrationWarning={true} />}
+              </div>
+              <AnimatePresence>
+                {typedName === FULL_NAME && (
+                  <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-500" suppressHydrationWarning={true}>
+                    <CheckCircle className="w-3.5 h-3.5" suppressHydrationWarning={true} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5" suppressHydrationWarning={true}>
+            <div className="min-w-0" suppressHydrationWarning={true}>
+              <label className="block text-[10px] font-bold text-slate-600 mb-1" suppressHydrationWarning={true}>Currency</label>
+              <div className="w-full h-[34px] flex items-center text-xs px-3 bg-white border border-slate-200 rounded-lg text-slate-600" suppressHydrationWarning={true}>₹ INR</div>
+            </div>
+            <div className="min-w-0" suppressHydrationWarning={true}>
+              <label className="block text-[10px] font-bold text-slate-600 mb-1" suppressHydrationWarning={true}>Amount Due *</label>
+              <div className="relative" suppressHydrationWarning={true}>
+                <div className={`w-full h-[34px] flex items-center text-xs px-3 pr-8 bg-white border rounded-lg overflow-hidden whitespace-nowrap transition-colors duration-150 ${phase === 'typingAmount' ? 'border-[#20B8BE]' : 'border-slate-200'}`} suppressHydrationWarning={true}>
+                  <span className="truncate" suppressHydrationWarning={true}>{typedAmount}</span>
+                  {phase === 'typingAmount' && <span className="inline-block w-[2px] h-3 bg-[#20B8BE] ml-0.5 shrink-0 animate-pulse" suppressHydrationWarning={true} />}
+                </div>
+                <AnimatePresence>
+                  {typedAmount === FULL_AMOUNT && (
+                    <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 0.15 }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-500" suppressHydrationWarning={true}>
+                      <CheckCircle className="w-3.5 h-3.5" suppressHydrationWarning={true} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5" suppressHydrationWarning={true}>
+            <div className="min-w-0" suppressHydrationWarning={true}>
+              <label className="block text-[10px] font-bold text-slate-600 mb-1" suppressHydrationWarning={true}>Days Overdue</label>
+              <div className="w-full h-[34px] flex items-center text-xs px-3 bg-white border border-slate-200 rounded-lg text-slate-600" suppressHydrationWarning={true}>7</div>
+            </div>
+            <div className="min-w-0" suppressHydrationWarning={true}>
+              <label className="block text-[10px] font-bold text-slate-600 mb-1" suppressHydrationWarning={true}>Invoice #</label>
+              <div className="w-full h-[34px] flex items-center text-xs px-3 bg-white border border-slate-200 rounded-lg text-slate-300 truncate" suppressHydrationWarning={true}>INV-2025-042</div>
+            </div>
+          </div>
+
+          <div suppressHydrationWarning={true}>
+            <label className="block text-[10px] font-bold text-slate-700 mb-1" suppressHydrationWarning={true}>Tone</label>
+            <div className="grid grid-cols-3 border border-slate-200 rounded-lg overflow-hidden text-center text-[9px] font-bold h-8" suppressHydrationWarning={true}>
+              <span className="flex items-center justify-center text-slate-400" suppressHydrationWarning={true}>Gentle</span>
+              <span className="flex items-center justify-center text-white bg-[#0F172A]" suppressHydrationWarning={true}>Professional</span>
+              <span className="flex items-center justify-center text-slate-400" suppressHydrationWarning={true}>Firm</span>
+            </div>
+          </div>
+
+          <motion.div
+            style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }}
+            className="relative overflow-hidden w-full text-white font-bold text-[9px] sm:text-[10px] uppercase tracking-wider py-2.5 px-2 rounded-lg flex items-center justify-center text-center gap-1.5 leading-tight mt-1"
+            suppressHydrationWarning={true}
+          >
+            {isGenerating && (
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                initial={{ x: '-100%' }}
+                animate={{ x: '100%' }}
+                transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                suppressHydrationWarning={true}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-1.5" suppressHydrationWarning={true}>
+              {isGenerating ? <RefreshCw className="w-3 h-3 shrink-0 animate-spin" suppressHydrationWarning={true} /> : <Sparkles className="w-3 h-3 shrink-0" suppressHydrationWarning={true} />}
+              <AnimatePresence mode="wait">
+                <motion.span key={isGenerating ? `loading-${genIndex}` : 'idle'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }} suppressHydrationWarning={true}>
+                  {isGenerating ? loadingPhrases[genIndex] : 'Generate Reminder'}
+                </motion.span>
+              </AnimatePresence>
+            </span>
+          </motion.div>
+      </div>
+
+      {/* Right: AI output */}
+      <div className="flex-1 min-w-0 p-3.5 sm:p-4 space-y-2.5 sm:space-y-3 flex flex-col" suppressHydrationWarning={true}>
+          <div suppressHydrationWarning={true}>
+            <h3 className="text-[11px] sm:text-xs font-black text-slate-800 flex items-center gap-1.5" suppressHydrationWarning={true}>
+              <Brain className="w-3.5 h-3.5 text-[#1C2E8F] shrink-0" suppressHydrationWarning={true} /> AI Generated Reminders
+            </h3>
+            <p className="text-[9px] text-slate-400 font-medium mt-0.5 truncate" suppressHydrationWarning={true}>Email • WhatsApp • SMS • AI Strategy</p>
+          </div>
+
+          <div className="flex-1 h-[200px] sm:h-[214px] border border-dashed border-slate-200 rounded-xl bg-slate-50/50 flex flex-col overflow-hidden" suppressHydrationWarning={true}>
+            <AnimatePresence mode="wait">
+              {isGenerating ? (
+                <motion.div key="generating" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.25 }} className="flex-1 flex flex-col items-center justify-center text-center px-4 gap-2" suppressHydrationWarning={true}>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`icon-${genIndex % resultLoadingPhases.length}`}
+                      initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      exit={{ opacity: 0, scale: 0.7, rotate: 8 }}
+                      transition={{ duration: 0.3, ease: 'easeOut' }}
+                      className="w-9 h-9 bg-gradient-to-br from-[#1C2E8F]/10 to-[#20B8BE]/10 text-[#1C2E8F] rounded-xl flex items-center justify-center shrink-0"
+                      suppressHydrationWarning={true}
+                    >
+                      <CurrentIcon className="w-4 h-4" suppressHydrationWarning={true} />
+                    </motion.div>
+                  </AnimatePresence>
+                  <div className="space-y-0.5" suppressHydrationWarning={true}>
+                    <AnimatePresence mode="wait">
+                      <motion.p key={`label-${genIndex % resultLoadingPhases.length}`} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25 }} className="text-[9.5px] sm:text-[10px] font-black text-slate-900 uppercase tracking-wide leading-snug" suppressHydrationWarning={true}>
+                        {currentResultPhase.label}
+                      </motion.p>
+                    </AnimatePresence>
+                    <AnimatePresence mode="wait">
+                      <motion.p key={`sub-${genIndex % resultLoadingPhases.length}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, delay: 0.05 }} className="text-[8.5px] text-slate-500 font-medium leading-snug" suppressHydrationWarning={true}>
+                        {currentResultPhase.sub}
+                      </motion.p>
+                    </AnimatePresence>
+                  </div>
+                  <div className="flex items-center gap-1" suppressHydrationWarning={true}>
+                    {resultLoadingPhases.map((_, i) => (
+                      <motion.div
+                        key={i}
+                        className="h-1 rounded-full bg-[#1C2E8F]"
+                        animate={{
+                          width: i === genIndex % resultLoadingPhases.length ? 14 : 5,
+                          opacity: i === genIndex % resultLoadingPhases.length ? 1 : 0.25,
+                        }}
+                        transition={{ duration: 0.3 }}
+                        suppressHydrationWarning={true}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              ) : !showResult ? (
+                <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className="flex-1 flex flex-col items-center justify-center text-center p-4 gap-2" suppressHydrationWarning={true}>
+                  <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-9 h-9 rounded-full flex items-center justify-center text-white shrink-0" suppressHydrationWarning={true}>
+                    <Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} />
+                  </div>
+                  <p className="text-[9.5px] sm:text-[10px] font-black text-slate-700 uppercase tracking-wide leading-snug" suppressHydrationWarning={true}>
+                    Your AI-generated reminder will appear here.
+                  </p>
+                  <p className="text-[8.5px] text-slate-400 font-medium leading-snug max-w-[220px]" suppressHydrationWarning={true}>
+                    Generate a reminder to see both Email and WhatsApp versions instantly.
+                  </p>
+                </motion.div>
+              ) : (
+                <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }} className="flex-1 flex flex-col min-h-0 p-2.5" suppressHydrationWarning={true}>
+                  <div className="flex flex-wrap gap-1 items-center justify-between border-b border-slate-200 pb-1.5 mb-1.5 shrink-0" suppressHydrationWarning={true}>
+                    <div className="flex flex-wrap gap-1" suppressHydrationWarning={true}>
+                      {tabs.map((tab) => (
+                        <span
+                          key={tab.id}
+                          className={`text-[7.5px] font-extrabold px-1.5 py-0.5 rounded-full uppercase tracking-wide shrink-0 ${tab.id === 'email' ? 'bg-[#1C2E8F] text-white' : 'bg-slate-200 text-slate-600'}`}
+                          suppressHydrationWarning={true}
+                        >
+                          {tab.label}
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-[7.5px] font-bold text-[#245B92] flex items-center gap-1 shrink-0" suppressHydrationWarning={true}>
+                      <RefreshCw className="w-2.5 h-2.5" suppressHydrationWarning={true} /> Regenerate
+                    </span>
+                  </div>
+                  <div className="flex-1 min-h-0 bg-white border border-slate-100 rounded-lg px-2 py-1.5 text-[8px] sm:text-[8.5px] leading-snug text-slate-600 font-mono whitespace-pre-wrap break-words overflow-hidden" suppressHydrationWarning={true}>
+                    {typedText}
+                  </div>
+                  <AnimatePresence>
+                    {copied && (
+                      <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="mt-1.5 shrink-0 text-center text-[8.5px] font-bold text-white bg-[#2BB6A8] rounded-lg py-1.5 flex items-center justify-center gap-1" suppressHydrationWarning={true}>
+                        <Check className="w-3 h-3" suppressHydrationWarning={true} /> Copied to Clipboard
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -1122,54 +1464,14 @@ export default function LandingPage() {
       )}
   </motion.div>
 
-      {/* HERO PRODUCT VISUAL */}
+      {/* HERO PRODUCT VISUAL — live, auto-playing demo of the reminder generator */}
       <motion.div
         variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
         transition={{ duration: 0.45, ease: "easeOut" }}
-        className="pt-8 sm:pt-12 max-w-xl mx-auto"
+        className="pt-8 sm:pt-12 max-w-2xl mx-auto"
         suppressHydrationWarning={true}
       >
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden text-left" suppressHydrationWarning={true}>
-          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50/70" suppressHydrationWarning={true}>
-            <span className="w-2.5 h-2.5 rounded-full bg-red-300" suppressHydrationWarning={true} />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-300" suppressHydrationWarning={true} />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" suppressHydrationWarning={true} />
-            <span className="ml-3 text-[10px] font-semibold text-slate-400 truncate" suppressHydrationWarning={true}>dueblink.com/dashboard</span>
-          </div>
-
-          <div className="p-4 sm:p-5 space-y-3" suppressHydrationWarning={true}>
-            <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
-              <div className="flex items-center gap-2.5 min-w-0" suppressHydrationWarning={true}>
-                <div style={{ background: '#245B92' }} className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[11px] shrink-0" suppressHydrationWarning={true}>AA</div>
-                <div className="min-w-0" suppressHydrationWarning={true}>
-                  <p className="text-xs font-bold text-slate-800 truncate" suppressHydrationWarning={true}>ABC Agency</p>
-                  <p className="text-[11px] text-slate-400 font-medium" suppressHydrationWarning={true}>₹15,000</p>
-                </div>
-              </div>
-              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}>
-                <span className="w-1 h-1 rounded-full bg-amber-500" suppressHydrationWarning={true} /> Pending
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
-              <div className="flex items-center gap-2.5 min-w-0" suppressHydrationWarning={true}>
-                <div style={{ background: '#147D75' }} className="w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[11px] shrink-0" suppressHydrationWarning={true}>B</div>
-                <div className="min-w-0" suppressHydrationWarning={true}>
-                  <p className="text-xs font-bold text-slate-800 truncate" suppressHydrationWarning={true}>BrightLabs</p>
-                  <p className="text-[11px] text-slate-400 font-medium" suppressHydrationWarning={true}>₹45,000</p>
-                </div>
-              </div>
-              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}>
-                <span className="w-1 h-1 rounded-full bg-emerald-500" suppressHydrationWarning={true} /> Paid
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 text-[11px] font-bold text-white rounded-lg px-3 py-2.5 mt-1" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
-              <Sparkles className="w-3.5 h-3.5 shrink-0" suppressHydrationWarning={true} />
-              <span className="truncate" suppressHydrationWarning={true}>AI: "Follow up with ABC Agency — 15 days overdue"</span>
-            </div>
-          </div>
-        </div>
+        <HeroLiveDemo />
       </motion.div>
   </div>
 </motion.section>
