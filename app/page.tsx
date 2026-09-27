@@ -716,12 +716,12 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-24 md:h-32 flex items-center justify-between" suppressHydrationWarning={true}>
             
           {/* LOGO */}
-           <motion.div 
-                       whileHover={{ scale: 1.02 }}
-                       transition={{ duration: 0.15, ease: "easeOut" }}
-                       className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none" 
-                       onClick={() => router.push('/')} 
-                       suppressHydrationWarning={true}
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="flex items-center justify-start cursor-pointer h-16 sm:h-20 md:h-28 w-[160px] sm:w-[200px] md:w-[380px] lg:w-[500px] relative select-none" 
+            onClick={() => router.push('/')} 
+            suppressHydrationWarning={true}
           >
             <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
