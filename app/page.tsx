@@ -190,7 +190,7 @@ function HeroCarousel({
       {Backdrop(tone)}
       {chip && (
         <div className="relative z-10 self-end sm:absolute sm:top-4 sm:right-4 lg:top-6 lg:right-6 rounded-lg bg-[#0F172A] text-white px-3 py-2 sm:px-5 sm:py-3">
-          <p className="text-lg sm:text-3xl lg:text-5xl font-black leading-none">{chip.big}</p>
+          <p className="text-base sm:text-3xl lg:text-5xl font-black leading-none">{chip.big}</p>
           <p className="text-[10px] sm:text-xs lg:text-sm text-white/70 font-medium mt-1 max-w-[150px] sm:max-w-[220px] lg:max-w-[260px] leading-snug">{chip.label}</p>
         </div>
       )}
@@ -204,7 +204,7 @@ function HeroCarousel({
     <div className="relative h-full rounded-xl overflow-hidden flex flex-col justify-between gap-2 p-3 sm:block sm:p-0" style={{ background: TONES[tone][0] }}>
       {Backdrop(tone)}
       <div className="relative z-10 self-end sm:absolute sm:top-4 sm:right-4 lg:top-6 lg:right-6 rounded-lg bg-[#0F172A] text-white px-3 py-2 sm:px-5 sm:py-3">
-        <p className="text-lg sm:text-3xl lg:text-5xl font-black leading-none">Pro</p>
+        <p className="text-base sm:text-3xl lg:text-5xl font-black leading-none">Pro</p>
         <p className="text-[10px] text-white/70 font-medium mt-1 leading-snug">{isPro ? 'included in your plan' : 'available with Pro'}</p>
       </div>
       <div className="relative z-10 mt-auto sm:mt-0 sm:absolute sm:left-4 sm:bottom-4 lg:left-6 lg:bottom-6 sm:max-w-[68%] rounded-xl bg-white p-3 sm:p-5 shadow-lg flex items-start gap-2.5">
@@ -230,7 +230,7 @@ function HeroCarousel({
       <div className="relative h-full rounded-xl overflow-hidden flex flex-col justify-between gap-2 p-3 sm:block sm:p-0" style={{ background: TONES[tone][0] }}>
         {Backdrop(tone)}
         <div className="relative z-10 self-end sm:absolute sm:top-4 sm:right-4 lg:top-6 lg:right-6 rounded-lg bg-[#0F172A] text-white px-3 py-2 sm:px-5 sm:py-3">
-          <p className="text-lg sm:text-3xl lg:text-5xl font-black leading-none">
+          <p className="text-base sm:text-3xl lg:text-5xl font-black leading-none">
             <CountUp to={stat.to} prefix={stat.prefix} suffix={stat.suffix} decimals={stat.decimals} />
           </p>
           <p className="text-[10px] sm:text-xs lg:text-sm text-white/70 font-medium mt-1 max-w-[150px] sm:max-w-[220px] lg:max-w-[260px] leading-snug">{stat.label}</p>
@@ -1423,7 +1423,7 @@ export default function LandingPage() {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-2 text-sm font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[40px] max-w-full overflow-hidden"
+      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[40px] max-w-full overflow-hidden"
       suppressHydrationWarning={true}
     >
       <span
@@ -1455,7 +1455,7 @@ export default function LandingPage() {
     <motion.h1
       variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="text-[2.6rem] sm:text-6xl lg:text-7xl font-[900] tracking-[-0.03em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
+      className="text-[1.9rem] sm:text-5xl lg:text-7xl font-[800] tracking-[-0.025em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
       suppressHydrationWarning={true}
     >
       STOP CHASING CLIENTS.
@@ -1473,7 +1473,7 @@ export default function LandingPage() {
     <motion.p
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="text-lg sm:text-xl text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
+      className="text-[15px] sm:text-xl text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
       suppressHydrationWarning={true}
     >
       Generate professional payment reminders, track unpaid invoices,
@@ -1499,7 +1499,7 @@ export default function LandingPage() {
         style={{
           background: "linear-gradient(to right, #245B92, #20B8BE)",
         }}
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-lg sm:text-lg px-6 sm:px-10 py-4 sm:py-4 rounded-2xl transition shadow-md cursor-pointer"
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-base sm:text-lg px-6 sm:px-10 py-3.5 sm:py-4 rounded-2xl transition shadow-md cursor-pointer"
         suppressHydrationWarning={true}
       >
         {isPro ? (
