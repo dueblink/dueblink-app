@@ -456,14 +456,8 @@ function HeroCarousel({
       onTouchEnd={() => setPaused(false)}
       suppressHydrationWarning={true}
     >
-      <div
-        className="rounded-2xl p-[1.5px]"
-        style={{
-          background: 'linear-gradient(135deg, #245B92, #2BB6A8, #20B8BE)',
-          boxShadow: '0 22px 45px -16px rgba(36,91,146,0.45), 0 12px 28px -12px rgba(32,184,190,0.4)',
-        }}
-      >
-        <div className="bg-white rounded-[15px] p-4 sm:p-6 space-y-4">
+      <div>
+        <div className="space-y-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
               {signedIn ? (name ? `Welcome back, ${name}` : 'Welcome back') : 'Late payments at a glance'}
@@ -1429,7 +1423,7 @@ export default function LandingPage() {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[36px] max-w-full overflow-hidden"
+      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-2 text-sm font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[40px] max-w-full overflow-hidden"
       suppressHydrationWarning={true}
     >
       <span
@@ -1445,7 +1439,7 @@ export default function LandingPage() {
       </span>
 
       <span
-        className="text-[#2BB6A8] font-bold truncate max-w-[180px] sm:max-w-none text-left"
+        className="text-[#2BB6A8] font-bold truncate max-w-[210px] sm:max-w-none text-left"
         suppressHydrationWarning={true}
       >
         {displayedText}
@@ -1461,7 +1455,7 @@ export default function LandingPage() {
     <motion.h1
       variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="text-2xl sm:text-5xl lg:text-7xl font-[800] tracking-[-0.025em] text-[#0F172A] uppercase leading-[1.1] sm:leading-[0.98]"
+      className="text-[2.6rem] sm:text-6xl lg:text-7xl font-[900] tracking-[-0.03em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
       suppressHydrationWarning={true}
     >
       STOP CHASING CLIENTS.
@@ -1475,40 +1469,16 @@ export default function LandingPage() {
       </span>
     </motion.h1>
 
-    {/* SUPPORTING HEADLINE */}
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="max-w-2xl mx-auto space-y-1 sm:space-y-2 pt-2 text-sm sm:text-base font-semibold text-slate-600"
-      suppressHydrationWarning={true}
-    >
-      <p
-        className="text-slate-400 font-medium lowercase"
-        suppressHydrationWarning={true}
-      >
-        Stop using spreadsheets.
-        <br />
-        Stop forgetting follow-ups.
-      </p>
-
-      <p
-        className="text-base sm:text-lg text-[#1C2E8F] font-bold"
-        suppressHydrationWarning={true}
-      >
-        Start getting paid faster.
-      </p>
-    </motion.div>
-
     {/* DESCRIPTION */}
     <motion.p
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="text-sm sm:text-lg text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
+      className="text-lg sm:text-xl text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
       suppressHydrationWarning={true}
     >
       Generate professional payment reminders, track unpaid invoices,
-      <br />
-      and recover payments faster with AI.
+      <br className="hidden sm:block" />
+      {" "}and recover payments faster with AI.
     </motion.p>
 
     {/* CTA */}
@@ -1529,7 +1499,7 @@ export default function LandingPage() {
         style={{
           background: "linear-gradient(to right, #245B92, #20B8BE)",
         }}
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-sm sm:text-base px-6 sm:px-10 py-3 sm:py-4 rounded-xl transition shadow-xs cursor-pointer"
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-lg sm:text-lg px-6 sm:px-10 py-4 sm:py-4 rounded-2xl transition shadow-md cursor-pointer"
         suppressHydrationWarning={true}
       >
         {isPro ? (
@@ -1550,7 +1520,7 @@ export default function LandingPage() {
       {/* TRUST POINTS */}
       {!user && (
         <div
-          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-2 text-xs font-bold text-[#475569] uppercase tracking-wider"
+          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-2 text-xs sm:text-sm font-bold text-[#475569] uppercase tracking-wider"
           suppressHydrationWarning={true}
         >
           <span
