@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2, Mail } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -23,6 +23,10 @@ export default function PricingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [paymentSuccessModal, setPaymentSuccessModal] = useState(false);
   const [isUserPro, setIsUserPro] = useState(false);
+  // Same permanent marker as the dashboard and homepage: true once someone
+  // has ever paid for Pro, never cleared — so a lapsed subscriber sees
+  // "Renew" here instead of the same pitch a brand-new visitor gets.
+  const [wasPro, setWasPro] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const seasonalPricing = getSeasonalPricing();
@@ -62,20 +66,31 @@ export default function PricingPage() {
                 const expires = data.proExpiresAt.toDate();
                 if (new Date() < expires) {
                   setIsUserPro(true);
+                  setWasPro(true);
+                  if (!data.wasPro) {
+                    updateDoc(userRef, { wasPro: true }).catch(() => {});
+                  }
                   localStorage.setItem('dueblink_is_pro', 'true');
                   localStorage.setItem('dueblink_pro_active', 'true');
                 } else {
                   setIsUserPro(false);
+                  setWasPro(true);
+                  updateDoc(userRef, { isPro: false, wasPro: true }).catch(() => {});
                   localStorage.removeItem('dueblink_is_pro');
                   localStorage.removeItem('dueblink_pro_active');
                 }
               } else {
                 setIsUserPro(true);
+                setWasPro(true);
+                if (!data.wasPro) {
+                  updateDoc(userRef, { wasPro: true }).catch(() => {});
+                }
                 localStorage.setItem('dueblink_is_pro', 'true');
                 localStorage.setItem('dueblink_pro_active', 'true');
               }
             } else {
               setIsUserPro(false);
+              setWasPro(!!data.wasPro || !!data.cancelledAt);
               localStorage.removeItem('dueblink_is_pro');
               localStorage.removeItem('dueblink_pro_active');
             }
@@ -101,6 +116,7 @@ export default function PricingPage() {
       localStorage.removeItem('dueblink_pro_active');
       setUser(null);
       setIsUserPro(false);
+      setWasPro(false);
       router.push('/');
       router.refresh();
     } catch (error) {
@@ -718,6 +734,8 @@ return (
                   <>Coming Soon</>
                 ) : isUserPro ? (
                   <><Sparkles className="w-4 h-4" /> You are Pro ✨ (Go to Dashboard)</>
+                ) : wasPro ? (
+                  <><Sparkles className="w-4 h-4" /> Renew Pro</>
                 ) : (
                   <><Sparkles className="w-4 h-4" /> Upgrade to Pro</>
                 )}
@@ -725,17 +743,6 @@ return (
             </motion.div>
 
           </div>
-        </div>
-      </section>
-
-      {/* WHY UPGRADE SECTION */}
-      <section className="bg-slate-50 py-20 border-b border-slate-100 text-center" suppressHydrationWarning={true}>
-        <div className="max-w-3xl mx-auto px-4 space-y-4" suppressHydrationWarning={true}>
-          <div className="text-3xl select-none">🧠</div>
-          <h2 className="text-3xl font-black text-[#0F172A] tracking-tight">Stop manually deciding who to follow up with.</h2>
-          <p className="text-base text-slate-600 font-medium max-w-xl mx-auto leading-relaxed">
-            Let AI analyze your payments and recommend the next best action. Recover payments faster with DueBlink.
-          </p>
         </div>
       </section>
 
@@ -779,39 +786,72 @@ return (
         )}
       </AnimatePresence>
 
-      {/* FOOTER */}
+      {/* FOOTER — same one used on the homepage. Anchor links (Features, FAQ,
+          etc.) point to "/#id" since those sections don't exist on this page;
+          navigating to the homepage with the anchor lets the browser scroll
+          to them after the page loads. */}
       <motion.footer 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
-        className="bg-white py-12 border-t border-slate-200 px-6"
-        suppressHydrationWarning={true}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.3 }}
+      className="bg-white border-t border-slate-200"
+      suppressHydrationWarning={true}
       >
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-          <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
-            <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-              <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
-            </div>
-            <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
-              Know who owes you money.<br />Know exactly what to do next.
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto px-6 pt-16 pb-10" suppressHydrationWarning={true}>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs font-bold uppercase tracking-wider text-slate-500" suppressHydrationWarning={true}>
-            <a href="/privacy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Privacy</a>
-            <a href="/terms" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Terms</a>
-            <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
-            <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
-          </div>
-          
-          <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
-            <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-x-6 gap-y-10 md:gap-x-8" suppressHydrationWarning={true}>
+
+          <div className="col-span-2 flex flex-col gap-4" suppressHydrationWarning={true}>
+            <div className="h-16 sm:h-20 w-[220px] sm:w-[260px] -ml-2 flex items-center justify-start" suppressHydrationWarning={true}>
+              <Image src="/logo.png" alt="DueBlink Logo" width={260} height={88} className="h-full w-full object-contain object-left" />
+            </div>
+            <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[240px]" suppressHydrationWarning={true}>
+              Know who owes you money. Know exactly what to do next.
+            </p>
+            <a href="mailto:support@dueblink.com" className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>
+              <Mail size={13} />
               support@dueblink.com
             </a>
-            <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
           </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Product</p>
+            <a href="/#features" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Features</a>
+            <a href="/#ai-recovery-assistant" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>AI recovery assistant</a>
+            <a href="/#how-it-works" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>How it works</a>
+            <a href="/pricing" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Pricing</a>
+          </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Resources</p>
+            <a href="/#reminder-examples" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Reminder examples</a>
+            <a href="/#faq" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>FAQ</a>
+            <a href="/contact" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Contact us</a>
+          </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Account</p>
+            <a href="/login" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Login</a>
+            <a href="/create-account" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Create account</a>
+            <a href="/dashboard" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Dashboard</a>
+          </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Legal</p>
+            <a href="/privacy" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Privacy policy</a>
+            <a href="/terms" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Terms of service</a>
+            <a href="/refund-policy" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Refund policy</a>
+          </div>
+
         </div>
+
+        <div className="mt-14 pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-between gap-4" suppressHydrationWarning={true}>
+          <span className="text-xs font-medium text-slate-400" suppressHydrationWarning={true}>© 2026 DueBlink. All rights reserved.</span>
+          <span className="text-xs font-medium text-slate-400 text-center sm:text-right" suppressHydrationWarning={true}>Built for the ones who'd rather get paid than chase payments.</span>
+        </div>
+
+      </div>
       </motion.footer>
 
     </div>

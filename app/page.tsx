@@ -539,6 +539,10 @@ export default function LandingPage() {
   // Auth & Pro State
   const [user, setUser] = useState<any>(null);
   const [isPro, setIsPro] = useState(false);
+  // Same permanent marker as the dashboard: true once someone has ever paid
+  // for Pro, never cleared — so a lapsed subscriber sees "Renew" instead of
+  // "Upgrade" on their first stop being the homepage.
+  const [wasPro, setWasPro] = useState(false);
   const [myClients, setMyClients] = useState<any[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
 
@@ -777,20 +781,30 @@ export default function LandingPage() {
               if (now > expirationDate) {
                 await updateDoc(
                   doc(db, 'users', currentUser.uid),
-                  { isPro: false, proExpiresAt: null }
+                  { isPro: false, proExpiresAt: null, wasPro: true }
                 );
                 setIsPro(false);
+                setWasPro(true);
                 localStorage.removeItem('dueblink_pro_active');
                 localStorage.removeItem('dueblink_is_pro');
               } else {
                 setIsPro(true);
+                setWasPro(true);
+                if (!userData.wasPro) {
+                  updateDoc(doc(db, 'users', currentUser.uid), { wasPro: true }).catch(() => {});
+                }
                 localStorage.setItem('dueblink_pro_active', 'true');
               }
             } else if (userData.isPro) {
               setIsPro(true);
+              setWasPro(true);
+              if (!userData.wasPro) {
+                updateDoc(doc(db, 'users', currentUser.uid), { wasPro: true }).catch(() => {});
+              }
               localStorage.setItem('dueblink_pro_active', 'true');
             } else {
               setIsPro(false);
+              setWasPro(!!userData.wasPro || !!userData.cancelledAt);
               localStorage.removeItem('dueblink_pro_active');
               localStorage.removeItem('dueblink_is_pro');
             }
@@ -1938,7 +1952,7 @@ export default function LandingPage() {
             style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
             suppressHydrationWarning={true}
         >
-            {isPro ? 'Open Dashboard' : !user ? 'Create Free Account' : 'Upgrade to Pro'} <ArrowRight size={16} />
+            {isPro ? 'Open Dashboard' : !user ? 'Create Free Account' : wasPro ? 'Renew Pro' : 'Upgrade to Pro'} <ArrowRight size={16} />
           </motion.button>
         </div>
       </div>
@@ -3362,7 +3376,7 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
         >
           <Sparkles className="w-4 h-4 text-[#20B8BE]" suppressHydrationWarning={true} /> 
-          Upgrade to Pro
+          {wasPro ? 'Renew Pro' : 'Upgrade to Pro'}
         </motion.button>
           )}
         </div>

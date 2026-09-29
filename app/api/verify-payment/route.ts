@@ -253,6 +253,7 @@ export async function POST(req: Request) {
     await userRef.set(
       {
         isPro: true,
+        wasPro: true,
         billingCycle: billingCycle,
         proExpiresAt: proExpiresAt,
         razorpayPaymentId:

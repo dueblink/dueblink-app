@@ -95,6 +95,15 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
+  // True the moment someone has ever paid for Pro, and never cleared — lets
+  // the UI tell an expired/cancelled subscriber apart from a brand-new
+  // visitor, so they see "Renew" instead of being sold Pro from scratch.
+  const [wasPro, setWasPro] = useState(false);
+  // The actual date Pro is active until (if currently Pro) or ended on (if
+  // lapsed) — kept so Billing & Subscription can show a real date instead
+  // of just a plan name.
+  const [proExpiresAt, setProExpiresAt] = useState<Date | null>(null);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly' | null>(null);
   const [clients, setClients] = useState<any[]>([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<any | null>(null);
@@ -137,6 +146,7 @@ export default function DashboardPage() {
       
       const timer = setTimeout(() => {
         setIsPro(true);
+        setWasPro(true);
         setRobotAction('welcome_pro');
       }, 500);
 
@@ -162,26 +172,44 @@ export default function DashboardPage() {
           if (userDoc.exists()) {
             const data = userDoc.data();
             
+            if (data.billingCycle) setBillingCycle(data.billingCycle);
+
             if (data.isPro && data.proExpiresAt) {
               const expirationDate = data.proExpiresAt.toDate();
               const now = new Date();
+              setProExpiresAt(expirationDate);
 
               if (now > expirationDate) {
+                // Subscription lapsed: turn Pro off, but keep a permanent
+                // record that this account was Pro before (and the date it
+                // ended, left untouched above) so the settings page can
+                // offer "Renew" with a real date instead of "Upgrade".
                 await updateDoc(userDocRef, {
                   isPro: false,
-                  proExpiresAt: null
+                  wasPro: true
                 });
                 setIsPro(false);
+                setWasPro(true);
                 localStorage.removeItem('dueblink_pro_active');
               } else {
                 setIsPro(true);
+                setWasPro(true);
+                if (!data.wasPro) {
+                  updateDoc(userDocRef, { wasPro: true }).catch(() => {});
+                }
                 localStorage.setItem('dueblink_pro_active', 'true');
               }
             } else if (data.isPro) {
               setIsPro(true);
+              setWasPro(true);
+              if (!data.wasPro) {
+                updateDoc(userDocRef, { wasPro: true }).catch(() => {});
+              }
               localStorage.setItem('dueblink_pro_active', 'true');
             } else {
               setIsPro(false);
+              setWasPro(!!data.wasPro || !!data.cancelledAt);
+              if (data.proExpiresAt) setProExpiresAt(data.proExpiresAt.toDate());
               localStorage.removeItem('dueblink_pro_active');
             }
 
@@ -241,6 +269,7 @@ export default function DashboardPage() {
       await setDoc(userRef, { 
         isPro: false, 
         proExpiresAt: null, 
+        wasPro: true,
         cancelledAt: serverTimestamp(),
         email: user.email || '',
         name: user.displayName || ''
@@ -249,6 +278,8 @@ export default function DashboardPage() {
       localStorage.removeItem('dueblink_pro_active');
       
       setIsPro(false);
+      setWasPro(true);
+      setProExpiresAt(new Date());
       setLoading(false);
       setCancelModalOpen(false);
       
@@ -410,9 +441,11 @@ export default function DashboardPage() {
               </div>
 
               <div className="space-y-2" suppressHydrationWarning={true}>
-                <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>Upgrade to DueBlink Pro</h3>
+                <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>{wasPro ? 'Renew DueBlink Pro' : 'Upgrade to DueBlink Pro'}</h3>
                 <p className="text-sm font-medium text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
-                  Upgrade to DueBlink Pro to unlock the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and accelerate your cash collection.
+                  {wasPro
+                    ? <>Your Pro plan has ended. Renew to get the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and your recovery tools back.</>
+                    : <>Upgrade to DueBlink Pro to unlock the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and accelerate your cash collection.</>}
                 </p>
               </div>
 
@@ -437,7 +470,7 @@ export default function DashboardPage() {
                   style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                   suppressHydrationWarning={true}
                 >
-                  Upgrade Now 🚀
+                  {wasPro ? 'Renew Now 🚀' : 'Upgrade Now 🚀'}
                 </motion.button>
               </div>
             </motion.div>
@@ -741,8 +774,12 @@ export default function DashboardPage() {
             ) : (
               <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
                 <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
-                  <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>Unlock Pro Recovery Assistant</h2>
-                  <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Automate follow-ups, analyze payment trends, and recover money faster.</p>
+                  <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>{wasPro ? 'Your Pro Plan Has Ended' : 'Unlock Pro Recovery Assistant'}</h2>
+                  <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>
+                    {wasPro
+                      ? 'Renew to get automated follow-ups, the AI Recovery Assistant, and your other Pro tools back.'
+                      : 'Automate follow-ups, analyze payment trends, and recover money faster.'}
+                  </p>
                 </div>
                 <motion.button 
                   whileHover={{ scale: 1.03, y: -1 }}
@@ -751,7 +788,7 @@ export default function DashboardPage() {
                   className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap"
                   suppressHydrationWarning={true}
                 >
-                  Upgrade to Pro 🚀
+                  {wasPro ? 'Renew Pro 🚀' : 'Upgrade to Pro 🚀'}
                 </motion.button>
               </div>
             )}
@@ -1243,10 +1280,25 @@ export default function DashboardPage() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-slate-400 uppercase">Current Plan</p>
-                  <p className="text-xl font-black text-slate-900">{isPro ? 'DueBlink Pro 🚀' : 'Free Plan'}</p>
+                  <p className="text-xl font-black text-slate-900">{isPro ? 'DueBlink Pro 🚀' : wasPro ? 'Pro Plan Ended' : 'Free Plan'}</p>
                   <p className="text-xs text-slate-500 font-medium">
-                    {isPro ? 'All Pro recovery tools and AI assistant are fully unlocked.' : 'Upgrade to Pro to unlock unlimited AI features.'}
+                    {isPro
+                      ? 'All Pro recovery tools and AI assistant are fully unlocked.'
+                      : wasPro
+                        ? 'Your Pro access has ended. Renew to get your recovery tools back.'
+                        : 'Upgrade to Pro to unlock unlimited AI features.'}
                   </p>
+                  {isPro && proExpiresAt && (
+                    <p className="text-xs font-bold text-slate-700 pt-1">
+                      Renews {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {billingCycle ? ` · Billed ${billingCycle}` : ''}
+                    </p>
+                  )}
+                  {!isPro && wasPro && proExpiresAt && (
+                    <p className="text-xs font-bold text-slate-500 pt-1">
+                      Ended {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
                 </div>
                 {isPro ? (
                   <div className="flex items-center gap-3">
@@ -1267,13 +1319,19 @@ export default function DashboardPage() {
                     onClick={() => router.push('/pricing')} 
                     className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-xs transition-shadow cursor-pointer"
                   >
-                    Upgrade to Pro ✨
+                    {wasPro ? 'Renew Pro ✨' : 'Upgrade to Pro ✨'}
                   </motion.button>
                 )}
               </div>
               
               <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs font-semibold text-slate-500 px-2 gap-2">
-                <span>Manage Billing: You can cancel anytime before your renewal date.</span>
+                <span>
+                  {isPro
+                    ? 'Manage Billing: You can cancel anytime before your renewal date.'
+                    : wasPro
+                      ? 'Renew anytime to pick up right where you left off.'
+                      : 'Upgrade anytime — no long-term commitment.'}
+                </span>
                 <button onClick={() => router.push('/pricing')} className="text-[#245B92] font-bold hover:underline cursor-pointer">
                   View Pricing & Plans →
                 </button>
