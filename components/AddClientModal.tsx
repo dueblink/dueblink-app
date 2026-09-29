@@ -29,6 +29,7 @@ export default function AddClientModal({
   const [successStep, setSuccessStep] = useState(false);
   const [isFirstClient, setIsFirstClient] = useState(false);
   const [automatedReminders, setAutomatedReminders] = useState(false);
+  const [showProNotice, setShowProNotice] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -77,6 +78,7 @@ export default function AddClientModal({
       setAutomatedReminders(false);
     }
     setErrors({ name: '', email: '', amount: '', dueDate: '' });
+    setShowProNotice(false);
   }, [clientToEdit, isOpen]);
 
   // Auto-focus Client Name on open & ESC key listener
@@ -239,6 +241,7 @@ export default function AddClientModal({
     setSuccessStep(false);
     setIsFirstClient(false);
     setAutomatedReminders(false);
+    setShowProNotice(false);
     onClose();
   };
 
@@ -637,8 +640,7 @@ export default function AddClientModal({
                     whileTap={{ scale: 0.94 }}
                     onClick={() => {
                       if (!isPro) {
-                        alert('Automated Email Reminders are available with DueBlink Pro.');
-                        router.push('/pricing');
+                        setShowProNotice(true);
                         return;
                       }
 
@@ -660,11 +662,56 @@ export default function AddClientModal({
                   </motion.button>
                 </div>
 
-                {!isPro && (
+                {!isPro && !showProNotice && (
                   <p className="text-[10px] font-bold text-[#245B92] mt-3">
                     Upgrade to Pro to automatically send reminders.
                   </p>
                 )}
+
+                <AnimatePresence>
+                  {!isPro && showProNotice && (
+                    <motion.div
+                      role="status"
+                      aria-live="polite"
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className="mt-3 rounded-xl border border-[#245B92]/20 bg-white p-3 sm:p-3.5 shadow-3xs"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[#245B92]/10 flex items-center justify-center shrink-0">
+                          <Sparkles className="w-4 h-4 text-[#245B92]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-900">
+                            Automated reminders are a Pro feature
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                            Upgrade to DueBlink Pro and reminders go out to this client automatically. Your details here stay as they are.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                            <button
+                              type="button"
+                              onClick={() => router.push('/pricing')}
+                              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-bold text-white px-3 py-2 rounded-lg hover:opacity-90 transition-opacity"
+                            >
+                              See Pro plans <ArrowRight className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowProNotice(false)}
+                              className="text-[11px] font-bold text-slate-500 hover:text-slate-800 px-2 py-2 transition-colors"
+                            >
+                              Not now
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {isPro && automatedReminders && (
                   <div className="mt-4 pt-4 border-t border-slate-200">

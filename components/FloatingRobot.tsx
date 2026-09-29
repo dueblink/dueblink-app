@@ -7,6 +7,23 @@ import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Landing page sections Blink reacts to, in the order they appear on the page.
+const LANDING_SECTION_IDS = [
+  'hero',
+  'late-payments',
+  'how-it-works',
+  'features',
+  'built-for',
+  'automated-reminders',
+  'ai-recovery-assistant',
+  'dashboard-preview',
+  'reminder-generator',
+  'reminder-examples',
+  'pricing',
+  'faq',
+  'final-cta',
+] as const;
+
 interface FloatingRobotProps {
   clients?: any[];
   onTrigger?: (action: string) => void;
@@ -729,21 +746,7 @@ export default function FloatingRobot({
   useEffect(() => {
     if (pathname === '/dashboard') return;
 
-    const sectionIds = [
-      'hero',
-      'late-payments',
-      'features',
-      'built-for',
-      'automated-reminders',
-      'ai-recovery-assistant',
-      'dashboard-preview',
-      'reminder-generator',
-      'reminder-examples',
-      'how-it-works',
-      'pricing',
-      'faq',
-      'final-cta'
-    ];
+    const sectionIds: readonly string[] = LANDING_SECTION_IDS;
 
     const observerCallback: IntersectionObserverCallback = (entries) => {
       entries.forEach((entry) => {
@@ -774,55 +777,55 @@ export default function FloatingRobot({
     };
   }, [pathname]);
 
-  const getCurrentMessages = () => {
+  const getCurrentMessages = (): Record<string, string> => {
     if (isLoggedIn && isPro) {
-      return [
-        "Your Pro workspace is ready.",
-        "See everything DueBlink can do for your payments.",
-        "Your complete payment recovery toolkit.",
-        "Built for businesses that invoice and follow up.",
-        "Set it once and let DueBlink follow up automatically.",
-        "I can help you decide which payment to chase first.",
-        "Your payment recovery activity, all in one place.",
-        "Create unlimited AI payment reminders in seconds.",
-        "See reminders for different payment stages.",
-        "Add clients, follow up, and track payments.",
-        "Your Pro plan unlocks the full recovery toolkit.",
-        "Find quick answers to common questions.",
-        "Ready to recover more payments?"
-      ];
+      return {
+        'hero': "Your Pro workspace is ready.",
+        'late-payments': "See everything DueBlink can do for your payments.",
+        'features': "Your complete payment recovery toolkit.",
+        'built-for': "Built for businesses that invoice and follow up.",
+        'automated-reminders': "Set it once and let DueBlink follow up automatically.",
+        'ai-recovery-assistant': "I can help you decide which payment to chase first.",
+        'dashboard-preview': "Your payment recovery activity, all in one place.",
+        'reminder-generator': "Create unlimited AI payment reminders in seconds.",
+        'reminder-examples': "See reminders for different payment stages.",
+        'how-it-works': "Add clients, follow up, and track payments.",
+        'pricing': "Your Pro plan unlocks the full recovery toolkit.",
+        'faq': "Find quick answers to common questions.",
+        'final-cta': "Ready to recover more payments?"
+      };
     } else if (isLoggedIn) {
-      return [
-        "Welcome back. Let's recover your payments.",
-        "Stay on top of every payment you are owed.",
-        "Your tools for faster payment recovery.",
-        "Built for businesses that invoice and follow up.",
-        "Let DueBlink handle your follow-ups automatically.",
-        "Upgrade to Pro for smarter recovery recommendations.",
-        "Manage your clients and payment activity here.",
-        "Create AI payment reminders when you need them.",
-        "See examples for different payment stages.",
-        "Add clients, send reminders, and track payments.",
-        "Upgrade when you need unlimited recovery tools.",
-        "Find quick answers to common questions.",
-        "Ready to get paid faster?"
-      ];
+      return {
+        'hero': "Welcome back. Let's recover your payments.",
+        'late-payments': "Stay on top of every payment you are owed.",
+        'features': "Your tools for faster payment recovery.",
+        'built-for': "Built for businesses that invoice and follow up.",
+        'automated-reminders': "Let DueBlink handle your follow-ups automatically.",
+        'ai-recovery-assistant': "Upgrade to Pro for smarter recovery recommendations.",
+        'dashboard-preview': "Manage your clients and payment activity here.",
+        'reminder-generator': "Create AI payment reminders when you need them.",
+        'reminder-examples': "See examples for different payment stages.",
+        'how-it-works': "Add clients, send reminders, and track payments.",
+        'pricing': "Upgrade when you need unlimited recovery tools.",
+        'faq': "Find quick answers to common questions.",
+        'final-cta': "Ready to get paid faster?"
+      };
     } else {
-      return [
-        "Start with 5 free AI reminders.",
-        "Late payments are easier to manage with timely follow-ups.",
-        "Everything you need to recover payments, in one place.",
-        "Built for businesses that invoice and follow up.",
-        "Set it once and let DueBlink follow up automatically.",
-        "See how AI can help you recover payments.",
-        "Your payment recovery workspace.",
-        "Create a professional payment reminder in seconds.",
-        "See reminders for different payment stages.",
-        "Add a client, send reminders, and track payment.",
-        "Start free, then upgrade when you need more.",
-        "Find quick answers to common questions.",
-        "Ready to get paid faster?"
-      ];
+      return {
+        'hero': "Start with 5 free AI reminders.",
+        'late-payments': "Late payments are easier to manage with timely follow-ups.",
+        'features': "Everything you need to recover payments, in one place.",
+        'built-for': "Built for businesses that invoice and follow up.",
+        'automated-reminders': "Set it once and let DueBlink follow up automatically.",
+        'ai-recovery-assistant': "See how AI can help you recover payments.",
+        'dashboard-preview': "Your payment recovery workspace.",
+        'reminder-generator': "Create a professional payment reminder in seconds.",
+        'reminder-examples': "See reminders for different payment stages.",
+        'how-it-works': "Add a client, send reminders, and track payment.",
+        'pricing': "Start free, then upgrade when you need more.",
+        'faq': "Find quick answers to common questions.",
+        'final-cta': "Ready to get paid faster?"
+      };
     }
   };
 
@@ -839,7 +842,7 @@ export default function FloatingRobot({
     }
 
     const messages = getCurrentMessages();
-    setClickedSectionText(messages[currentSectionIndex] || messages[0]);
+    setClickedSectionText(messages[LANDING_SECTION_IDS[currentSectionIndex]] || messages['hero']);
     setShowMessageBubble((prev) => !prev);
   };
 
@@ -860,7 +863,7 @@ export default function FloatingRobot({
     }
 
     const messages = getCurrentMessages();
-    return messages[currentSectionIndex] || messages[0] || "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how it can help you get paid faster.";
+    return messages[LANDING_SECTION_IDS[currentSectionIndex]] || messages['hero'] || "Hi! I'm Blink.\n\nI'll help you explore DueBlink and show you how it can help you get paid faster.";
   };
 
   const handleActionClick = async (
