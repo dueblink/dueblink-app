@@ -330,8 +330,8 @@ export default function ContactPage() {
             {[
               { title: "Technical Support", desc: "Having trouble using DueBlink? We'll help you get back on track.", icon: <Wrench className="w-5 h-5 text-[#245B92]" /> },
               { title: "Billing & Subscription", desc: "Questions about your plan, payments, or invoices.", icon: <FileText className="w-5 h-5 text-[#2BB6A8]" /> },
-              { title: "Feature Requests", desc: "Have an idea to improve DueBlink? We'd love to hear it.", icon: <Sparkles className="w-5 h-5 text-amber-500" /> },
-              { title: "Report a Bug", desc: "Found something that isn't working? Let us know so we can fix it.", icon: <AlertTriangle className="w-5 h-5 text-rose-500" /> }
+              { title: "Feature Requests", desc: "Have an idea to improve DueBlink? We'd love to hear it.", icon: <Sparkles className="w-5 h-5 text-[#245B92]" /> },
+              { title: "Report a Bug", desc: "Found something that isn't working? Let us know so we can fix it.", icon: <AlertTriangle className="w-5 h-5 text-[#2BB6A8]" /> }
             ].map((cat, idx) => (
               <div key={idx} className="bg-[#FAFBFD] border border-slate-200/70 rounded-2xl p-6 space-y-3 shadow-3xs flex flex-col justify-between">
                 <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-3xs">
@@ -493,7 +493,7 @@ export default function ContactPage() {
               </div>
 
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0 mt-0.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#245B92] shrink-0 mt-0.5">
                   <MapPin size={18} />
                 </div>
                 <div>
@@ -516,7 +516,7 @@ export default function ContactPage() {
       <section className="bg-white py-16 sm:py-20 px-4" suppressHydrationWarning={true}>
         <div className="max-w-4xl mx-auto">
           <div className="bg-gradient-to-br from-[#245B92] to-[#20B8BE] rounded-[32px] p-6 sm:p-12 text-center text-white relative shadow-lg overflow-hidden" suppressHydrationWarning={true}>
-            <div className="text-4xl mb-6">🚀</div>
+            <Sparkles className="w-10 h-10 mx-auto mb-6" />
             <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-4">
               We're Always Improving DueBlink.
             </h2>
@@ -535,39 +535,67 @@ export default function ContactPage() {
 
       {/* --- GLOBAL FOOTER WITH ANIMATION --- */}
       <motion.footer 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
-        className="bg-white py-12 border-t border-slate-200 px-6"
-        suppressHydrationWarning={true}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.3 }}
+      className="bg-white border-t border-slate-200"
+      suppressHydrationWarning={true}
       >
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-            
-          <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
-            <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-              <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
-            </div>
-            <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
-              Know who owes you money.<br />Know exactly what to do next.
-            </div>
-          </div>
+      <div className="max-w-7xl mx-auto px-6 pt-16 pb-10" suppressHydrationWarning={true}>
 
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs font-bold uppercase tracking-wider text-slate-500" suppressHydrationWarning={true}>
-            <a href="/privacy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Privacy</a>
-            <a href="/terms" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Terms</a>
-            <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
-            <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
-          </div>
-            
-          <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
-            <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-x-6 gap-y-10 md:gap-x-8" suppressHydrationWarning={true}>
+
+          <div className="col-span-2 flex flex-col gap-4" suppressHydrationWarning={true}>
+            <div className="h-16 sm:h-20 w-[220px] sm:w-[260px] -ml-2 flex items-center justify-start" suppressHydrationWarning={true}>
+              <Image src="/logo.png" alt="DueBlink Logo" width={260} height={88} className="h-full w-full object-contain object-left" />
+            </div>
+            <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[240px]" suppressHydrationWarning={true}>
+              Know who owes you money. Know exactly what to do next.
+            </p>
+            <a href="mailto:support@dueblink.com" className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>
+              <Mail size={13} />
               support@dueblink.com
             </a>
-            <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
           </div>
-            
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Product</p>
+            <a href="/#features" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Features</a>
+            <a href="/#ai-recovery-assistant" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>AI recovery assistant</a>
+            <a href="/#how-it-works" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>How it works</a>
+            <a href="/pricing" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Pricing</a>
+          </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Resources</p>
+            <a href="/#reminder-examples" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Reminder examples</a>
+            <a href="/#faq" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>FAQ</a>
+            <a href="/contact" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Contact us</a>
+          </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Account</p>
+            <a href="/login" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Login</a>
+            <a href="/create-account" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Create account</a>
+            <a href="/dashboard" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Dashboard</a>
+          </div>
+
+          <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+            <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Legal</p>
+            <a href="/privacy" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Privacy policy</a>
+            <a href="/terms" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Terms of service</a>
+            <a href="/refund-policy" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Refund policy</a>
+          </div>
+
         </div>
+
+        <div className="mt-14 pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-between gap-4" suppressHydrationWarning={true}>
+          <span className="text-xs font-medium text-slate-400" suppressHydrationWarning={true}>© 2026 DueBlink. All rights reserved.</span>
+          <span className="text-xs font-medium text-slate-400 text-center sm:text-right" suppressHydrationWarning={true}>Built for the ones who'd rather get paid than chase payments.</span>
+        </div>
+
+      </div>
       </motion.footer>
 
     </div>

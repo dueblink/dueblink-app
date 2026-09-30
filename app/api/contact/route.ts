@@ -87,13 +87,26 @@ export async function POST(req: Request) {
 
       html: `
         <!DOCTYPE html>
-        <html lang="en">
+        <html lang="en" dir="ltr">
         <head>
           <meta charset="utf-8">
           <meta
             name="viewport"
             content="width=device-width, initial-scale=1.0"
           >
+          <meta name="color-scheme" content="light">
+          <meta name="supported-color-schemes" content="light">
+          <style>
+            :root { color-scheme: light only; supported-color-schemes: light only; }
+            /* Gmail app (Android/iOS) dark-mode hook: forces our own colors
+               back even when Gmail tries to auto-invert them. */
+            [data-ogsc] .db-msg-box,
+            [data-ogsb] .db-msg-box { background-color: #F0FDFA !important; border-left-color: #20B8BE !important; }
+            [data-ogsc] .db-msg-label,
+            [data-ogsb] .db-msg-label { color: #0F766E !important; }
+            [data-ogsc] .db-msg-text,
+            [data-ogsb] .db-msg-text { color: #0F172A !important; }
+          </style>
           <title>New Contact Form Message</title>
         </head>
 
@@ -239,34 +252,42 @@ export async function POST(req: Request) {
                       </table>
 
                       <div
+                        class="db-msg-box"
                         style="
                           margin-top:20px;
                           padding:20px;
                           background:#F0FDFA;
                           border-left:4px solid #20B8BE;
                           border-radius:0 12px 12px 0;
+                          text-align:left;
+                          direction:ltr;
                         "
                       >
 
                         <p
+                          class="db-msg-label"
                           style="
                             margin:0 0 8px;
                             font-size:11px;
                             font-weight:800;
                             color:#0F766E;
                             text-transform:uppercase;
+                            text-align:left;
                           "
                         >
                           MESSAGE
                         </p>
 
                         <p
+                          class="db-msg-text"
                           style="
                             margin:0;
                             font-size:14px;
                             line-height:1.6;
-                            color:#115E59;
+                            color:#0F172A;
                             white-space:pre-wrap;
+                            text-align:left;
+                            direction:ltr;
                           "
                         >
                           ${safeMessage}
