@@ -37,6 +37,12 @@ export default function PricingPage() {
     if (localStorage.getItem('dueblink_is_pro') === 'true' || localStorage.getItem('dueblink_pro_active') === 'true') {
       setIsUserPro(true);
     }
+    // Same idea for wasPro: without this it defaults to false on every load
+    // and only becomes true once the Firestore read below finishes, which
+    // is what caused "Renew" to flash as "Upgrade to Pro" on slower loads.
+    if (localStorage.getItem('dueblink_was_pro') === 'true') {
+      setWasPro(true);
+    }
   }, []);
 
   // Close mobile menu on route change
@@ -61,38 +67,49 @@ export default function PricingPage() {
           const userDoc = await getDoc(userRef);
           if (userDoc.exists()) {
             const data = userDoc.data();
-            if (data.isPro) {
-              if (data.proExpiresAt) {
-                const expires = data.proExpiresAt.toDate();
-                if (new Date() < expires) {
-                  setIsUserPro(true);
-                  setWasPro(true);
-                  if (!data.wasPro) {
-                    updateDoc(userRef, { wasPro: true }).catch(() => {});
-                  }
-                  localStorage.setItem('dueblink_is_pro', 'true');
-                  localStorage.setItem('dueblink_pro_active', 'true');
-                } else {
-                  setIsUserPro(false);
-                  setWasPro(true);
-                  updateDoc(userRef, { isPro: false, wasPro: true }).catch(() => {});
-                  localStorage.removeItem('dueblink_is_pro');
-                  localStorage.removeItem('dueblink_pro_active');
-                }
-              } else {
-                setIsUserPro(true);
-                setWasPro(true);
-                if (!data.wasPro) {
-                  updateDoc(userRef, { wasPro: true }).catch(() => {});
-                }
-                localStorage.setItem('dueblink_is_pro', 'true');
-                localStorage.setItem('dueblink_pro_active', 'true');
-              }
+            // isPro and proExpiresAt are server-controlled — the real
+            // Firestore rules require them to stay unchanged on any client
+            // update, so we never attempt to write them here. A lapsed
+            // subscription is only ever detected for DISPLAY purposes.
+            const rawExpiresAt = data.proExpiresAt ? data.proExpiresAt.toDate() : null;
+            const isExpired = !!(data.isPro && rawExpiresAt && new Date() > rawExpiresAt);
+            const effectivelyPro = !!data.isPro && !isExpired;
+
+            setIsUserPro(effectivelyPro);
+
+            // wasPro isn't restricted by the rules, so it's safe to write on
+            // its own — just never bundled into the same call as isPro.
+            const reallyWasPro = effectivelyPro || isExpired || !!data.wasPro || !!data.cancelledAt;
+            setWasPro(reallyWasPro);
+            if (reallyWasPro && !data.wasPro) {
+              updateDoc(userRef, { wasPro: true }).catch(() => {});
+            }
+
+            // Fire-and-forget: only the server (Admin SDK) can actually
+            // correct isPro in the database — see check-pro-status route.
+            if (isExpired) {
+              currentUser.getIdToken().then((idToken: string) => {
+                fetch('/api/check-pro-status', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                  },
+                }).catch(() => {});
+              }).catch(() => {});
+            }
+
+            if (effectivelyPro) {
+              localStorage.setItem('dueblink_is_pro', 'true');
+              localStorage.setItem('dueblink_pro_active', 'true');
             } else {
-              setIsUserPro(false);
-              setWasPro(!!data.wasPro || !!data.cancelledAt);
               localStorage.removeItem('dueblink_is_pro');
               localStorage.removeItem('dueblink_pro_active');
+            }
+            if (reallyWasPro) {
+              localStorage.setItem('dueblink_was_pro', 'true');
+            } else {
+              localStorage.removeItem('dueblink_was_pro');
             }
           }
         } catch (err) {
@@ -114,6 +131,7 @@ export default function PricingPage() {
       localStorage.removeItem('has_created_account');
       localStorage.removeItem('dueblink_is_pro');
       localStorage.removeItem('dueblink_pro_active');
+      localStorage.removeItem('dueblink_was_pro');
       setUser(null);
       setIsUserPro(false);
       setWasPro(false);

@@ -583,6 +583,12 @@ export default function LandingPage() {
         localStorage.getItem('dueblink_is_pro') === 'true' || 
         localStorage.getItem('dueblink_pro_active') === 'true';
       setIsPro(isProActive);
+      // Same idea as isPro above: without this, wasPro defaults to false on
+      // every load and only becomes true once the Firestore read (further
+      // down) finishes, causing "Renew" to flash as "Upgrade to Pro".
+      if (localStorage.getItem('dueblink_was_pro') === 'true') {
+        setWasPro(true);
+      }
     };
      
     checkProStatus();
@@ -773,40 +779,49 @@ export default function LandingPage() {
           // trusting only the cached localStorage flag — this is
           // what makes Pro/expiry show correctly on a fresh visit,
           // not just after having already been to the dashboard.
+          // isPro and proExpiresAt are server-controlled fields — the real
+          // Firestore rules require them to stay unchanged on any client
+          // update, so the client never attempts to write them. A lapsed
+          // subscription is only ever detected here for DISPLAY purposes.
           try {
-            if (userData.isPro && userData.proExpiresAt) {
-              const expirationDate = userData.proExpiresAt.toDate();
-              const now = new Date();
+            const rawExpiresAt = userData.proExpiresAt ? userData.proExpiresAt.toDate() : null;
+            const isExpired = !!(userData.isPro && rawExpiresAt && new Date() > rawExpiresAt);
+            const effectivelyPro = !!userData.isPro && !isExpired;
 
-              if (now > expirationDate) {
-                await updateDoc(
-                  doc(db, 'users', currentUser.uid),
-                  { isPro: false, proExpiresAt: null, wasPro: true }
-                );
-                setIsPro(false);
-                setWasPro(true);
-                localStorage.removeItem('dueblink_pro_active');
-                localStorage.removeItem('dueblink_is_pro');
-              } else {
-                setIsPro(true);
-                setWasPro(true);
-                if (!userData.wasPro) {
-                  updateDoc(doc(db, 'users', currentUser.uid), { wasPro: true }).catch(() => {});
-                }
-                localStorage.setItem('dueblink_pro_active', 'true');
-              }
-            } else if (userData.isPro) {
-              setIsPro(true);
-              setWasPro(true);
-              if (!userData.wasPro) {
-                updateDoc(doc(db, 'users', currentUser.uid), { wasPro: true }).catch(() => {});
-              }
+            setIsPro(effectivelyPro);
+
+            // wasPro isn't restricted by the rules, so it's safe to write on
+            // its own — just never bundled into the same call as isPro.
+            const reallyWasPro = effectivelyPro || isExpired || !!userData.wasPro || !!userData.cancelledAt;
+            setWasPro(reallyWasPro);
+            if (reallyWasPro && !userData.wasPro) {
+              updateDoc(doc(db, 'users', currentUser.uid), { wasPro: true }).catch(() => {});
+            }
+
+            // Fire-and-forget: only the server (Admin SDK) can actually
+            // correct isPro in the database — see check-pro-status route.
+            if (isExpired) {
+              currentUser.getIdToken().then((idToken: string) => {
+                fetch('/api/check-pro-status', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                  },
+                }).catch(() => {});
+              }).catch(() => {});
+            }
+
+            if (effectivelyPro) {
               localStorage.setItem('dueblink_pro_active', 'true');
             } else {
-              setIsPro(false);
-              setWasPro(!!userData.wasPro || !!userData.cancelledAt);
               localStorage.removeItem('dueblink_pro_active');
               localStorage.removeItem('dueblink_is_pro');
+            }
+            if (reallyWasPro) {
+              localStorage.setItem('dueblink_was_pro', 'true');
+            } else {
+              localStorage.removeItem('dueblink_was_pro');
             }
           } catch (proCheckError) {
             console.error('Failed to verify Pro status:', proCheckError);
@@ -940,8 +955,10 @@ export default function LandingPage() {
       localStorage.removeItem('user_authenticated');
       localStorage.removeItem('dueblink_is_pro');
       localStorage.removeItem('dueblink_pro_active');
+      localStorage.removeItem('dueblink_was_pro');
       setUser(null);
       setIsPro(false);
+      setWasPro(false);
       router.push('/');
       router.refresh();
     } catch (error) {

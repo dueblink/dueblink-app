@@ -164,6 +164,13 @@ export default function DashboardPage() {
         if (localStorage.getItem('dueblink_pro_active') === 'true') {
           setIsPro(true);
         }
+        // Same idea for wasPro: without this, it defaults to false on every
+        // load and only becomes true once the Firestore read below finishes.
+        // That gap is what caused "Renew" to flash as "Upgrade to Pro" on
+        // slower connections.
+        if (localStorage.getItem('dueblink_was_pro') === 'true') {
+          setWasPro(true);
+        }
 
         try {
           const userDocRef = doc(db, 'users', currentUser.uid);
@@ -174,43 +181,54 @@ export default function DashboardPage() {
             
             if (data.billingCycle) setBillingCycle(data.billingCycle);
 
-            if (data.isPro && data.proExpiresAt) {
-              const expirationDate = data.proExpiresAt.toDate();
-              const now = new Date();
-              setProExpiresAt(expirationDate);
+            // isPro, expiresAt, plan, billingCycle and upgradedAt are all
+            // server-controlled fields per Firestore rules — the client is
+            // never allowed to write them, on purpose (otherwise anyone
+            // could just set themselves to Pro for free). So an expired
+            // subscription is only ever detected here for DISPLAY purposes;
+            // the database's isPro field itself must be flipped server-side.
+            const rawExpiresAt = data.proExpiresAt ? data.proExpiresAt.toDate() : null;
+            const isExpired = !!(data.isPro && rawExpiresAt && new Date() > rawExpiresAt);
+            const effectivelyPro = !!data.isPro && !isExpired;
 
-              if (now > expirationDate) {
-                // Subscription lapsed: turn Pro off, but keep a permanent
-                // record that this account was Pro before (and the date it
-                // ended, left untouched above) so the settings page can
-                // offer "Renew" with a real date instead of "Upgrade".
-                await updateDoc(userDocRef, {
-                  isPro: false,
-                  wasPro: true
-                });
-                setIsPro(false);
-                setWasPro(true);
-                localStorage.removeItem('dueblink_pro_active');
-              } else {
-                setIsPro(true);
-                setWasPro(true);
-                if (!data.wasPro) {
-                  updateDoc(userDocRef, { wasPro: true }).catch(() => {});
-                }
-                localStorage.setItem('dueblink_pro_active', 'true');
-              }
-            } else if (data.isPro) {
-              setIsPro(true);
-              setWasPro(true);
-              if (!data.wasPro) {
-                updateDoc(userDocRef, { wasPro: true }).catch(() => {});
-              }
+            setIsPro(effectivelyPro);
+            setProExpiresAt(rawExpiresAt);
+
+            // wasPro is NOT one of the blocked fields, so it's safe to write
+            // on its own — just never bundled into the same call as isPro.
+            const reallyWasPro = effectivelyPro || isExpired || !!data.wasPro || !!data.cancelledAt;
+            setWasPro(reallyWasPro);
+            if (reallyWasPro && !data.wasPro) {
+              updateDoc(userDocRef, { wasPro: true }).catch(() => {});
+            }
+
+            // isPro itself can only be corrected server-side (see
+            // check-pro-status route) — the client can detect and display
+            // the lapse instantly above, but this is what actually fixes
+            // the stored value for next time. Fire-and-forget: the UI
+            // already reflects the correct state from isExpired, this
+            // call doesn't need to block anything.
+            if (isExpired) {
+              currentUser.getIdToken().then((idToken: string) => {
+                fetch('/api/check-pro-status', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${idToken}`,
+                  },
+                }).catch(() => {});
+              }).catch(() => {});
+            }
+
+            if (effectivelyPro) {
               localStorage.setItem('dueblink_pro_active', 'true');
             } else {
-              setIsPro(false);
-              setWasPro(!!data.wasPro || !!data.cancelledAt);
-              if (data.proExpiresAt) setProExpiresAt(data.proExpiresAt.toDate());
               localStorage.removeItem('dueblink_pro_active');
+            }
+            if (reallyWasPro) {
+              localStorage.setItem('dueblink_was_pro', 'true');
+            } else {
+              localStorage.removeItem('dueblink_was_pro');
             }
 
             if (data.aiTone) setAiTone(data.aiTone);
@@ -247,6 +265,7 @@ export default function DashboardPage() {
       await signOut(auth);
       localStorage.removeItem('user_authenticated');
       localStorage.removeItem('has_created_account');
+      localStorage.removeItem('dueblink_was_pro');
       setUser(null);
       router.push('/');
       router.refresh();

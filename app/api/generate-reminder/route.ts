@@ -11,6 +11,51 @@ const openai = createOpenAI({
 });
 
 // ============================================================
+// MONTHLY RESET KEY
+// ============================================================
+// "15 AI reminders a month" needs something to measure "a month" against.
+// Without this, aiRemindersUsed was just a counter that went up forever —
+// a free user who generated 15 reminders total was permanently capped,
+// not capped per month. Same India-timezone convention the
+// automated-reminders route already uses, so "the 1st" means the same
+// thing everywhere in the app.
+function getIndiaMonthKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(date); // e.g. "2026-10"
+}
+
+// ============================================================
+// GUEST IDENTITY COOKIE
+// ============================================================
+// Guest usage used to be tracked purely by a guestId the CLIENT generated
+// itself and sent in the request body — trivially reset by clearing
+// localStorage, or bypassed entirely by sending a fresh random value.
+// Now the server is the one who assigns the id, as an HttpOnly cookie
+// JavaScript can't read, write, or delete. Clearing localStorage does
+// nothing to it; only actually clearing cookies (a much less obvious,
+// much less commonly-taken action) resets it — and even that only grants
+// a fresh 5, same as before, rather than unlimited resets on demand.
+function withGuestCookie(
+  response: NextResponse,
+  guestId: string,
+  isGuest: boolean
+): NextResponse {
+  if (isGuest) {
+    response.cookies.set('db_guest_id', guestId, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+      path: '/',
+    });
+  }
+  return response;
+}
+
+// ============================================================
 // UNIQUENESS SAFEGUARD
 // ============================================================
 // The prompt already instructs the model to avoid repeating itself,
@@ -92,10 +137,12 @@ export async function POST(req: NextRequest) {
 
     const authHeader = req.headers.get('authorization');
 
-    const guestId =
-      typeof body.guestId === 'string'
-        ? body.guestId.trim()
-        : '';
+    // The client may still send a guestId in the body (older clients do),
+    // but it's never trusted for identity — only the server-set cookie is
+    // authoritative. If no cookie exists yet, this is a genuinely new
+    // guest and the server mints the id itself.
+    const existingGuestCookie = req.cookies.get('db_guest_id')?.value?.trim();
+    const guestId = existingGuestCookie || crypto.randomUUID();
 
     let verifiedUserId: string | null = null;
 
@@ -142,20 +189,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ------------------------------------------------------------
-    // Guest user
-    // ------------------------------------------------------------
-
-    if (!verifiedUserId && !guestId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Guest identifier missing',
-        },
-        { status: 400 }
-      );
-    }
-
     // ============================================================
     // 1. Check server-side AI reminder usage
     // ============================================================
@@ -188,9 +221,17 @@ export async function POST(req: NextRequest) {
       userData = userSnapshot.data() || {};
 
       if (!userData.isPro) {
-        const aiRemindersUsed = Number(
-          userData.aiRemindersUsed || 0
-        );
+        const currentMonthKey = getIndiaMonthKey(new Date());
+        const storedMonthKey = userData.aiRemindersResetMonth || null;
+
+        // A count from a previous month is stale — this user effectively
+        // has their full 15 available again, even though the stored
+        // number hasn't been reset to 0 yet (that happens lazily, below,
+        // only once they actually generate something this month).
+        const aiRemindersUsed =
+          storedMonthKey === currentMonthKey
+            ? Number(userData.aiRemindersUsed || 0)
+            : 0;
 
         if (aiRemindersUsed >= 15) {
           return NextResponse.json(
@@ -225,13 +266,17 @@ export async function POST(req: NextRequest) {
       );
 
       if (guestRemindersUsed >= 5) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              'You have used all 5 free AI reminders. Please create an account to continue.',
-          },
-          { status: 403 }
+        return withGuestCookie(
+          NextResponse.json(
+            {
+              success: false,
+              message:
+                'You have used all 5 free AI reminders. Please create an account to continue.',
+            },
+            { status: 403 }
+          ),
+          guestId,
+          true
         );
       }
     }
@@ -437,10 +482,18 @@ ${reminder.sms_text || ''}
         .collection('users')
         .doc(verifiedUserId);
 
+      const currentMonthKey = getIndiaMonthKey(new Date());
+      const storedMonthKey = userData.aiRemindersResetMonth || null;
+
+      const newCount =
+        storedMonthKey === currentMonthKey
+          ? Number(userData.aiRemindersUsed || 0) + 1
+          : 1; // first generation of a new month — start the count over
+
       await userRef.set(
         {
-          aiRemindersUsed:
-            Number(userData.aiRemindersUsed || 0) + 1,
+          aiRemindersUsed: newCount,
+          aiRemindersResetMonth: currentMonthKey,
         },
         { merge: true }
       );
@@ -469,7 +522,11 @@ ${reminder.sms_text || ''}
       );
     }
 
-    return NextResponse.json(result.object);
+    return withGuestCookie(
+      NextResponse.json(result.object),
+      guestId,
+      !verifiedUserId
+    );
 
   } catch (error: any) {
     console.error(
