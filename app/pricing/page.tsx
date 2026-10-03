@@ -152,12 +152,6 @@ export default function PricingPage() {
     return;
   }
 
-  if (!isIndia) {
-    setErrorMessage("International payments are coming soon! Please use the Indian version (₹ INR) for now.");
-    setTimeout(() => setErrorMessage(null), 6000);
-    return;
-  }
-
   // User must be logged in
   if (!user) {
     router.push('/create-account?redirect=checkout');
@@ -165,6 +159,50 @@ export default function PricingPage() {
   }
 
   setIsProcessing(true);
+
+  if (!isIndia) {
+    try {
+      const idToken = await user.getIdToken();
+
+      const response = await fetch(
+        '/api/create-lemonsqueezy-checkout',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            billingCycle,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || 'Unable to start checkout'
+        );
+      }
+
+      window.location.href = data.checkoutUrl;
+      return;
+    } catch (error) {
+      console.error(
+        'International checkout error:',
+        error
+      );
+
+      setErrorMessage(
+        'Unable to start checkout. Please try again.'
+      );
+
+      setTimeout(() => setErrorMessage(null), 6000);
+      setIsProcessing(false);
+      return;
+    }
+  }
 
   try {
     // Get Firebase ID token for secure API requests
@@ -418,7 +456,7 @@ return (
       
       
       {/* NAVBAR */}
-      <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
+      <nav className="border-b border-slate-100 bg-white/85 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
           
           <motion.div 
@@ -580,7 +618,6 @@ return (
                 className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${!isIndia ? 'bg-[#0F172A] text-white shadow-3xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 <span>🌍 International ($ USD)</span>
-                <span className="text-[9px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-md">Coming Soon</span>
               </button>
             </div>
 
@@ -607,12 +644,6 @@ return (
       <section className="bg-white py-20 border-b border-slate-100" suppressHydrationWarning={true}>
         <div className="max-w-5xl mx-auto px-4 text-center space-y-12" suppressHydrationWarning={true}>
           
-          {!isIndia && (
-            <div className="max-w-md mx-auto bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-xs font-bold">
-              ⚠️ International checkout is currently <strong>Coming Soon</strong>. Please select India (₹ INR) to upgrade right now.
-            </div>
-          )}
-
           <div className="grid md:grid-cols-2 gap-8 text-left items-stretch max-w-4xl mx-auto" suppressHydrationWarning={true}>
             
             {/* Free Plan */}
@@ -711,7 +742,11 @@ return (
                                   : 'Billed monthly · Cancel anytime'
                               )
                       )
-                    : 'Coming Soon'}
+                    : (
+                        billingCycle === 'yearly'
+                          ? 'Best value: Save annually'
+                          : 'Billed monthly · Cancel anytime'
+                      )}
                 </p>
 
                 <ul className="space-y-4 mb-8 flex-grow" suppressHydrationWarning={true}>
@@ -742,14 +777,12 @@ return (
                     handleUpgradeClick('pro');
                   }
                 }} 
-                disabled={isProcessing || !isIndia}
-                className={`w-full py-3 sm:py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 ${!isIndia ? 'bg-slate-400 cursor-not-allowed opacity-75' : 'bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95'}`}
+                disabled={isProcessing}
+                className="w-full py-3 sm:py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95"
                 suppressHydrationWarning={true}
               >
                 {isProcessing ? (
                   <><Zap className="w-4 h-4 animate-spin" /> Connecting Gateway...</>
-                ) : !isIndia ? (
-                  <>Coming Soon</>
                 ) : isUserPro ? (
                   <><Sparkles className="w-4 h-4" /> You are Pro ✨ (Go to Dashboard)</>
                 ) : wasPro ? (
@@ -804,10 +837,7 @@ return (
         )}
       </AnimatePresence>
 
-      {/* FOOTER — same one used on the homepage. Anchor links (Features, FAQ,
-          etc.) point to "/#id" since those sections don't exist on this page;
-          navigating to the homepage with the anchor lets the browser scroll
-          to them after the page loads. */}
+      {/* FOOTER */}
       <motion.footer 
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
