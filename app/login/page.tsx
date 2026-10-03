@@ -16,6 +16,50 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState('');
+
+  const handleForgotPassword = async () => {
+    setResetError('');
+    setResetSuccess(false);
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setResetError('Enter your email address above first.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/password-reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: trimmedEmail,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data?.error || 'Failed to send password reset email.'
+        );
+      }
+
+      setResetSuccess(true);
+    } catch (err) {
+      console.error('Password reset error:', err);
+      setResetError('Failed to send password reset email. Please try again.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +215,17 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Password</label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Password</label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetLoading}
+                    className="text-[11px] font-bold text-[#245B92] hover:text-[#20B8BE] transition cursor-pointer disabled:opacity-60"
+                  >
+                    {resetLoading ? 'Sending...' : 'Forgot password?'}
+                  </button>
+                </div>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Lock className="w-4 h-4" />
@@ -193,6 +247,33 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+
+                {resetError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-[11px] font-bold text-red-600 pt-1"
+                  >
+                    {resetError}
+                  </motion.p>
+                )}
+
+                {resetSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 font-bold text-xs">
+                        ✓
+                      </div>
+                      <p className="text-[11px] font-bold text-emerald-700">
+                        Reset email sent — check your inbox.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
               </div>
 
               <button 
