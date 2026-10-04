@@ -7,8 +7,8 @@ import { useRouter } from 'next/navigation';
 import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, ShieldCheck, Zap, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { track } from '@vercel/analytics';
 
 export default function RegisterPage() {
@@ -20,6 +20,77 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignup = async () => {
+    setError('');
+    setGoogleLoading(true);
+
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const user = userCredential.user;
+
+      // signInWithPopup succeeds for both brand-new and returning Google
+      // accounts — only create the Firestore profile if one doesn't
+      // already exist, so a returning user's real isPro/usage data is
+      // never overwritten.
+      const userRef = doc(db, 'users', user.uid);
+      const existingDoc = await getDoc(userRef);
+
+      if (!existingDoc.exists()) {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName || '',
+          isPro: false,
+          aiRemindersUsed: 0,
+          createdAt: serverTimestamp(),
+        });
+
+        track('Signup', { method: 'google' });
+
+        try {
+          const idToken = await user.getIdToken();
+
+          const emailResponse = await fetch("/api/send-welcome", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              email: user.email || '',
+              userName: user.displayName || "there",
+            }),
+          });
+
+          if (!emailResponse.ok) {
+            console.error("Failed to send welcome email.");
+          }
+        } catch (emailErr) {
+          console.error("Welcome email request failed:", emailErr);
+        }
+      }
+
+      localStorage.setItem('has_created_account', 'true');
+      localStorage.setItem('user_authenticated', 'true');
+
+      router.push('/dashboard');
+      router.refresh();
+    } catch (err: any) {
+      console.error(err);
+      // Closing the Google popup isn't a real error — don't show anything for it.
+      if (
+        err.code !== 'auth/popup-closed-by-user' &&
+        err.code !== 'auth/cancelled-popup-request'
+      ) {
+        setError(err.message || "Failed to sign up with Google. Please try again.");
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,17 +259,42 @@ export default function RegisterPage() {
               <p className="text-xs text-slate-500 font-medium mt-0.5">Set up your workspace in seconds</p>
             </div>
 
-            <form className="space-y-3.5" onSubmit={handleSignupSubmit}>
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-2xl text-center shadow-2xs"
-                >
-                  {error}
-                </motion.div>
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-2xl text-center shadow-2xs mb-3.5"
+              >
+                {error}
+              </motion.div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleGoogleSignup}
+              disabled={googleLoading || loading}
+              className="w-full flex items-center justify-center gap-3 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition disabled:opacity-60 cursor-pointer"
+            >
+              {googleLoading ? (
+                <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.52 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.48c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.58-5.17 3.58-8.65z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.15-4.05 1.15-3.11 0-5.75-2.1-6.69-4.92H1.3v3.09C3.26 21.3 7.3 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.31 14.32c-.24-.72-.38-1.49-.38-2.32s.14-1.6.38-2.32V6.59H1.3A11.97 11.97 0 0 0 0 12c0 1.93.46 3.76 1.3 5.41l4.01-3.09z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.6 4.58 1.79l3.44-3.44C17.94 1.19 15.24 0 12 0 7.3 0 3.26 2.7 1.3 6.59l4.01 3.09c.94-2.82 3.58-4.93 6.69-4.93z"/>
+                </svg>
               )}
-              
+              <span>{googleLoading ? 'Signing up...' : 'Continue with Google'}</span>
+            </button>
+
+            <div className="flex items-center gap-3 py-4">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Or continue with email</span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <form className="space-y-3.5" onSubmit={handleSignupSubmit}>
               <div className="space-y-1">
                 <label className="block text-[11px] font-bold uppercase text-slate-500 tracking-wider text-left">Full Name</label>
                 <div className="relative flex items-center">
@@ -260,7 +356,7 @@ export default function RegisterPage() {
 
               <button 
                 type="submit" 
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-1 disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {loading ? (

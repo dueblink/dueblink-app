@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
@@ -283,16 +283,26 @@ export default function DashboardPage() {
     
     try {
       setLoading(true);
-      const userRef = doc(db, 'users', user.uid);
-      
-      await setDoc(userRef, { 
-        isPro: false, 
-        proExpiresAt: null, 
-        wasPro: true,
-        cancelledAt: serverTimestamp(),
-        email: user.email || '',
-        name: user.displayName || ''
-      }, { merge: true });
+
+      // isPro can only be changed server-side (see the real Firestore
+      // rules) — the client used to try to write this directly, which
+      // Firestore always rejected. This now goes through an API route
+      // that does the same update via the Admin SDK instead.
+      const idToken = await user.getIdToken();
+
+      const response = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || 'Failed to cancel subscription.');
+      }
 
       localStorage.removeItem('dueblink_pro_active');
       
