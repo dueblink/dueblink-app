@@ -165,7 +165,7 @@ export default function PricingPage() {
       const idToken = await user.getIdToken();
 
       const response = await fetch(
-        '/api/create-lemonsqueezy-checkout',
+        '/api/create-dodo-checkout',
         {
           method: 'POST',
           headers: {

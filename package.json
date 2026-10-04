@@ -16,6 +16,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "ai": "^4.1.51",
+    "dodopayments": "^2.52.0",
     "firebase": "^12.15.0",
     "firebase-admin": "^14.2.0",
     "framer-motion": "^12.42.2",
