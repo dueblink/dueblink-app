@@ -120,7 +120,7 @@ export async function POST(req: Request) {
         billing_cycle: billingCycle,
       },
 
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+      return_url: 'https://www.dueblink.com/pricing',
     });
 
     console.log('Dodo checkout session created:', session.session_id);
