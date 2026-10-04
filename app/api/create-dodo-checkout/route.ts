@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import DodoPayments from 'dodopayments';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 
-const MONTHLY_PRODUCT_ID = 'pdt_0NozauTk7Q8rm9iZmANty';
-const YEARLY_PRODUCT_ID = 'pdt_0Nozb8TpM6AgbY94X9uXn';
+const MONTHLY_PRODUCT_ID = 'pdt_0Np06ORuCiHG9xDt6JBWr';
+const YEARLY_PRODUCT_ID = 'pdt_0NozeONKiKGdaOdStSedR';
 
 const dodo = new DodoPayments({
   bearerToken: process.env.DODO_PAYMENTS_API_KEY!,
-  environment: 'test_mode',
+  environment: 'live_mode',
 });
 
 export async function POST(req: Request) {
