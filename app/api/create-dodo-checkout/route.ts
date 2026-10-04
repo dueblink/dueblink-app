@@ -110,6 +110,8 @@ export async function POST(req: Request) {
         },
       ],
 
+      billing_currency: 'USD',
+
       customer: {
         email,
         name: decodedToken.name || 'DueBlink User',
