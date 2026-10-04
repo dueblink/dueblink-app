@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import DodoPayments from 'dodopayments';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { sendProWelcomeEmail } from '@/lib/emailService';
 
 const dodo = new DodoPayments({
   bearerToken: process.env.DODO_PAYMENTS_API_KEY!,
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
     console.log('Event type:', event.type);
 
     // =====================================================
-    // 3. Handle subscription becoming active
+    // 3. Handle subscription becoming active / renewal
     // =====================================================
 
     if (
@@ -62,11 +63,30 @@ export async function POST(req: Request) {
       const userId = String(metadata.app_user_id || '');
       const billingCycle = String(metadata.billing_cycle || '');
 
-      console.log('Dodo subscription ID:', subscription.subscription_id);
-      console.log('Dodo product ID:', subscription.product_id);
-      console.log('DueBlink user ID:', userId);
-      console.log('Billing cycle:', billingCycle);
-      console.log('Next billing date:', subscription.next_billing_date);
+      console.log(
+        'Dodo subscription ID:',
+        subscription.subscription_id
+      );
+
+      console.log(
+        'Dodo product ID:',
+        subscription.product_id
+      );
+
+      console.log(
+        'DueBlink user ID:',
+        userId
+      );
+
+      console.log(
+        'Billing cycle:',
+        billingCycle
+      );
+
+      console.log(
+        'Next billing date:',
+        subscription.next_billing_date
+      );
 
       if (!userId) {
         console.error(
@@ -103,6 +123,34 @@ export async function POST(req: Request) {
       const userRef = adminDb
         .collection('users')
         .doc(userId);
+
+      // =====================================================
+      // Check current user state BEFORE updating it
+      // =====================================================
+
+      const userSnapshot = await userRef.get();
+
+      if (!userSnapshot.exists) {
+        console.error(
+          'DODO WEBHOOK: User not found:',
+          userId
+        );
+
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'User not found',
+          },
+          { status: 404 }
+        );
+      }
+
+      const userData = userSnapshot.data() || {};
+
+      // Only the first activation should send the welcome email.
+      const shouldSendWelcomeEmail =
+        event.type === 'subscription.active' &&
+        userData.isPro !== true;
 
       const nextBillingDate = new Date(
         String(subscription.next_billing_date)
@@ -156,16 +204,71 @@ export async function POST(req: Request) {
         'DODO WEBHOOK: Pro activated/renewed for user:',
         userId
       );
+
+      // =====================================================
+      // 5. Send Pro Welcome Email ONLY on first activation
+      // =====================================================
+
+      if (shouldSendWelcomeEmail) {
+        try {
+          const userEmail =
+            userData.email ||
+            userData.emailAddress;
+
+          const userName =
+            userData.name ||
+            userData.displayName ||
+            'there';
+
+          if (userEmail) {
+            const emailResult =
+              await sendProWelcomeEmail(
+                userEmail,
+                userName
+              );
+
+            if (!emailResult.success) {
+              console.error(
+                'Dodo Pro activated, but Pro welcome email failed:',
+                emailResult.error
+              );
+            } else {
+              console.log(
+                'Dodo Pro welcome email sent successfully to:',
+                userEmail
+              );
+            }
+          } else {
+            console.warn(
+              'Dodo Pro activated, but no email address was found for user:',
+              userId
+            );
+          }
+        } catch (emailError) {
+          // Email failure must NOT undo
+          // successful payment or Pro activation.
+          console.error(
+            'Dodo Pro activated, but Pro welcome email threw an error:',
+            emailError
+          );
+        }
+      } else {
+        console.log(
+          'DODO WEBHOOK: Welcome email skipped because this is not the first activation.'
+        );
+      }
     }
 
     // =====================================================
-    // 5. Handle subscription expiration
+    // 6. Handle subscription expiration
     // =====================================================
 
     if (event.type === 'subscription.expired') {
       const subscription = event.data;
 
-      const userId = String(subscription.metadata?.app_user_id || '');
+      const userId = String(
+        subscription.metadata?.app_user_id || ''
+      );
 
       if (userId) {
         await adminDb
@@ -189,7 +292,7 @@ export async function POST(req: Request) {
     }
 
     // =====================================================
-    // 6. Acknowledge webhook
+    // 7. Acknowledge webhook
     // =====================================================
 
     return NextResponse.json(
