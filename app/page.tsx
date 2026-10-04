@@ -545,6 +545,23 @@ export default function LandingPage() {
   const [wasPro, setWasPro] = useState(false);
   const [myClients, setMyClients] = useState<any[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [isIndia, setIsIndia] = useState(true);
+
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const response = await fetch('/api/visitor-country');
+        const data = await response.json();
+
+        setIsIndia(data.isIndia);
+      } catch (error) {
+        console.error('Country detection failed:', error);
+        setIsIndia(true);
+      }
+    };
+
+    detectCountry();
+  }, []);
 
   // Live client data for the signed-in hero panel. Same query the dashboard uses.
   useEffect(() => {
@@ -3169,17 +3186,21 @@ export default function LandingPage() {
             className="text-4xl sm:text-5xl font-black mb-1"
             suppressHydrationWarning={true}
           >
-            {seasonalPricing?.id === 'launch-offer' && (
+            {isIndia && seasonalPricing?.id === 'launch-offer' && (
               <span className="text-xl sm:text-2xl text-slate-300 line-through mr-2">
                 ₹499
               </span>
             )}
 
-            {seasonalPricing?.id === 'launch-offer'
-              ? '₹249'
-              : seasonalPricing
-              ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
-              : '₹499'}
+            {isIndia ? (
+              seasonalPricing?.id === 'launch-offer'
+                ? '₹249'
+                : seasonalPricing
+                  ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
+                  : '₹499'
+            ) : (
+              '$9'
+            )}
 
             <span
               className="text-xs sm:text-sm font-bold text-slate-400"
@@ -3193,29 +3214,37 @@ export default function LandingPage() {
             className="text-xs font-bold text-slate-400 mb-2"
             suppressHydrationWarning={true}
           >
-            {seasonalPricing?.id === 'launch-offer' ? (
-              '50% OFF first month · Then ₹499/month'
-            ) : seasonalPricing ? (
-              <>
-                <span className="line-through text-slate-300 mr-1">
-                  ₹4,999
-                </span>
-                or ₹{seasonalPricing.yearlyPrice.toLocaleString('en-IN')} / year
-              </>
+            {isIndia ? (
+              seasonalPricing?.id === 'launch-offer' ? (
+                '50% OFF first month · Then ₹499/month'
+              ) : seasonalPricing ? (
+                <>
+                  <span className="line-through text-slate-300 mr-1">
+                    ₹4,999
+                  </span>
+                  or ₹{seasonalPricing.yearlyPrice.toLocaleString('en-IN')} / year
+                </>
+              ) : (
+                'or ₹4,999 / year'
+              )
             ) : (
-              'or ₹4,999 / year'
+              'or $89 / year'
             )}
           </p>
 
           <p className="text-[11px] text-slate-400 font-medium mb-8">
-            {seasonalPricing?.id === 'launch-offer' ? (
-              <span className="text-[#20B8BE] font-bold">
-                Limited-Time Launch Offer
-              </span>
-            ) : seasonalPricing ? (
-              <span className="text-[#20B8BE] font-bold">
-                {seasonalPricing.name} • Limited time
-              </span>
+            {isIndia ? (
+              seasonalPricing?.id === 'launch-offer' ? (
+                <span className="text-[#20B8BE] font-bold">
+                  Limited-Time Launch Offer
+                </span>
+              ) : seasonalPricing ? (
+                <span className="text-[#20B8BE] font-bold">
+                  {seasonalPricing.name} • Limited time
+                </span>
+              ) : (
+                'Cancel anytime • Secure payments'
+              )
             ) : (
               'Cancel anytime • Secure payments'
             )}

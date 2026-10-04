@@ -18,6 +18,7 @@ export default function PricingPage() {
   const [user, setUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
   const [isIndia, setIsIndia] = useState(true);
+  const [countryLoaded, setCountryLoaded] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [isProcessing, setIsProcessing] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -30,6 +31,24 @@ export default function PricingPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const seasonalPricing = getSeasonalPricing();
+
+  useEffect(() => {
+    const detectCountry = async () => {
+      try {
+        const response = await fetch('/api/visitor-country');
+        const data = await response.json();
+
+        setIsIndia(data.isIndia);
+      } catch (error) {
+        console.error('Country detection failed:', error);
+        setIsIndia(true);
+      } finally {
+        setCountryLoaded(true);
+      }
+    };
+
+    detectCountry();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -606,21 +625,6 @@ return (
           </p>
 
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80">
-              <button 
-                onClick={() => setIsIndia(true)} 
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer ${isIndia ? 'bg-[#0F172A] text-white shadow-3xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                🇮🇳 India (₹ INR)
-              </button>
-              <button 
-                onClick={() => setIsIndia(false)} 
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${!isIndia ? 'bg-[#0F172A] text-white shadow-3xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                <span>🌍 International ($ USD)</span>
-              </button>
-            </div>
-
             <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200/80">
               <button 
                 onClick={() => setBillingCycle('monthly')} 
