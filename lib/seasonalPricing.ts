@@ -61,7 +61,7 @@ function addDays(dateString: string, days: number): string {
 //
 // ==================================================
 
-const launchOfferStartDate = '2026-09-10';
+const launchOfferStartDate = '2026-10-10';
 
 const launchOffer: SeasonalPricing = {
   id: 'launch-offer',
