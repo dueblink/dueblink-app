@@ -3445,7 +3445,7 @@ export default function LandingPage() {
     >
     <div className="max-w-7xl mx-auto px-6 pt-16 pb-10" suppressHydrationWarning={true}>
 
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-x-6 gap-y-10 md:gap-x-8" suppressHydrationWarning={true}>
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-x-6 gap-y-10 md:gap-x-8" suppressHydrationWarning={true}>
 
         <div className="col-span-2 flex flex-col gap-4" suppressHydrationWarning={true}>
           <div className="h-16 sm:h-20 w-[220px] sm:w-[260px] -ml-2 flex items-center justify-start" suppressHydrationWarning={true}>
@@ -3473,6 +3473,11 @@ export default function LandingPage() {
           <a href="#reminder-examples" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Reminder examples</a>
           <a href="#faq" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>FAQ</a>
           <a href="/contact" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Contact us</a>
+        </div>
+
+        <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
+          <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Free Tools</p>
+          <a href="/tools/invoice-due-date-calculator" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Invoice due date calculator</a>
         </div>
 
         <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
