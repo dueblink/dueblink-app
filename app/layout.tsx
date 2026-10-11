@@ -58,13 +58,12 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
       suppressHydrationWarning={true}
     >
-      <head>
-        {/* Razorpay Checkout Script */}
-        <script
-          src="https://checkout.razorpay.com/v1/checkout.js"
-          async
-        />
-      </head>
+      {/*
+        Razorpay's checkout.js is NOT loaded here any more. Loading it on
+        every page opened a hidden payment iframe on the homepage. It is now
+        loaded on demand by loadRazorpay() in src/lib/loadRazorpay.ts, right
+        before the checkout opens.
+      */}
 
       <body
         className="font-sans antialiased bg-white"

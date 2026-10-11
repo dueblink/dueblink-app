@@ -11,6 +11,7 @@ import { auth, db } from '@/lib/firebase';
 import {
   getSeasonalPricing,
 } from '@/lib/seasonalPricing';
+import { loadRazorpay } from '@/lib/loadRazorpay';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -224,6 +225,15 @@ export default function PricingPage() {
   }
 
   try {
+    // Load Razorpay's checkout script now, on demand. It is no longer
+    // loaded globally in layout.tsx. Done before the order is created so a
+    // failed load never leaves an unused order behind.
+    const razorpayReady = await loadRazorpay();
+
+    if (!razorpayReady) {
+      throw new Error('Razorpay SDK could not be loaded');
+    }
+
     // Get Firebase ID token for secure API requests
     const idToken = await user.getIdToken();
 
