@@ -378,8 +378,8 @@ function HeroCarousel({
     node: StageSlide({
       tone: 'amber',
       stat: { to: 85, suffix: '%', label: 'of freelancers surveyed are paid late at some point' },
-      caption: '29% of freelance invoices on Bonsai are paid at least a day late. Late payment is common, not personal.',
-      source: 'Remote, State of Freelance Work 2025; Bonsai (100,000+ freelancers, 3 years of invoices)',
+      caption: '29% of freelance invoices are paid at least a day late, in a study of 100,000+ freelancers. Late payment is common, not personal.',
+      source: 'State of Freelance Work 2025 survey; 3-year study of 100,000+ freelancers\u2019 invoices',
       pill: 'INV-042 · 7 days overdue',
     }),
   });
@@ -401,7 +401,7 @@ function HeroCarousel({
       tone: 'blue',
       stat: { to: 17.7, decimals: 1, prefix: '$', suffix: 'K', label: 'owed on average to businesses with unpaid invoices' },
       caption: '59% of US small businesses surveyed have invoices 30+ days overdue, up from 47% a year earlier.',
-      source: 'QuickBooks, 2026 Small Business Late Payments Report (survey)',
+      source: '2026 Small Business Late Payments Report (survey)',
       pill: '\u20B925,000 · Paid',
     }),
   });
@@ -2983,7 +2983,7 @@ export default function LandingPage() {
       <div className="space-y-2.5" suppressHydrationWarning={true}>
         <div className="flex justify-center select-none" suppressHydrationWarning={true}><Clipboard className="w-10 h-10 text-slate-600" suppressHydrationWarning={true} /></div>
         <h2 className="text-2xl sm:text-[32px] font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Real Reminder Examples</h2>
-        <p className="text-sm text-slate-500 font-medium px-2" suppressHydrationWarning={true}>See how Dueblink automatically adjusts the reminder tone based on how overdue a payment is.</p>
+        <p className="text-sm text-slate-500 font-medium px-2" suppressHydrationWarning={true}>See how DueBlink automatically adjusts the reminder tone based on how overdue a payment is.</p>
       </div>
 
       <motion.div 
@@ -3313,7 +3313,7 @@ export default function LandingPage() {
           {[
         { q: "How do the free monthly reminders work?", a: "Logged-in users get 15 free reminders every month. Your reminder count automatically refills at the start of each month." },
         { q: "Is DueBlink just another AI writer?", a: "No. DueBlink is a specialized payment recovery system combining automated workflows with structured invoice tracking." },
-        { q: "How long until I get paid?", a: "Most users recover payments significantly faster. Many report successful collections within 7-14 days of consistent follow-ups." },
+        { q: "How long until I get paid?", a: "It depends on your client, and DueBlink can't guarantee payment. What it does is make sure every follow-up goes out on time and in the right tone, so your invoices don't get forgotten." },
         { q: "Does it work with WhatsApp?", a: "Yes. DueBlink automatically formats messages for WhatsApp. Just copy the text and paste it directly into your chat." },
         { q: "Do I need an account?", a: "No. You can try the reminder generator instantly. An account is only required for the central dashboard and monthly free reminders." },
         { q: "Is it secure?", a: "Yes. DueBlink never accesses your bank account or payment processor. We only track the specific invoice data you input." },
