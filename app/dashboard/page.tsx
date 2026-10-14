@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
@@ -113,7 +113,6 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Overdue' | 'Paid'>('All');
-  const [sortBy, setSortBy] = useState<'dueDate' | 'amount' | 'name'>('dueDate');
 
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
@@ -129,6 +128,13 @@ export default function DashboardPage() {
 
   const [robotAction, setRobotAction] = useState<string | null>(null);
   const [robotActionClientId, setRobotActionClientId] = useState<string | null>(null);
+
+  // First-invoice form shown to new users with no clients yet.
+  const [firstName, setFirstName] = useState('');
+  const [firstAmount, setFirstAmount] = useState('');
+  const [firstDueDate, setFirstDueDate] = useState('');
+  const [firstSaving, setFirstSaving] = useState(false);
+  const [firstError, setFirstError] = useState('');
   const [isRobotProcessing, setIsRobotProcessing] = useState(false);
 
 
@@ -342,6 +348,22 @@ export default function DashboardPage() {
   const pendingCount = clients.filter(c => c.status === 'Pending').length;
   const paidCount = clients.filter(c => c.status === 'Paid').length;
   const totalRecovered = clients.filter(c => c.status === 'Paid').reduce((acc, c) => acc + Number(c.amount || 0), 0);
+
+  // Recovered this month = clients marked paid this calendar month (India
+  // time). Uses the paid date saved by "Mark paid"; older paid clients have
+  // no date, so they count only in the all-time total.
+  const thisMonthKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit',
+  }).format(new Date());
+  const paidThisMonth = clients.filter((c) => {
+    if (c.status !== 'Paid' || !c.paidAt) return false;
+    const paidDate = new Date(c.paidAt);
+    if (isNaN(paidDate.getTime())) return false;
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit',
+    }).format(paidDate) === thisMonthKey;
+  });
+  const recoveredThisMonth = paidThisMonth.reduce((acc, c) => acc + Number(c.amount || 0), 0);
   
   const totalClientsCount = clients.length;
   const recoveryRateValue = totalClientsCount > 0 ? Math.round((paidCount / totalClientsCount) * 100) : 0;
@@ -400,6 +422,122 @@ export default function DashboardPage() {
   const getRecommendationDaysOverdue = (c: any): number =>
     getDaysOverdue(c?.dueDate);
 
+  // Overdue = unpaid and past its due date (India time).
+  const overdueClients = clients.filter(
+    (c) => c.status === 'Pending' && getDaysOverdue(c.dueDate) > 0
+  );
+  const overdueCount = overdueClients.length;
+  const totalOverdue = overdueClients.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+
+  // ============================================================
+  // TODAY LIST — who to chase today, and how.
+  // Unpaid, due today or overdue, and no reminder in the last 2 days.
+  // Stage uses the same reminder count as Blink's escalation ladder.
+  // ============================================================
+  const getLastReminderDaysAgo = (c: any): number | null => {
+    const history = Array.isArray(c.reminderHistory) ? c.reminderHistory : [];
+    let latest = 0;
+    for (const r of history) {
+      const raw = r?.sentAt;
+      const time =
+        raw && typeof raw.toDate === 'function'
+          ? raw.toDate().getTime()
+          : raw
+            ? new Date(raw).getTime()
+            : NaN;
+      if (Number.isFinite(time) && time > latest) latest = time;
+    }
+    if (!latest) return null;
+    return Math.floor((Date.now() - latest) / (1000 * 60 * 60 * 24));
+  };
+
+  const getTodayStage = (c: any, daysOverdue: number) => {
+    const sent = Array.isArray(c.reminderHistory) ? c.reminderHistory.length : 0;
+    if (sent >= 3 || (sent === 2 && daysOverdue >= 21)) {
+      return { label: 'Stalled', advice: 'Reminders are not working. Call them or offer to split the payment.' };
+    }
+    if (sent === 2) {
+      return { label: 'Final reminder', advice: 'Two reminders ignored. Send a firm final reminder.' };
+    }
+    if (sent === 1) {
+      return { label: 'Follow-up', advice: 'One reminder sent. Follow up on a different channel and ask for a date.' };
+    }
+    return {
+      label: 'First reminder',
+      advice: daysOverdue === 0 ? 'Due today. Send a friendly reminder.' : 'No reminder sent yet. Send a friendly one today.',
+    };
+  };
+
+  // When the daily reminder job will next email this client, using the
+  // same rules as the job: first on the due date, follow-up from day 3,
+  // final from day 7; each stage once; at least 2 days apart.
+  const STAGE_ORDER: Record<string, number> = { first: 1, 'follow-up': 2, final: 3 };
+  const STAGE_NAMES: Record<string, string> = { first: 'first reminder', 'follow-up': 'follow-up', final: 'final reminder' };
+
+  const getNextAutoReminder = (c: any): string => {
+    if (c.status !== 'Pending') return '';
+    if (!(c.automatedReminders === true && c.automationStatus === 'active')) return 'Automatic reminders off';
+    if (!c.email) return 'Automatic reminders need an email';
+
+    const last = String(c.lastAutomatedReminderStage || '');
+    if (last === 'final') return 'All automatic reminders sent';
+
+    const [dy, dm, dd] = String(c.dueDate || '').substring(0, 10).split('-').map(Number);
+    if (!dy || !dm || !dd) return '';
+    const dueUtc = Date.UTC(dy, dm - 1, dd);
+    const DAY = 1000 * 60 * 60 * 24;
+
+    const todayText = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const [ty, tm, td] = todayText.split('-').map(Number);
+    const todayUtc = Date.UTC(ty, tm - 1, td);
+
+    const lastSentRaw = c.lastAutomatedReminderSentAt;
+    const lastSent =
+      lastSentRaw && typeof lastSentRaw.toDate === 'function'
+        ? lastSentRaw.toDate()
+        : lastSentRaw ? new Date(lastSentRaw) : null;
+    let lastSentUtc: number | null = null;
+    if (lastSent && !isNaN(lastSent.getTime())) {
+      const t = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(lastSent).split('-').map(Number);
+      lastSentUtc = Date.UTC(t[0], t[1] - 1, t[2]);
+    }
+
+    for (let i = 0; i <= 14; i++) {
+      const dayUtc = todayUtc + i * DAY;
+      const daysLate = Math.round((dayUtc - dueUtc) / DAY);
+      const stage = daysLate >= 7 ? 'final' : daysLate >= 3 ? 'follow-up' : daysLate >= 0 ? 'first' : '';
+      if (!stage || STAGE_ORDER[stage] <= (STAGE_ORDER[last] || 0)) continue;
+      if (lastSentUtc !== null && (dayUtc - lastSentUtc) / DAY < 2) continue;
+
+      const when =
+        i === 0 ? 'today' : i === 1 ? 'tomorrow'
+        : new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(dayUtc));
+      return `Next automatic reminder ${when} (${STAGE_NAMES[stage]})`;
+    }
+    return '';
+  };
+
+  const todayClients = clients
+    .filter((c) => {
+      if (c.status !== 'Pending' || !c.dueDate) return false;
+      const dueText = String(c.dueDate).substring(0, 10);
+      const todayText = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      if (dueText > todayText) return false; // not due yet
+      const last = getLastReminderDaysAgo(c);
+      return last === null || last >= 2;
+    })
+    .sort((a, b) => getDaysOverdue(b.dueDate) - getDaysOverdue(a.dueDate))
+    .slice(0, 5);
+
   const filteredAndSortedClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -417,17 +555,59 @@ export default function DashboardPage() {
 
     return true;
   }).sort((a, b) => {
-    if (sortBy === 'dueDate') {
-      return new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime();
-    }
-    if (sortBy === 'amount') {
-      return Number(b.amount || 0) - Number(a.amount || 0);
-    }
-    if (sortBy === 'name') {
-      return a.name.localeCompare(b.name);
-    }
-    return 0;
+    // Most urgent first: overdue (most days late first), then unpaid by
+    // nearest due date, then paid clients last.
+    const group = (c: any) =>
+      c.status === 'Paid' ? 2 : getDaysOverdue(c.dueDate) > 0 ? 0 : 1;
+    const ga = group(a);
+    const gb = group(b);
+    if (ga !== gb) return ga - gb;
+    if (ga === 0) return getDaysOverdue(b.dueDate) - getDaysOverdue(a.dueDate);
+    if (ga === 1) return String(a.dueDate || '').localeCompare(String(b.dueDate || ''));
+    return String(a.name || '').localeCompare(String(b.name || ''));
   });
+
+  // Saves the first late invoice in 3 fields. Email, phone, invoice
+  // number and payment link can be added later with Edit.
+  const handleAddFirstInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || firstSaving) return;
+
+    if (!firstName.trim() || !firstAmount.trim() || !firstDueDate) {
+      setFirstError('Please fill in the client, amount and due date.');
+      return;
+    }
+
+    setFirstError('');
+    setFirstSaving(true);
+    try {
+      await addDoc(collection(db, 'clients'), {
+        userId: user.uid,
+        name: firstName.trim(),
+        company: '',
+        email: '',
+        whatsapp: '',
+        amount: firstAmount,
+        dueDate: firstDueDate,
+        invoiceNumber: '',
+        paymentLink: '',
+        automatedReminders: false,
+        automationStatus: 'off',
+        status: 'Pending',
+        createdAt: serverTimestamp(),
+        reminderHistory: [],
+      });
+      setFirstName('');
+      setFirstAmount('');
+      setFirstDueDate('');
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch (error) {
+      console.error('Could not add first invoice:', error);
+      setFirstError('Could not save. Please try again.');
+    } finally {
+      setFirstSaving(false);
+    }
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white" suppressHydrationWarning={true}><Loader2 className="w-8 h-8 animate-spin text-[#1C2E8F]" /></div>;
 
@@ -784,34 +964,9 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
             className="space-y-6 sm:space-y-8"
           >
-            <SeasonalBanner />
+            {!isPro && <SeasonalBanner />}
 
-            {isPro ? (
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
-                <div className="space-y-1 text-center sm:text-left flex items-center gap-3" suppressHydrationWarning={true}>
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                    <Crown size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>You're on the Pro Plan ✨</h2>
-                    <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>Enjoy unlimited clients, advanced insights, and premium payment management features.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md">
-                    Active Pro Plan
-                  </span>
-                  <motion.button 
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => setCancelModalOpen(true)}
-                    className="bg-white/10 hover:bg-white/25 text-white px-4 py-2 rounded-xl font-bold text-xs backdrop-blur-md transition-colors cursor-pointer"
-                  >
-                    Cancel Plan
-                  </motion.button>
-                </div>
-              </div>
-            ) : (
+            {!isPro && (
               <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
                 <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
                   <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>{wasPro ? 'Your Pro Plan Has Ended' : 'Unlock Pro Recovery Assistant'}</h2>
@@ -837,104 +992,202 @@ export default function DashboardPage() {
               <div className="space-y-1.5" suppressHydrationWarning={true}>
                 <h1 className="text-3xl sm:text-4xl font-black text-slate-900" suppressHydrationWarning={true}>
                   {getGreeting()}, {getUserDisplayName()} 👋
+                  {isPro && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('settings')}
+                      title="You're on DueBlink Pro. Tap to see your plan."
+                      className="ml-2 sm:ml-3 align-middle inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-[#245B92] text-white whitespace-nowrap cursor-pointer hover:opacity-90 transition"
+                      suppressHydrationWarning={true}
+                    >
+                      <Crown size={12} suppressHydrationWarning={true} /> PRO
+                    </button>
+                  )}
                 </h1>
                 <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
                   Here's what needs your attention today.
                 </p>
                 
-                <div className="flex flex-wrap items-center gap-6 pt-1 text-xs font-bold text-slate-600" suppressHydrationWarning={true}>
-                  <span suppressHydrationWarning={true}>Paid: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>{paidCount}</strong></span>
-                  <span suppressHydrationWarning={true}>Pending: <strong className="text-slate-900 font-black" suppressHydrationWarning={true}>{pendingCount}</strong></span>
-                  <span suppressHydrationWarning={true}>Total Recovered: <strong className="text-emerald-600 font-black" suppressHydrationWarning={true}>₹{totalRecovered.toLocaleString()}</strong></span>
-                </div>
               </div>
 
-              <motion.button 
-                whileHover={{ y: -2, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                whileTap={{ scale: 0.98 }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (!isPro) {
-                    setUpgradeModalOpen(true);
-                    return;
-                  }
-                  handleSummarizeOutstanding();
-                }} 
-                disabled={isRobotProcessing && isPro} 
-                className="text-xs font-bold text-white bg-[#0F172A] px-5 py-3 rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2"
-                suppressHydrationWarning={true}
-              >
-                {isRobotProcessing && isPro ? <Loader2 className="animate-spin" size={14} suppressHydrationWarning={true} /> : null}
-                {isRobotProcessing && isPro ? 'Summarizing...' : 'View Recovery Summary'}
-              </motion.button>
             </header>
 
-            {/* Mobile Quick Add Client */}
-            <div className="sm:hidden">
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => {
-                  setClientToEdit(null);
-                  setIsModalOpen(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 text-white px-5 py-4 rounded-2xl text-sm font-bold shadow-md transition"
-                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-              >
-                <Plus size={18} />
-                Add Client
-              </motion.button>
-            </div>
-
-            <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
-              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
-                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Layers size={14} suppressHydrationWarning={true}/> Total Outstanding</div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>₹{totalOutstanding.toLocaleString()}</p>
-                <p className="text-xs font-medium text-slate-500">Outstanding across {pendingCount} {pendingCount === 1 ? 'invoice' : 'invoices'}.</p>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
-                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Users size={14} suppressHydrationWarning={true}/> Pending Clients</div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{pendingCount} {pendingCount === 1 ? 'Client' : 'Clients'}</p>
-                <p className="text-xs font-medium text-slate-500">{pendingCount} require attention today.</p>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
-                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><TrendingUp size={14} suppressHydrationWarning={true}/> Recovery Rate</div>
-                <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8] mb-1" suppressHydrationWarning={true}>{recoveryRateValue}%</p>
-                <p className="text-xs font-medium text-slate-500">
-                  {recoveryRateValue === 0
-                    ? 'No payments recovered yet.'
-                    : recoveryRateValue < 50
-                      ? 'Room to improve your recovery.'
-                      : recoveryRateValue < 80
-                        ? 'Good recovery performance.'
-                        : 'Strong recovery performance.'}
-                </p>
-              </motion.div>
-            </section>
-
-            {recommendation && isPro && (
-              <section className="p-6 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8]" suppressHydrationWarning={true}>
-                <h2 className="text-[10px] font-black text-[#2BB6A8] uppercase tracking-widest mb-4" suppressHydrationWarning={true}>Today's Recommendation</h2>
-                <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4" suppressHydrationWarning={true}>
-                  <div suppressHydrationWarning={true}>
-                    <p className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>{recommendation.name}</p>
-                    <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>{recommendation.company || recommendation.email} • ₹{Number(recommendation.amount || 0).toLocaleString()} Outstanding</p>
-                  </div>
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => { 
-                      setRobotActionClientId(recommendation.id);
-                      setRobotAction('recommend'); 
-                    }} 
-                    className="w-full sm:w-auto bg-[#0F172A] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-xs hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
-                    suppressHydrationWarning={true}
-                  >
-                    Generate Follow-up
-                  </motion.button>
+            {/* TODAY — who to chase today, with the stage, advice and quick actions */}
+            {clients.some((c) => c.status === 'Pending') && (
+              <section className="p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-4" suppressHydrationWarning={true}>
+                <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
+                  <h2 className="text-[10px] font-black text-[#2BB6A8] uppercase tracking-widest" suppressHydrationWarning={true}>Today</h2>
+                  <span className="text-[11px] font-bold text-slate-500" suppressHydrationWarning={true}>
+                    {todayClients.length === 0
+                      ? 'All caught up'
+                      : `${todayClients.length} ${todayClients.length === 1 ? 'client' : 'clients'} to chase`}
+                  </span>
                 </div>
+
+                {todayClients.length === 0 ? (
+                  <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
+                    Nobody needs a reminder today. DueBlink will show clients here when they are due.
+                  </p>
+                ) : (
+                  <div className="space-y-3" suppressHydrationWarning={true}>
+                    {todayClients.map((c) => {
+                      const days = getDaysOverdue(c.dueDate);
+                      const stage = getTodayStage(c, days);
+                      const lastDays = getLastReminderDaysAgo(c);
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="p-4 sm:p-5 border border-slate-100 bg-slate-50/50 rounded-2xl space-y-3"
+                          suppressHydrationWarning={true}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2" suppressHydrationWarning={true}>
+                            <div className="space-y-1" suppressHydrationWarning={true}>
+                              <div className="flex items-center gap-2 flex-wrap" suppressHydrationWarning={true}>
+                                <p className="font-bold text-base text-slate-900" suppressHydrationWarning={true}>{c.name}</p>
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
+                                  stage.label === 'Stalled'
+                                    ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                                    : days > 0
+                                      ? 'bg-rose-50 text-rose-600'
+                                      : 'bg-amber-50 text-amber-600'
+                                }`} suppressHydrationWarning={true}>
+                                  {stage.label}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>
+                                ₹{Number(c.amount || 0).toLocaleString('en-IN')} · {days === 0 ? 'Due today' : `${days} ${days === 1 ? 'day' : 'days'} overdue`} · {lastDays === null ? 'No reminder sent yet' : `Last reminder ${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="text-sm text-slate-700 font-medium" suppressHydrationWarning={true}>{stage.advice}</p>
+
+                          <div className="flex flex-col sm:flex-row gap-2" suppressHydrationWarning={true}>
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                if (!isPro) {
+                                  setUpgradeModalOpen(true);
+                                  return;
+                                }
+                                setRobotActionClientId(c.id);
+                                setRobotAction('recommend');
+                              }}
+                              className="w-full sm:w-auto bg-[#0F172A] text-white px-6 py-3 rounded-xl font-bold text-sm shadow-xs hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                              suppressHydrationWarning={true}
+                            >
+                              <Sparkles size={14} suppressHydrationWarning={true} /> Write reminder
+                            </motion.button>
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              onClick={async () => {
+                                await updateDoc(doc(db, 'clients', c.id), { status: 'Paid', paidAt: new Date().toISOString() });
+                                window.dispatchEvent(new Event('clients-updated'));
+                              }}
+                              className="w-full sm:w-auto text-sm font-bold text-white px-6 py-3 rounded-xl shadow-xs transition-shadow cursor-pointer flex items-center justify-center gap-1.5"
+                              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                              suppressHydrationWarning={true}
+                            >
+                              <CheckCircle2 size={14} suppressHydrationWarning={true} /> Mark paid
+                            </motion.button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             )}
 
+            {/* NEW USER — add the first late invoice in 3 fields */}
+            {clients.length === 0 && (
+              <section className="p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-5" suppressHydrationWarning={true}>
+                <div className="space-y-1" suppressHydrationWarning={true}>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>Add your first late invoice</h2>
+                  <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
+                    Just 3 details. DueBlink tells you when to follow up and writes the reminder.
+                  </p>
+                </div>
+
+                <form onSubmit={handleAddFirstInvoice} className="grid grid-cols-1 sm:grid-cols-3 gap-3" suppressHydrationWarning={true}>
+                  <div className="space-y-1.5" suppressHydrationWarning={true}>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Client</label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Rahul Mehta"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-900"
+                      suppressHydrationWarning={true}
+                    />
+                  </div>
+                  <div className="space-y-1.5" suppressHydrationWarning={true}>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Amount (₹)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={firstAmount ? Number(firstAmount).toLocaleString('en-IN') : ''}
+                      onChange={(e) => setFirstAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="25,000"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-900"
+                      suppressHydrationWarning={true}
+                    />
+                  </div>
+                  <div className="space-y-1.5" suppressHydrationWarning={true}>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Due date</label>
+                    <input
+                      type="date"
+                      value={firstDueDate}
+                      onChange={(e) => setFirstDueDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-700"
+                      suppressHydrationWarning={true}
+                    />
+                  </div>
+
+                  {firstError && (
+                    <p className="sm:col-span-3 text-[11px] font-bold text-red-500" suppressHydrationWarning={true}>{firstError}</p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={firstSaving}
+                    className="sm:col-span-3 w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                    suppressHydrationWarning={true}
+                  >
+                    {firstSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+                    {firstSaving ? 'Saving...' : 'Add your first late invoice'}
+                  </button>
+                </form>
+
+                <p className="text-xs text-slate-400 font-medium" suppressHydrationWarning={true}>
+                  Email, WhatsApp number and invoice number are optional. Add them later with Edit.
+                </p>
+              </section>
+            )}
+
+            {clients.length > 0 && (
+            <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
+                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Layers size={14} suppressHydrationWarning={true}/> Total Outstanding</div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>₹{totalOutstanding.toLocaleString('en-IN')}</p>
+                <p className="text-xs font-medium text-slate-500">Outstanding across {pendingCount} {pendingCount === 1 ? 'invoice' : 'invoices'}.</p>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
+                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><AlertTriangle size={14} suppressHydrationWarning={true}/> Overdue</div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>₹{totalOverdue.toLocaleString('en-IN')}</p>
+                <p className="text-xs font-medium text-slate-500">{overdueCount === 0 ? 'Nothing overdue right now.' : `${overdueCount} overdue ${overdueCount === 1 ? 'invoice' : 'invoices'}.`}</p>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
+                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><TrendingUp size={14} suppressHydrationWarning={true}/> Recovered this month</div>
+                <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8] mb-1" suppressHydrationWarning={true}>₹{recoveredThisMonth.toLocaleString('en-IN')}</p>
+                <p className="text-xs font-medium text-slate-500">{paidCount === 0 ? 'No payments recovered yet.' : `₹${totalRecovered.toLocaleString('en-IN')} recovered in total.`}</p>
+              </motion.div>
+            </section>
+            )}
+
+            {clients.length > 0 && (
             <section className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6" suppressHydrationWarning={true}>
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4" suppressHydrationWarning={true}>
                 <h3 className="font-black uppercase text-xs tracking-widest text-slate-400" suppressHydrationWarning={true}>Client Management</h3>
@@ -950,17 +1203,6 @@ export default function DashboardPage() {
                       className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 transition text-slate-900"
                     />
                   </div>
-
-                  <CustomSelectDropdown
-                    value={sortBy}
-                    onChange={(val) => setSortBy(val as any)}
-                    icon={ArrowUpDown}
-                    options={[
-                      { label: 'Sort by: Due Date', value: 'dueDate' },
-                      { label: 'Sort by: Amount', value: 'amount' },
-                      { label: 'Sort by: Name', value: 'name' }
-                    ]}
-                  />
 
                   <motion.button 
                     whileHover={{ scale: 1.02, y: -2 }}
@@ -1101,6 +1343,18 @@ export default function DashboardPage() {
                               )}
                             </div>
                             <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>{c.company || c.email || 'No company'}</p>
+                            {c.status === 'Pending' && (() => {
+                              const lastDays = getLastReminderDaysAgo(c);
+                              const nextAuto = getNextAutoReminder(c);
+                              return (
+                                <p className="text-xs text-slate-600 font-medium" suppressHydrationWarning={true}>
+                                  <span className="font-bold text-slate-700">{getTodayStage(c, daysOverdue).label}</span>
+                                  {' · '}
+                                  {lastDays === null ? 'No reminder sent yet' : `Last reminder ${lastDays === 0 ? 'today' : `${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}`}
+                                  {nextAuto ? ` · ${nextAuto}` : ''}
+                                </p>
+                              );
+                            })()}
                           </div>
 
                           <div className="flex items-center gap-3 w-full sm:w-auto" suppressHydrationWarning={true}>
@@ -1121,7 +1375,7 @@ export default function DashboardPage() {
                                 whileTap={{ scale: 0.96 }}
                                 onClick={async (e) => { 
                                   e.stopPropagation(); 
-                                  await updateDoc(doc(db, 'clients', c.id), { status: 'Paid' }); 
+                                  await updateDoc(doc(db, 'clients', c.id), { status: 'Paid', paidAt: new Date().toISOString() }); 
                                   window.dispatchEvent(new Event('clients-updated'));
                                 }} 
                                 className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition-shadow cursor-pointer flex items-center justify-center gap-1.5" 
@@ -1266,6 +1520,7 @@ export default function DashboardPage() {
                 </AnimatePresence>
               </div>
             </section>
+            )}
           </motion.div>
         ) : (
           <motion.div 
@@ -1277,7 +1532,7 @@ export default function DashboardPage() {
           >
             <div>
               <h1 className="text-3xl font-black text-slate-900">Account & Settings</h1>
-              <p className="text-sm text-slate-500 font-medium mt-1">Manage your profile, billing plan, AI preferences, and security settings.</p>
+              <p className="text-sm text-slate-500 font-medium mt-1">Manage your profile, billing plan and security settings.</p>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
@@ -1289,10 +1544,6 @@ export default function DashboardPage() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Email Address</label>
                   <input type="email" disabled value={user?.email || ''} className="w-full px-4 py-3 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-600 cursor-not-allowed" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">User ID</label>
-                  <input type="text" disabled value={user?.uid || ''} className="w-full px-4 py-3 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-600 cursor-not-allowed" />
                 </div>
               </div>
             </div>
@@ -1360,61 +1611,6 @@ export default function DashboardPage() {
                 <button onClick={() => router.push('/pricing')} className="text-[#245B92] font-bold hover:underline cursor-pointer">
                   View Pricing & Plans →
                 </button>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <Sparkles className="text-[#245B92]" size={20} />
-                <h3 className="text-lg font-black text-slate-900">AI Preferences</h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase">AI Reminder Tone</label>
-                  <CustomSelectDropdown
-                    value={aiTone}
-                    onChange={(val) => setAiTone(val)}
-                    icon={Sparkles}
-                    options={[
-                      { label: 'Professional & Polite', value: 'Professional' },
-                      { label: 'Firm & Direct', value: 'Firm' },
-                      { label: 'Friendly & Casual', value: 'Friendly' }
-                    ]}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <Bell className="text-[#245B92]" size={20} />
-                <h3 className="text-lg font-black text-slate-900">Notifications</h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Email Notifications</p>
-                    <p className="text-xs text-slate-500">Receive summaries and updates via email</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={emailNotifs} 
-                    onChange={() => setEmailNotifs(!emailNotifs)}
-                    className="w-5 h-5 accent-[#245B92] cursor-pointer" 
-                  />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Payment Reminders</p>
-                    <p className="text-xs text-slate-500">Get alerted when client invoices become overdue</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={reminderNotifs} 
-                    onChange={() => setReminderNotifs(!reminderNotifs)}
-                    className="w-5 h-5 accent-[#245B92] cursor-pointer" 
-                  />
-                </div>
               </div>
             </div>
 

@@ -95,443 +95,6 @@ function formatWithCommas(val: string): string {
 // Counts a number up from its last value whenever it mounts or changes.
 // Used for the stat slides (each slide remounts when it appears) and for the
 // live client numbers, which re-animate when Firestore pushes an update.
-function CountUp({
-  to, decimals = 0, prefix = '', suffix = '', format, duration = 1.3,
-}: {
-  to: number; decimals?: number; prefix?: string; suffix?: string; format?: (n: number) => string; duration?: number;
-}) {
-  const [val, setVal] = useState(0);
-  const from = useRef(0);
-
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      from.current = to;
-      setVal(to);
-      return;
-    }
-    const controls = animate(from.current, to, {
-      duration,
-      ease: 'easeOut',
-      onUpdate: (v) => {
-        from.current = v;
-        setVal(v);
-      },
-    });
-    return () => controls.stop();
-  }, [to, duration]);
-
-  const text = format ? format(val) : `${prefix}${val.toFixed(decimals)}${suffix}`;
-  return <span className="tabular-nums">{text}</span>;
-}
-
-// --- HERO CAROUSEL ---
-// What every visitor sees in the hero: a self-advancing set of
-// slides (their numbers, who to chase next, who is overdue, why late
-// payments happen with real figures, and the Pro tools). The personal slides
-// (snapshot, next follow-up, overdue) only appear once someone is signed in. Pauses on hover / focus / touch, and stays
-// still for people who prefer reduced motion.
-function HeroCarousel({
-  name, signedIn, isPro, clients, loaded, onOpen,
-}: {
-  name: string; signedIn: boolean; isPro: boolean; clients: any[]; loaded: boolean; onOpen: () => void;
-}) {
-  const SLIDE_MS = 5500;
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [done, setDone] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setReduceMotion(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  const pending = clients.filter((c) => c.status === 'Pending');
-  const paid = clients.filter((c) => c.status === 'Paid');
-  const sum = (list: any[]) => list.reduce((t, c) => t + (Number(c.amount) || 0), 0);
-  const fmt = (n: number) => `₹${n.toLocaleString('en-IN')}`;
-  const overdueDays = (due?: string) => {
-    if (!due) return 0;
-    const d = Math.ceil((Date.now() - new Date(due).getTime()) / 86400000);
-    return d > 0 ? d : 0;
-  };
-  const ranked = pending
-    .map((c) => ({ ...c, overdue: overdueDays(c.dueDate) }))
-    .sort((a, b) => b.overdue - a.overdue || (Number(b.amount) || 0) - (Number(a.amount) || 0));
-  const next = ranked[0];
-  const overdueList = ranked.filter((c) => c.overdue > 0).slice(0, 3);
-  const dayLabel = (n: number) => `${n} ${n === 1 ? 'day' : 'days'} overdue`;
-
-
-  const TONES = {
-    amber: ['#FEF3C7', '#F59E0B', '#245B92'],
-    teal: ['#CCFBF1', '#20B8BE', '#245B92'],
-    blue: ['#DBEAFE', '#245B92', '#2BB6A8'],
-  } as const;
-  type Tone = keyof typeof TONES;
-
-  const Backdrop = (tone: Tone) => (
-    <>
-      <div aria-hidden className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(36,91,146,0.10) 1px, transparent 1px), linear-gradient(90deg, rgba(36,91,146,0.10) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-      <div aria-hidden className="absolute -right-8 bottom-2 w-32 h-32 sm:w-52 sm:h-52 lg:w-64 lg:h-64 rounded-full opacity-90" style={{ background: TONES[tone][1] }} />
-      <div aria-hidden className="absolute left-[40%] top-5 w-14 h-14 sm:w-20 sm:h-20 rounded-2xl rotate-12 opacity-90" style={{ background: TONES[tone][2] }} />
-    </>
-  );
-
-  // Same stage as the other slides: coloured backdrop, optional dark chip,
-  // and a white card that carries the content.
-  const Frame = ({ tone, chip, wide, children }: {
-    tone: Tone; chip?: { big: React.ReactNode; label: string }; wide?: boolean; children: React.ReactNode;
-  }) => (
-    <div className="relative h-full rounded-xl overflow-hidden flex flex-col justify-between gap-2 p-3 sm:block sm:p-0" style={{ background: TONES[tone][0] }}>
-      {Backdrop(tone)}
-      {chip && (
-        <div className="relative z-10 self-end sm:absolute sm:top-4 sm:right-4 lg:top-6 lg:right-6 rounded-lg bg-[#0F172A] text-white px-3 py-2 sm:px-5 sm:py-3">
-          <p className="text-base sm:text-3xl lg:text-5xl font-black leading-none">{chip.big}</p>
-          <p className="text-[10px] sm:text-xs lg:text-sm text-white/70 font-medium mt-1 max-w-[150px] sm:max-w-[220px] lg:max-w-[260px] leading-snug">{chip.label}</p>
-        </div>
-      )}
-      <div className={`relative z-10 mt-auto sm:mt-0 sm:absolute sm:left-4 sm:bottom-4 lg:left-6 lg:bottom-6 rounded-xl bg-white p-3 sm:p-5 shadow-lg ${wide ? 'sm:w-[78%]' : 'sm:max-w-[68%]'}`}>
-        {children}
-      </div>
-    </div>
-  );
-
-  const TipSlide = ({ icon: Icon, title, body, tone }: { icon: any; title: string; body: string; tone: Tone }) => (
-    <div className="relative h-full rounded-xl overflow-hidden flex flex-col justify-between gap-2 p-3 sm:block sm:p-0" style={{ background: TONES[tone][0] }}>
-      {Backdrop(tone)}
-      <div className="relative z-10 self-end sm:absolute sm:top-4 sm:right-4 lg:top-6 lg:right-6 rounded-lg bg-[#0F172A] text-white px-3 py-2 sm:px-5 sm:py-3">
-        <p className="text-base sm:text-3xl lg:text-5xl font-black leading-none">Pro</p>
-        <p className="text-[10px] text-white/70 font-medium mt-1 leading-snug">{isPro ? 'included in your plan' : 'available with Pro'}</p>
-      </div>
-      <div className="relative z-10 mt-auto sm:mt-0 sm:absolute sm:left-4 sm:bottom-4 lg:left-6 lg:bottom-6 sm:max-w-[68%] rounded-xl bg-white p-3 sm:p-5 shadow-lg flex items-start gap-2.5">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: 'linear-gradient(135deg, #245B92, #20B8BE)' }}>
-          <Icon className="w-4 h-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs sm:text-lg lg:text-2xl font-black text-slate-900 leading-snug">{title}</p>
-          <p className="text-[11px] sm:text-sm lg:text-base text-slate-500 font-medium mt-1 leading-snug">{body}</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Outcome-led slide: a coloured stage, one dark stat chip, a small product
-  // pill, and a white caption card that carries the message.
-  const StageSlide = ({ tone, stat, caption, source, pill }: {
-    tone: 'amber' | 'teal' | 'blue';
-    stat: { to: number; prefix?: string; suffix?: string; decimals?: number; label: string };
-    caption: string; source: string; pill: string;
-  }) => {
-    return (
-      <div className="relative h-full rounded-xl overflow-hidden flex flex-col justify-between gap-2 p-3 sm:block sm:p-0" style={{ background: TONES[tone][0] }}>
-        {Backdrop(tone)}
-        <div className="relative z-10 self-end sm:absolute sm:top-4 sm:right-4 lg:top-6 lg:right-6 rounded-lg bg-[#0F172A] text-white px-3 py-2 sm:px-5 sm:py-3">
-          <p className="text-base sm:text-3xl lg:text-5xl font-black leading-none">
-            <CountUp to={stat.to} prefix={stat.prefix} suffix={stat.suffix} decimals={stat.decimals} />
-          </p>
-          <p className="text-[10px] sm:text-xs lg:text-sm text-white/70 font-medium mt-1 max-w-[150px] sm:max-w-[220px] lg:max-w-[260px] leading-snug">{stat.label}</p>
-        </div>
-        <div className="hidden sm:flex absolute left-6 top-[22%] z-10 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm">
-          <CheckCircle2 className="w-3 h-3 text-[#2BB6A8]" /> {pill}
-        </div>
-        <div className="relative z-10 mt-auto sm:mt-0 sm:absolute sm:left-4 sm:bottom-4 lg:left-6 lg:bottom-6 sm:max-w-[68%] rounded-xl bg-white p-3 sm:p-5 shadow-lg">
-          <p className="text-xs sm:text-lg lg:text-2xl font-black text-slate-900 leading-snug">{caption}</p>
-          <p className="text-[10px] sm:text-xs lg:text-sm text-slate-400 font-medium mt-1.5 sm:mt-2 leading-snug">{source}</p>
-        </div>
-      </div>
-    );
-  };
-
-  const WhySlide = () => (
-    <div className="relative h-full rounded-xl overflow-hidden flex flex-col justify-between gap-2 p-3 sm:block sm:p-0" style={{ background: TONES.amber[0] }}>
-      {Backdrop('amber')}
-      <div className="relative z-10 mt-auto sm:mt-0 sm:absolute sm:left-4 sm:bottom-4 lg:left-6 lg:bottom-6 sm:max-w-[80%] rounded-xl bg-white p-3 sm:p-5 shadow-lg space-y-2">
-        <p className="text-xs sm:text-sm font-black text-slate-900">Why payments run late</p>
-        <ul className="space-y-1.5">
-          {[
-            'Invoices stall in the client\u2019s approval queue, and nobody chases them.',
-            'Large buyers often set long payment terms, and smaller suppliers wait the longest.',
-            'Follow-ups slip when they live in Excel, WhatsApp or memory.',
-          ].map((t) => (
-            <li key={t} className="flex items-start gap-2 text-[11px] sm:text-sm lg:text-base font-medium text-slate-600 leading-snug">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#2BB6A8] shrink-0 mt-px" />
-              <span>{t}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="text-[11px] sm:text-sm lg:text-base font-bold text-[#245B92]">DueBlink keeps every follow-up on schedule.</p>
-      </div>
-    </div>
-  );
-
-  const slides: { key: string; node: React.ReactNode; ms?: number }[] = [];
-
-  const money = (n: number) => fmt(Math.round(n));
-  const whole = (n: number) => String(Math.round(n));
-
-  // 1. Snapshot (signed-in only)
-  if (signedIn) slides.push({
-    key: 'snapshot',
-    node: !loaded
-      ? Frame({ tone: 'blue', children: <div className="h-14 w-44 rounded-lg bg-slate-100 animate-pulse" /> })
-      : clients.length === 0
-      ? Frame({
-          tone: 'blue',
-          children: (
-            <div className="space-y-2.5">
-              <p className="text-xs sm:text-lg lg:text-2xl font-black text-slate-900 leading-snug">
-                No clients yet. Add your first client to start tracking payments.
-              </p>
-              <button
-                onClick={onOpen}
-                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-white px-3.5 py-2 rounded-lg"
-              >
-                Add your first client <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ),
-        })
-      : Frame({
-          tone: 'blue',
-          chip: { big: <CountUp to={sum(pending)} format={money} />, label: 'outstanding right now' },
-          children: (
-            <div className="space-y-2">
-              <p className="text-xs sm:text-sm font-black text-slate-900">Your recovery snapshot</p>
-              <div className="flex gap-6">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">Pending</p>
-                  <p className="text-base sm:text-lg font-black text-amber-600"><CountUp to={pending.length} format={whole} /></p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">Recovered</p>
-                  <p className="text-base sm:text-lg font-black text-emerald-600"><CountUp to={sum(paid)} format={money} /></p>
-                </div>
-              </div>
-            </div>
-          ),
-        }),
-  });
-
-  // 2. Who to chase next
-  if (signedIn && loaded && next) {
-    slides.push({
-      key: 'next',
-      node: Frame({
-        tone: 'teal',
-        chip: {
-          big: <CountUp to={Number(next.amount) || 0} format={money} />,
-          label: next.overdue > 0 ? dayLabel(next.overdue) : 'not overdue yet',
-        },
-        children: (
-          <button onClick={onOpen} className="flex items-center gap-3 text-left w-full">
-            <Sparkles className="w-4 h-4 text-[#20B8BE] shrink-0" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] font-bold text-slate-400">Next follow-up</span>
-              <span className="block text-sm sm:text-lg font-black text-slate-900 truncate">{next.name}</span>
-            </span>
-            <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
-          </button>
-        ),
-      }),
-    });
-  }
-
-  // 3. Overdue clients
-  if (signedIn && loaded && overdueList.length > 0) {
-    slides.push({
-      key: 'overdue',
-      node: Frame({
-        tone: 'amber',
-        wide: true,
-        chip: {
-          big: <CountUp to={ranked.filter((c) => c.overdue > 0).length} format={whole} />,
-          label: 'clients overdue right now',
-        },
-        children: (
-          <div className="space-y-1.5">
-            <p className="text-xs sm:text-sm font-black text-slate-900">Overdue right now</p>
-            <div className="divide-y divide-slate-100">
-              {overdueList.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3 py-1.5">
-                  <span className="text-xs sm:text-sm font-bold text-slate-800 truncate">{c.name}</span>
-                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
-                    {fmt(Number(c.amount) || 0)} · {c.overdue}d
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ),
-      }),
-    });
-  }
-
-  // Why this matters: the numbers and the causes behind late payments.
-  slides.push({
-    key: 'numbers',
-    ms: 8000,
-    node: StageSlide({
-      tone: 'amber',
-      stat: { to: 85, suffix: '%', label: 'of freelancers surveyed are paid late at some point' },
-      caption: '29% of freelance invoices are paid at least a day late, in a study of 100,000+ freelancers. Late payment is common, not personal.',
-      source: 'State of Freelance Work 2025 survey; 3-year study of 100,000+ freelancers\u2019 invoices',
-      pill: 'INV-042 · 7 days overdue',
-    }),
-  });
-  slides.push({
-    key: 'india',
-    ms: 8000,
-    node: StageSlide({
-      tone: 'teal',
-      stat: { to: 7.34, decimals: 2, prefix: '\u20B9', suffix: ' lakh crore', label: 'in delayed payments owed to MSMEs, March 2024' },
-      caption: 'In a 2019 sample of about 12,000 Indian companies, micro enterprises took 176 days on average to collect. The legal limit is 45.',
-      source: 'Dues: GAME, FISME and C2FO (2025). Wait time: GAME analysis of Prowess data (2019).',
-      pill: '\u20B945,000 · Reminder sent',
-    }),
-  });
-  slides.push({
-    key: 'us',
-    ms: 8000,
-    node: StageSlide({
-      tone: 'blue',
-      stat: { to: 17.7, decimals: 1, prefix: '$', suffix: 'K', label: 'owed on average to businesses with unpaid invoices' },
-      caption: '59% of US small businesses surveyed have invoices 30+ days overdue, up from 47% a year earlier.',
-      source: '2026 Small Business Late Payments Report (survey)',
-      pill: '\u20B925,000 · Paid',
-    }),
-  });
-  slides.push({ key: 'why', ms: 9000, node: WhySlide() });
-
-  // Pro tools that are switched on
-  slides.push({
-    key: 'assistant',
-    node: TipSlide({
-      tone: 'teal',
-      icon: Bot,
-      title: isPro ? 'Your AI Recovery Assistant is on' : 'AI Recovery Assistant (Pro)',
-      body: isPro
-        ? 'Ask Blink who to contact today, rewrite a reminder, or summarize what is still outstanding.'
-        : 'With Pro, ask Blink who to contact today, rewrite a reminder, or summarize what is still outstanding.',
-    }),
-  });
-  slides.push({
-    key: 'auto',
-    node: TipSlide({
-      tone: 'blue',
-      icon: Clock,
-      title: isPro ? 'Reminders send themselves' : 'Automatic reminders (Pro)',
-      body: isPro
-        ? 'Automatic reminders go out on schedule. When a client pays, mark it paid from the email in one click.'
-        : 'With Pro, reminders go out on schedule, and you can mark a client paid from the email in one click.',
-    }),
-  });
-
-  const safeIndex = index % slides.length;
-
-  useEffect(() => {
-    if (paused || slides.length < 2) return;
-    // Keep looping automatically (pauses on hover/touch).
-    const t = setTimeout(() => {
-      setIndex((safeIndex + 1) % slides.length);
-    }, slides[safeIndex].ms ?? SLIDE_MS);
-    return () => clearTimeout(t);
-  }, [safeIndex, paused, slides.length]);
-
-  const go = (dir: number) => setIndex((safeIndex + dir + slides.length) % slides.length);
-
-  return (
-    <div
-      className="w-full text-left"
-      role="region"
-      aria-roledescription="carousel"
-      aria-label="Why late payments happen and how DueBlink helps"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onTouchStart={() => setPaused(true)}
-      onTouchEnd={() => setPaused(false)}
-      suppressHydrationWarning={true}
-    >
-      <div>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
-              {signedIn ? (name ? `Welcome back, ${name}` : 'Welcome back') : 'Late payments at a glance'}
-            </h3>
-            {isPro && (
-              <span className="text-[9px] font-extrabold uppercase tracking-wider text-white bg-[#0F172A] px-2 py-0.5 rounded shrink-0">Pro</span>
-            )}
-          </div>
-
-          <div className="relative h-[280px] sm:h-[340px] lg:h-[400px] overflow-hidden" aria-live={paused ? 'polite' : 'off'}>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={slides[safeIndex].key}
-                role="group"
-                aria-roledescription="slide"
-                aria-label={`${safeIndex + 1} of ${slides.length}`}
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -24 }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-                className="absolute inset-0 cursor-grab active:cursor-grabbing"
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.2}
-                onDragEnd={(_, info) => {
-                  if (info.offset.x < -50) go(1);
-                  else if (info.offset.x > 50) go(-1);
-                }}
-              >
-                {slides[safeIndex].node}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <div className="flex items-center justify-center gap-1.5 pt-1">
-            <button
-              type="button"
-              onClick={() => go(-1)}
-              aria-label="Previous slide"
-              className="hidden sm:inline-flex p-1 rounded-full text-slate-400 hover:text-[#245B92] hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {slides.map((s, i) => (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setIndex(i)}
-                aria-label={`Show slide ${i + 1}`}
-                aria-current={i === safeIndex}
-                className="p-1 cursor-pointer"
-              >
-                <motion.span
-                  className="block h-1.5 rounded-full bg-[#245B92]"
-                  animate={{ width: i === safeIndex ? 18 : 6, opacity: i === safeIndex ? 1 : 0.25 }}
-                  transition={{ duration: 0.25 }}
-                />
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => go(1)}
-              aria-label="Next slide"
-              className="hidden sm:inline-flex p-1 rounded-full text-slate-400 hover:text-[#245B92] hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function LandingPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -676,7 +239,6 @@ export default function LandingPage() {
     { icon: Mail, label: 'Drafting your email…', sub: 'Finding the right subject line and opening.' },
     { icon: MessageCircle, label: 'Writing the WhatsApp message…', sub: 'Keeping it warm and conversational.' },
     { icon: Send, label: 'Trimming down the SMS…', sub: 'Short, sharp, under 160 characters.' },
-    { icon: Brain, label: 'Building your AI strategy note…', sub: 'Explaining why this approach fits.' },
   ];
 
   // Micro-interaction state: which field is focused (label lift + focus
@@ -684,7 +246,7 @@ export default function LandingPage() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [shakeFields, setShakeFields] = useState<string[]>([]);
   const [result, setResult] = useState<{ email_subject: string; email_body: string; whatsapp_message: string; sms_text: string; psychology_note: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms' | 'strategy'>('email');
+  const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms'>('email');
   const [copied, setCopied] = useState(false);
 
   // ============================================================
@@ -729,17 +291,6 @@ export default function LandingPage() {
   });
 
   const [isAtTop, setIsAtTop] = useState(true);
-  const [displayedText, setDisplayedText] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [loopNum, setLoopNum] = useState(0);
-
-  const titles = [
-    "AI Payment Recovery Assistant",
-    "Smart Invoice Tracking",
-    "Automated Client Reminders",
-    "Zero-Spreadsheet Workflow"
-  ];
-
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
   };
@@ -1028,23 +579,6 @@ export default function LandingPage() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  // Effect: Hero Typing Animation
-  useEffect(() => {
-    const i = loopNum % titles.length;
-    const fullText = titles[i];
-    const handleType = () => {
-      setDisplayedText(prev => 
-        isDeleting
-          ? fullText.substring(0, prev.length - 1) 
-          : fullText.substring(0, prev.length + 1)
-      );
-      if (!isDeleting && displayedText === fullText) setTimeout(() => setIsDeleting(true), 2000);
-      else if (isDeleting && displayedText === "") { setIsDeleting(false); setLoopNum(prev => prev + 1); }
-    };
-    const timer = setTimeout(handleType, isDeleting ? 30 : 80);
-    return () => clearTimeout(timer);
-  }, [displayedText, isDeleting, loopNum, titles]);
 
   const getStageLabel = () => {
     if (tone === 'gentle') return 'Stage 1 · Gentle Reminder';
@@ -1487,38 +1021,6 @@ export default function LandingPage() {
     {/* SEASONAL LANDING ACCENT */}
     <SeasonalLandingAccent />
 
-    {/* HERO BADGE */}
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-slate-600 shadow-3xs mx-auto select-none min-h-[40px] max-w-full overflow-hidden"
-      suppressHydrationWarning={true}
-    >
-      <span
-        className="w-1.5 h-1.5 rounded-full bg-[#2BB6A8] animate-pulse shrink-0"
-        suppressHydrationWarning={true}
-      />
-
-      <span
-        className="text-[#0F172A] font-bold whitespace-nowrap"
-        suppressHydrationWarning={true}
-      >
-        🚀 DueBlink ·
-      </span>
-
-      <span
-        className="text-[#2BB6A8] font-bold truncate max-w-[210px] sm:max-w-none text-left"
-        suppressHydrationWarning={true}
-      >
-        {displayedText}
-
-        <span
-          className="animate-pulse ml-0.5 border-r-2 border-[#2BB6A8] h-3 inline-block"
-          suppressHydrationWarning={true}
-        />
-      </span>
-    </motion.div>
-
     {/* HERO HEADING */}
     <motion.h1
       variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
@@ -1544,9 +1046,9 @@ export default function LandingPage() {
       className="text-[15px] sm:text-xl text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
       suppressHydrationWarning={true}
     >
-      Generate professional payment reminders, track unpaid invoices,
+      DueBlink remembers every follow-up you&apos;ve sent and tells you the next step.
       <br className="hidden sm:block" />
-      {" "}and recover payments faster with AI.
+      {" "}Works with invoices you already send.
     </motion.p>
 
     {/* CTA */}
@@ -1581,7 +1083,7 @@ export default function LandingPage() {
         ) : user ? (
           "Open Dashboard"
         ) : (
-          "Try 5 AI Reminders Free"
+          "Start free"
         )}
       </motion.button>
 
@@ -1627,25 +1129,602 @@ export default function LandingPage() {
       )}
   </motion.div>
 
-      {/* HERO PRODUCT VISUAL — the same auto-advancing carousel for everyone.
-          Personal slides appear only when signed in. */}
-      <motion.div
-        variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
-        transition={{ duration: 0.45, ease: "easeOut" }}
-        className="pt-8 sm:pt-12 max-w-5xl mx-auto w-full"
-        suppressHydrationWarning={true}
-      >
-        <HeroCarousel
-          name={user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || ''}
-          signedIn={!!user}
-          isPro={isPro}
-          clients={myClients}
-          loaded={clientsLoaded}
-          onOpen={() => router.push('/dashboard')}
-        />
-      </motion.div>
   </div>
 </motion.section>
+
+    {/* --- SECTION 5: SPLIT APP GENERATOR CONSOLE WITH ANIMATION --- */}
+    <motion.section 
+    id="reminder-generator"
+    ref={generatorSectionRef}
+    initial={{ opacity: 0, y: 15 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: "-50px" }}
+    transition={{ duration: 0.3, ease: "easeOut" }}
+    className="bg-white py-16 sm:py-20 scroll-mt-24 px-4"
+    suppressHydrationWarning={true}
+    >
+    <div className="max-w-7xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
+      <div className="space-y-2" suppressHydrationWarning={true}>
+        <Sparkles className="w-8 h-8 text-[#20B8BE] mx-auto mb-1" suppressHydrationWarning={true} />
+        <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
+          {isPro ? 'Generate AI Reminder — Pro Unlimited Edition' : user ? 'Generate AI Reminder — Member Edition (15 Monthly Free)' : 'Generate Your First AI Reminder — Free'}
+        </h2>
+        <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Create professional Email & WhatsApp payment reminders in seconds.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto text-left" suppressHydrationWarning={true}>
+         
+      {/* Left Form */}
+      <motion.div 
+        initial={{ opacity: 0, x: -10 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true, margin: "-50px" }}
+        transition={{ duration: 0.3, delay: 0.05 }}
+        className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-6 flex flex-col justify-between"
+        suppressHydrationWarning={true}
+    >
+        <div suppressHydrationWarning={true}>
+          {limitReached ? (
+          <div className="bg-gradient-to-b from-slate-900 to-[#1E293B] text-white border border-slate-800 rounded-2xl p-6 sm:p-8 text-center space-y-6 my-auto shadow-2xl relative overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#20B8BE]/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#20B8BE] bg-[#20B8BE]/10 px-3 py-1 rounded-full">
+               {user ? 'Monthly Limit Reached' : 'Free Trial Limit Reached'}
+            </span>
+            <h4 className="text-lg font-black tracking-tight text-white pt-2">
+               {user ? 'You have used all 15 free reminders this month.' : "You've used all 5 free AI reminders."}
+            </h4>
+            <p className="text-xs text-slate-300 font-medium leading-relaxed">
+               {user ? 'Your reminders automatically refill every month. Want unlimited reminders and advanced recovery tools right now?' : "Create a free account to unlock 15 monthly free reminders or upgrade to Pro for unlimited AI generation."}
+            </p>
+          </div>
+          <div className="space-y-3 pt-2">
+            <button 
+              onClick={() => router.push('/pricing')}
+              className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white font-bold rounded-xl text-xs hover:opacity-95 transition cursor-pointer shadow-md flex items-center justify-center gap-2 uppercase tracking-wider"
+            >
+              <Zap className="w-4 h-4" /> Upgrade to Pro
+            </button>
+            {!user && (
+              <button 
+                onClick={() => router.push('/create-account')}
+                className="w-full py-3 bg-slate-800 text-slate-200 font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer border border-slate-700"
+              >
+                Create Free Account
+              </button>
+            )}
+          </div>
+          </div>
+               ) : (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
+              <div suppressHydrationWarning={true}>
+                <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-[#2BB6A8]" suppressHydrationWarning={true} /> Generate Your Reminder</h3>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>
+                  {isPro ? 'Pro Plan — Unlimited Generations' : user ? `${reminderCount}/15 Used (Monthly Refill)` : `${reminderCount}/5 Free Reminders Used`}
+                </p>
+              </div>
+              <span className="self-start sm:self-center text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-full" suppressHydrationWarning={true}>{getStageLabel()}</span>
+            </div>
+
+            <form onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
+              <div suppressHydrationWarning={true}>
+                <motion.label
+                  animate={{ color: focusedField === 'clientName' ? '#20B8BE' : '#334155', y: focusedField === 'clientName' ? -1 : 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="block text-xs font-bold mb-1.5"
+                >
+                  Client Name *
+                </motion.label>
+                <div className="relative" suppressHydrationWarning={true}>
+                  <motion.input
+                    type="text"
+                    required
+                    placeholder="e.g. ABC Agency"
+                    value={clientName}
+                    onChange={e => setClientName(e.target.value)}
+                    onFocus={() => setFocusedField('clientName')}
+                    onBlur={() => setFocusedField((f) => (f === 'clientName' ? null : f))}
+                    whileFocus={{ scale: 1.012 }}
+                    animate={{ x: shakeFields.includes('clientName') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                    transition={{ duration: 0.4 }}
+                    className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 ${shakeFields.includes('clientName') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+                    suppressHydrationWarning={true}
+                  />
+                  <AnimatePresence>
+                    {clientName && focusedField !== 'clientName' && !shakeFields.includes('clientName') && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
+                      >
+                        <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
+                <div suppressHydrationWarning={true}>
+              <motion.label
+                animate={{ color: focusedField === 'currency' ? '#20B8BE' : '#334155', y: focusedField === 'currency' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Currency
+              </motion.label>
+              <motion.select
+                value={currency}
+                onChange={e => setCurrency(e.target.value)}
+                onFocus={() => setFocusedField('currency')}
+                onBlur={() => setFocusedField((f) => (f === 'currency' ? null : f))}
+                whileFocus={{ scale: 1.012 }}
+                transition={{ duration: 0.15 }}
+                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 appearance-none"
+                suppressHydrationWarning={true}
+              >
+                <option value="₹ INR" suppressHydrationWarning={true}>₹ INR</option><option value="$ USD" suppressHydrationWarning={true}>$ USD</option><option value="€ EUR" suppressHydrationWarning={true}>€ EUR</option>
+              </motion.select>
+                </div>
+                <div suppressHydrationWarning={true}>
+              <motion.label
+                animate={{ color: focusedField === 'amount' ? '#20B8BE' : '#334155', y: focusedField === 'amount' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Amount Due *
+              </motion.label>
+              <div className="relative" suppressHydrationWarning={true}>
+                <motion.input
+                  type="text"
+                  inputMode="decimal"
+                  required
+                  placeholder="25,000"
+                  value={formatWithCommas(amount)}
+                  onChange={e => setAmount(stripToDigits(e.target.value))}
+                  onFocus={() => setFocusedField('amount')}
+                  onBlur={() => setFocusedField((f) => (f === 'amount' ? null : f))}
+                  whileFocus={{ scale: 1.012 }}
+                  animate={{ x: shakeFields.includes('amount') ? [0, -6, 6, -4, 4, 0] : 0 }}
+                  transition={{ duration: 0.4 }}
+                  className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300 ${shakeFields.includes('amount') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
+                  suppressHydrationWarning={true}
+                />
+                <AnimatePresence>
+                  {amount && focusedField !== 'amount' && !shakeFields.includes('amount') && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.5 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
+                    >
+                      <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
+                <div suppressHydrationWarning={true}>
+              <motion.label
+                animate={{ color: focusedField === 'daysOverdue' ? '#20B8BE' : '#334155', y: focusedField === 'daysOverdue' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Days Overdue
+              </motion.label>
+              <motion.input
+                type="number"
+                value={daysOverdue}
+                onChange={e => setDaysOverdue(e.target.value)}
+                onFocus={() => setFocusedField('daysOverdue')}
+                onBlur={() => setFocusedField((f) => (f === 'daysOverdue' ? null : f))}
+                whileFocus={{ scale: 1.012 }}
+                transition={{ duration: 0.15 }}
+                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20"
+                suppressHydrationWarning={true}
+              />
+              </div>
+                <div suppressHydrationWarning={true}>
+              <motion.label
+                animate={{ color: focusedField === 'invoiceRef' ? '#20B8BE' : '#334155', y: focusedField === 'invoiceRef' ? -1 : 0 }}
+                transition={{ duration: 0.15 }}
+                className="block text-xs font-bold mb-1.5"
+              >
+                Invoice #
+              </motion.label>
+              <motion.input
+                type="text"
+                placeholder="INV-2025-042"
+                value={invoiceRef}
+                onChange={e => setInvoiceRef(e.target.value)}
+                onFocus={() => setFocusedField('invoiceRef')}
+                onBlur={() => setFocusedField((f) => (f === 'invoiceRef' ? null : f))}
+                whileFocus={{ scale: 1.012 }}
+                transition={{ duration: 0.15 }}
+                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300"
+                suppressHydrationWarning={true}
+              />
+              </div>
+              </div>
+              <div suppressHydrationWarning={true}>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Tone</label>
+                <div className="relative grid grid-cols-3 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
+              {['gentle', 'professional', 'firm'].map((t) => (
+                <button key={t} type="button" onClick={() => handleToneChange(t)} className={`relative z-10 capitalize h-full cursor-pointer transition-colors duration-150 ${tone === t ? 'text-white' : 'text-slate-500'}`} suppressHydrationWarning={true}>
+                  {tone === t && (
+                    <motion.div
+                      layoutId="landing-tone-pill"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      className="absolute inset-0 -z-10 bg-[#0F172A]"
+                    />
+                  )}
+                  {t}
+                </button>
+              ))}
+                </div>
+              </div>
+              <motion.button 
+                whileHover={!isGenerating ? { scale: 1.02 } : {}}
+                whileTap={!isGenerating ? { scale: 0.98 } : {}}
+                type="submit" 
+                disabled={isGenerating || limitReached} 
+                style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
+                className="relative overflow-hidden w-full text-white font-bold text-xs uppercase tracking-wider py-3 sm:py-3.5 rounded-lg transition-opacity flex items-center justify-center gap-2 cursor-pointer mt-4"
+              >
+                {isGenerating && (
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
+                    initial={{ x: '-100%' }}
+                    animate={{ x: '100%' }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  <motion.span
+                    animate={isGenerating ? { rotate: 360 } : { rotate: 0 }}
+                    transition={isGenerating ? { repeat: Infinity, duration: 1, ease: 'linear' } : { duration: 0.2 }}
+                    className="flex"
+                  >
+                    {isGenerating ? <RefreshCw className="w-4 h-4" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />}
+                  </motion.span>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={isGenerating ? `loading-${loadingPhaseIndex}` : 'idle'}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      {isGenerating ? loadingPhrases[loadingPhaseIndex] : 'Generate Reminder'}
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
+              </motion.button>
+            </form>
+          </div>
+               )}
+      </div>
+      </motion.div>
+
+      {/* Right Result Window */}
+      <motion.div 
+        initial={{ opacity: 0, x: 10 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true, margin: "-50px" }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+        className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xl flex flex-col justify-between"
+        suppressHydrationWarning={true}
+    >
+        <div className="space-y-4 h-full flex flex-col justify-start" suppressHydrationWarning={true}>
+          <div suppressHydrationWarning={true}>
+            <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
+            <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS</p>
+          </div>
+              
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
+            {isGenerating ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0, scale: 0.95 }} 
+                className="py-12 flex flex-col items-center justify-center space-y-5 w-full"
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`icon-${loadingPhaseIndex % resultLoadingPhases.length}`}
+                    initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.7, rotate: 8 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="w-14 h-14 bg-gradient-to-br from-[#1C2E8F]/10 to-[#20B8BE]/10 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner mx-auto"
+                  >
+                    {(() => {
+                      const CurrentIcon = resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].icon;
+                      return <CurrentIcon className="w-7 h-7" />;
+                    })()}
+                  </motion.div>
+                </AnimatePresence>
+
+                <div className="space-y-1 min-h-[34px]">
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={`label-${loadingPhaseIndex % resultLoadingPhases.length}`}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.25 }}
+                      className="text-xs font-black text-slate-900 uppercase tracking-widest"
+                    >
+                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].label}
+                    </motion.p>
+                  </AnimatePresence>
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={`sub-${loadingPhaseIndex % resultLoadingPhases.length}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.25, delay: 0.05 }}
+                      className="text-[11px] text-slate-500 font-medium"
+                    >
+                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].sub}
+                    </motion.p>
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {resultLoadingPhases.map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="h-1.5 rounded-full bg-[#1C2E8F]"
+                      animate={{
+                        width: i === loadingPhaseIndex % resultLoadingPhases.length ? 18 : 6,
+                        opacity: i === loadingPhaseIndex % resultLoadingPhases.length ? 1 : 0.25,
+                      }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+            ) : showSuccessAnimation ? (
+              <motion.div
+                key="success"
+                initial={{
+                  opacity: 0,
+                  scale: 0.94,
+                  y: 8
+                }}
+                animate={{
+                  opacity: 1,
+                  scale: 1,
+                  y: 0
+                }}
+                exit={{
+                  opacity: 0,
+                  scale: 1.02,
+                  y: -6
+                }}
+                transition={{
+                  duration: 0.45,
+                  ease: [0.22, 1, 0.36, 1]
+                }}
+                className="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-8 sm:p-10 text-center shadow-sm w-full"
+              >
+                {/* Animated light sweep */}
+                <motion.div
+                  initial={{
+                    x: "-120%",
+                    opacity: 0
+                  }}
+                  animate={{
+                    x: "120%",
+                    opacity: [0, 0.55, 0]
+                  }}
+                  transition={{
+                    duration: 1,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
+                />
+
+                {/* Sparkle burst */}
+                {[
+                  { x: -58, y: -32, r: 18, d: 0.05 },
+                  { x: 58, y: -30, r: -18, d: 0.12 },
+                  { x: -70, y: 22, r: -12, d: 0.18 },
+                  { x: 70, y: 24, r: 14, d: 0.22 },
+                  { x: 0, y: -58, r: 0, d: 0.08 }
+                ].map((spark, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{
+                      opacity: 0,
+                      scale: 0,
+                      x: 0,
+                      y: 0,
+                      rotate: 0
+                    }}
+                    animate={{
+                      opacity: [0, 1, 0],
+                      scale: [0, 1, 0.7],
+                      x: spark.x,
+                      y: spark.y,
+                      rotate: spark.r
+                    }}
+                    transition={{
+                      duration: 0.85,
+                      delay: spark.d,
+                      ease: "easeOut"
+                    }}
+                    className="absolute left-1/2 top-[46%] text-[#2BB6A8] pointer-events-none"
+                  >
+                    <Sparkles size={index === 4 ? 18 : 13} />
+                  </motion.div>
+                ))}
+
+                {/* Success icon */}
+                <motion.div
+                  initial={{
+                    scale: 0,
+                    rotate: -25
+                  }}
+                  animate={{
+                    scale: [0, 1.12, 1],
+                    rotate: [-25, 8, 0]
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    ease: [0.34, 1.56, 0.64, 1]
+                  }}
+                  className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1C2E8F] to-[#2BB6A8] text-white shadow-lg"
+                >
+                  <CheckCircle2 className="h-8 w-8" />
+                </motion.div>
+
+                <motion.div
+                  initial={{
+                    opacity: 0,
+                    y: 8
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0
+                  }}
+                  transition={{
+                    delay: 0.22,
+                    duration: 0.35
+                  }}
+                  className="relative"
+                >
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1C2E8F]">
+                    Blink AI
+                  </p>
+
+                  <h3 className="mt-1 text-lg sm:text-xl font-black text-slate-900">
+                    Recovery Reminder Ready
+                  </h3>
+
+                  <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-500">
+                    Fresh Email, WhatsApp & SMS reminders generated.
+                  </p>
+                </motion.div>
+              </motion.div>
+            ) : result ? (
+              <motion.div 
+          key={result.email_subject}
+          initial={{ opacity: 0, scale: 0.99 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full space-y-4 text-left"
+          suppressHydrationWarning={true}
+        >
+          <div className="flex flex-wrap gap-2 border-b pb-2 mb-4 items-center justify-between" suppressHydrationWarning={true}>
+            <div className="flex flex-wrap gap-1 sm:gap-2">
+              {[
+                { id: 'email', label: 'Email' },
+                { id: 'whatsapp', label: 'WhatsApp' },
+                { id: 'sms', label: 'SMS' }
+              ].map((tab) => (
+                <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider transition cursor-pointer shadow-3xs ${activeTab === tab.id ? 'bg-[#1C2E8F] text-white ring-2 ring-[#1C2E8F]/20 scale-102' : 'bg-slate-200 text-slate-600 hover:bg-slate-350'}`}
+                suppressHydrationWarning={true}
+                >
+                {tab.label}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="text-[10px] font-bold text-[#245B92] hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50 mt-1 sm:mt-0"
+            >
+              <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} /> 
+              {isGenerating ? 'Rewriting...' : 'Regenerate'}
+            </button>
+          </div>
+                 
+          <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
+              {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
+              {activeTab === 'whatsapp' && result.whatsapp_message}
+              {activeTab === 'sms' && result.sms_text}
+          </div>
+
+          <div className="flex gap-2" suppressHydrationWarning={true}>
+          <button 
+            onClick={() => handleCopy(activeTab === 'email' ? `${result.email_subject}\n\n${result.email_body}` : activeTab === 'whatsapp' ? result.whatsapp_message : result.sms_text)}
+            className="flex-1 py-2.5 bg-[#2BB6A8] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
+            suppressHydrationWarning={true}
+        >
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5" /> Copied to Clipboard
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </>
+          )}
+          </button>
+
+          {(
+            <button
+              onClick={() => handleSend(activeTab)}
+              className="flex-1 py-2.5 bg-[#245B92] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
+              suppressHydrationWarning={true}
+            >
+              {activeTab === 'email' && (<><Mail className="w-3.5 h-3.5" /> Send email</>)}
+              {activeTab === 'whatsapp' && (<><MessageCircle className="w-3.5 h-3.5" /> Send on WhatsApp</>)}
+              {activeTab === 'sms' && (<><Send className="w-3.5 h-3.5" /> Send SMS</>)}
+            </button>
+          )}
+          </div>
+              </motion.div>
+            ) : generationError ? (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25 }}
+                className="my-auto py-12 flex flex-col items-center text-center"
+                suppressHydrationWarning={true}
+              >
+                <div className="w-11 h-11 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-500 mb-3" suppressHydrationWarning={true}>
+                  <AlertTriangle className="w-5 h-5" suppressHydrationWarning={true} />
+                </div>
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Couldn't generate that reminder</h4>
+                <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>{generationError}</p>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={(e) => handleGenerate(e as unknown as React.FormEvent)}
+                  className="mt-4 text-xs font-bold text-white px-4 py-2 rounded-lg bg-[#1C2E8F] hover:bg-[#1C2E8F]/90 transition-colors cursor-pointer"
+                >
+                  Try Again
+                </motion.button>
+              </motion.div>
+            ) : (
+              <div className="my-auto py-12" suppressHydrationWarning={true}>
+       <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-11 h-11 rounded-full flex items-center justify-center text-white mb-3 shadow-xs mx-auto" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} /></div>
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
+          <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
+          </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  </div>
+  </motion.section>
 
     {/* --- SECTION 2: EXPLAINER PAIN POINTS WITH PREMIUM ANIMATION --- */}
 <motion.section 
@@ -2380,626 +2459,6 @@ export default function LandingPage() {
             </div>
         </motion.div>
       </div>
-  </div>
-  </motion.section>
-
-    {/* --- SECTION 5: SPLIT APP GENERATOR CONSOLE WITH ANIMATION --- */}
-    <motion.section 
-    id="reminder-generator"
-    ref={generatorSectionRef}
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-16 sm:py-20 scroll-mt-24 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-7xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
-      <div className="space-y-2" suppressHydrationWarning={true}>
-        <Sparkles className="w-8 h-8 text-[#20B8BE] mx-auto mb-1" suppressHydrationWarning={true} />
-        <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-          {isPro ? 'Generate AI Reminder — Pro Unlimited Edition' : user ? 'Generate AI Reminder — Member Edition (15 Monthly Free)' : 'Generate Your First AI Reminder — Free'}
-        </h2>
-        <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Create professional Email & WhatsApp payment reminders in seconds.</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto text-left" suppressHydrationWarning={true}>
-         
-      {/* Left Form */}
-      <motion.div 
-        initial={{ opacity: 0, x: -10 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true, margin: "-50px" }}
-        transition={{ duration: 0.3, delay: 0.05 }}
-        className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-6 flex flex-col justify-between"
-        suppressHydrationWarning={true}
-    >
-        <div suppressHydrationWarning={true}>
-          {limitReached ? (
-          <div className="bg-gradient-to-b from-slate-900 to-[#1E293B] text-white border border-slate-800 rounded-2xl p-6 sm:p-8 text-center space-y-6 my-auto shadow-2xl relative overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#20B8BE]/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#20B8BE] bg-[#20B8BE]/10 px-3 py-1 rounded-full">
-               {user ? 'Monthly Limit Reached' : 'Free Trial Limit Reached'}
-            </span>
-            <h4 className="text-lg font-black tracking-tight text-white pt-2">
-               {user ? 'You have used all 15 free reminders this month.' : "You've used all 5 free AI reminders."}
-            </h4>
-            <p className="text-xs text-slate-300 font-medium leading-relaxed">
-               {user ? 'Your reminders automatically refill every month. Want unlimited reminders and advanced recovery tools right now?' : "Create a free account to unlock 15 monthly free reminders or upgrade to Pro for unlimited AI generation."}
-            </p>
-          </div>
-          <div className="space-y-3 pt-2">
-            <button 
-              onClick={() => router.push('/pricing')}
-              className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white font-bold rounded-xl text-xs hover:opacity-95 transition cursor-pointer shadow-md flex items-center justify-center gap-2 uppercase tracking-wider"
-            >
-              <Zap className="w-4 h-4" /> Upgrade to Pro
-            </button>
-            {!user && (
-              <button 
-                onClick={() => router.push('/create-account')}
-                className="w-full py-3 bg-slate-800 text-slate-200 font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer border border-slate-700"
-              >
-                Create Free Account
-              </button>
-            )}
-          </div>
-          </div>
-               ) : (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
-              <div suppressHydrationWarning={true}>
-                <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-[#2BB6A8]" suppressHydrationWarning={true} /> Generate Your Reminder</h3>
-                <p className="text-[11px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>
-                  {isPro ? 'Pro Plan — Unlimited Generations' : user ? `${reminderCount}/15 Used (Monthly Refill)` : `${reminderCount}/5 Free Reminders Used`}
-                </p>
-              </div>
-              <span className="self-start sm:self-center text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-full" suppressHydrationWarning={true}>{getStageLabel()}</span>
-            </div>
-
-            <form onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
-              <div suppressHydrationWarning={true}>
-                <motion.label
-                  animate={{ color: focusedField === 'clientName' ? '#20B8BE' : '#334155', y: focusedField === 'clientName' ? -1 : 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="block text-xs font-bold mb-1.5"
-                >
-                  Client Name *
-                </motion.label>
-                <div className="relative" suppressHydrationWarning={true}>
-                  <motion.input
-                    type="text"
-                    required
-                    placeholder="e.g. ABC Agency"
-                    value={clientName}
-                    onChange={e => setClientName(e.target.value)}
-                    onFocus={() => setFocusedField('clientName')}
-                    onBlur={() => setFocusedField((f) => (f === 'clientName' ? null : f))}
-                    whileFocus={{ scale: 1.012 }}
-                    animate={{ x: shakeFields.includes('clientName') ? [0, -6, 6, -4, 4, 0] : 0 }}
-                    transition={{ duration: 0.4 }}
-                    className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 ${shakeFields.includes('clientName') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
-                    suppressHydrationWarning={true}
-                  />
-                  <AnimatePresence>
-                    {clientName && focusedField !== 'clientName' && !shakeFields.includes('clientName') && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.5 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
-                      >
-                        <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'currency' ? '#20B8BE' : '#334155', y: focusedField === 'currency' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Currency
-              </motion.label>
-              <motion.select
-                value={currency}
-                onChange={e => setCurrency(e.target.value)}
-                onFocus={() => setFocusedField('currency')}
-                onBlur={() => setFocusedField((f) => (f === 'currency' ? null : f))}
-                whileFocus={{ scale: 1.012 }}
-                transition={{ duration: 0.15 }}
-                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 appearance-none"
-                suppressHydrationWarning={true}
-              >
-                <option value="₹ INR" suppressHydrationWarning={true}>₹ INR</option><option value="$ USD" suppressHydrationWarning={true}>$ USD</option><option value="€ EUR" suppressHydrationWarning={true}>€ EUR</option>
-              </motion.select>
-                </div>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'amount' ? '#20B8BE' : '#334155', y: focusedField === 'amount' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Amount Due *
-              </motion.label>
-              <div className="relative" suppressHydrationWarning={true}>
-                <motion.input
-                  type="text"
-                  inputMode="decimal"
-                  required
-                  placeholder="25,000"
-                  value={formatWithCommas(amount)}
-                  onChange={e => setAmount(stripToDigits(e.target.value))}
-                  onFocus={() => setFocusedField('amount')}
-                  onBlur={() => setFocusedField((f) => (f === 'amount' ? null : f))}
-                  whileFocus={{ scale: 1.012 }}
-                  animate={{ x: shakeFields.includes('amount') ? [0, -6, 6, -4, 4, 0] : 0 }}
-                  transition={{ duration: 0.4 }}
-                  className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300 ${shakeFields.includes('amount') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
-                  suppressHydrationWarning={true}
-                />
-                <AnimatePresence>
-                  {amount && focusedField !== 'amount' && !shakeFields.includes('amount') && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
-                    >
-                      <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'daysOverdue' ? '#20B8BE' : '#334155', y: focusedField === 'daysOverdue' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Days Overdue
-              </motion.label>
-              <motion.input
-                type="number"
-                value={daysOverdue}
-                onChange={e => setDaysOverdue(e.target.value)}
-                onFocus={() => setFocusedField('daysOverdue')}
-                onBlur={() => setFocusedField((f) => (f === 'daysOverdue' ? null : f))}
-                whileFocus={{ scale: 1.012 }}
-                transition={{ duration: 0.15 }}
-                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20"
-                suppressHydrationWarning={true}
-              />
-              </div>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'invoiceRef' ? '#20B8BE' : '#334155', y: focusedField === 'invoiceRef' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Invoice #
-              </motion.label>
-              <motion.input
-                type="text"
-                placeholder="INV-2025-042"
-                value={invoiceRef}
-                onChange={e => setInvoiceRef(e.target.value)}
-                onFocus={() => setFocusedField('invoiceRef')}
-                onBlur={() => setFocusedField((f) => (f === 'invoiceRef' ? null : f))}
-                whileFocus={{ scale: 1.012 }}
-                transition={{ duration: 0.15 }}
-                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300"
-                suppressHydrationWarning={true}
-              />
-              </div>
-              </div>
-              <div suppressHydrationWarning={true}>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Tone</label>
-                <div className="relative grid grid-cols-3 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
-              {['gentle', 'professional', 'firm'].map((t) => (
-                <button key={t} type="button" onClick={() => handleToneChange(t)} className={`relative z-10 capitalize h-full cursor-pointer transition-colors duration-150 ${tone === t ? 'text-white' : 'text-slate-500'}`} suppressHydrationWarning={true}>
-                  {tone === t && (
-                    <motion.div
-                      layoutId="landing-tone-pill"
-                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                      className="absolute inset-0 -z-10 bg-[#0F172A]"
-                    />
-                  )}
-                  {t}
-                </button>
-              ))}
-                </div>
-              </div>
-              <motion.button 
-                whileHover={!isGenerating ? { scale: 1.02 } : {}}
-                whileTap={!isGenerating ? { scale: 0.98 } : {}}
-                type="submit" 
-                disabled={isGenerating || limitReached} 
-                style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
-                className="relative overflow-hidden w-full text-white font-bold text-xs uppercase tracking-wider py-3 sm:py-3.5 rounded-lg transition-opacity flex items-center justify-center gap-2 cursor-pointer mt-4"
-              >
-                {isGenerating && (
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
-                    initial={{ x: '-100%' }}
-                    animate={{ x: '100%' }}
-                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-2">
-                  <motion.span
-                    animate={isGenerating ? { rotate: 360 } : { rotate: 0 }}
-                    transition={isGenerating ? { repeat: Infinity, duration: 1, ease: 'linear' } : { duration: 0.2 }}
-                    className="flex"
-                  >
-                    {isGenerating ? <RefreshCw className="w-4 h-4" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />}
-                  </motion.span>
-                  <AnimatePresence mode="wait">
-                    <motion.span
-                      key={isGenerating ? `loading-${loadingPhaseIndex}` : 'idle'}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.22 }}
-                    >
-                      {isGenerating ? loadingPhrases[loadingPhaseIndex] : 'Generate Reminder'}
-                    </motion.span>
-                  </AnimatePresence>
-                </span>
-              </motion.button>
-            </form>
-          </div>
-               )}
-      </div>
-      </motion.div>
-
-      {/* Right Result Window */}
-      <motion.div 
-        initial={{ opacity: 0, x: 10 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true, margin: "-50px" }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xl flex flex-col justify-between"
-        suppressHydrationWarning={true}
-    >
-        <div className="space-y-4 h-full flex flex-col justify-start" suppressHydrationWarning={true}>
-          <div suppressHydrationWarning={true}>
-            <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
-            <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS • AI Strategy</p>
-          </div>
-              
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
-            {isGenerating ? (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }} 
-                animate={{ opacity: 1, scale: 1 }} 
-                exit={{ opacity: 0, scale: 0.95 }} 
-                className="py-12 flex flex-col items-center justify-center space-y-5 w-full"
-              >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={`icon-${loadingPhaseIndex % resultLoadingPhases.length}`}
-                    initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0.7, rotate: 8 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="w-14 h-14 bg-gradient-to-br from-[#1C2E8F]/10 to-[#20B8BE]/10 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner mx-auto"
-                  >
-                    {(() => {
-                      const CurrentIcon = resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].icon;
-                      return <CurrentIcon className="w-7 h-7" />;
-                    })()}
-                  </motion.div>
-                </AnimatePresence>
-
-                <div className="space-y-1 min-h-[34px]">
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={`label-${loadingPhaseIndex % resultLoadingPhases.length}`}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.25 }}
-                      className="text-xs font-black text-slate-900 uppercase tracking-widest"
-                    >
-                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].label}
-                    </motion.p>
-                  </AnimatePresence>
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={`sub-${loadingPhaseIndex % resultLoadingPhases.length}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.25, delay: 0.05 }}
-                      className="text-[11px] text-slate-500 font-medium"
-                    >
-                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].sub}
-                    </motion.p>
-                  </AnimatePresence>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {resultLoadingPhases.map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="h-1.5 rounded-full bg-[#1C2E8F]"
-                      animate={{
-                        width: i === loadingPhaseIndex % resultLoadingPhases.length ? 18 : 6,
-                        opacity: i === loadingPhaseIndex % resultLoadingPhases.length ? 1 : 0.25,
-                      }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            ) : showSuccessAnimation ? (
-              <motion.div
-                key="success"
-                initial={{
-                  opacity: 0,
-                  scale: 0.94,
-                  y: 8
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  y: 0
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 1.02,
-                  y: -6
-                }}
-                transition={{
-                  duration: 0.45,
-                  ease: [0.22, 1, 0.36, 1]
-                }}
-                className="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-8 sm:p-10 text-center shadow-sm w-full"
-              >
-                {/* Animated light sweep */}
-                <motion.div
-                  initial={{
-                    x: "-120%",
-                    opacity: 0
-                  }}
-                  animate={{
-                    x: "120%",
-                    opacity: [0, 0.55, 0]
-                  }}
-                  transition={{
-                    duration: 1,
-                    ease: "easeInOut"
-                  }}
-                  className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
-                />
-
-                {/* Sparkle burst */}
-                {[
-                  { x: -58, y: -32, r: 18, d: 0.05 },
-                  { x: 58, y: -30, r: -18, d: 0.12 },
-                  { x: -70, y: 22, r: -12, d: 0.18 },
-                  { x: 70, y: 24, r: 14, d: 0.22 },
-                  { x: 0, y: -58, r: 0, d: 0.08 }
-                ].map((spark, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{
-                      opacity: 0,
-                      scale: 0,
-                      x: 0,
-                      y: 0,
-                      rotate: 0
-                    }}
-                    animate={{
-                      opacity: [0, 1, 0],
-                      scale: [0, 1, 0.7],
-                      x: spark.x,
-                      y: spark.y,
-                      rotate: spark.r
-                    }}
-                    transition={{
-                      duration: 0.85,
-                      delay: spark.d,
-                      ease: "easeOut"
-                    }}
-                    className="absolute left-1/2 top-[46%] text-[#2BB6A8] pointer-events-none"
-                  >
-                    <Sparkles size={index === 4 ? 18 : 13} />
-                  </motion.div>
-                ))}
-
-                {/* Success icon */}
-                <motion.div
-                  initial={{
-                    scale: 0,
-                    rotate: -25
-                  }}
-                  animate={{
-                    scale: [0, 1.12, 1],
-                    rotate: [-25, 8, 0]
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    ease: [0.34, 1.56, 0.64, 1]
-                  }}
-                  className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1C2E8F] to-[#2BB6A8] text-white shadow-lg"
-                >
-                  <CheckCircle2 className="h-8 w-8" />
-                </motion.div>
-
-                <motion.div
-                  initial={{
-                    opacity: 0,
-                    y: 8
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0
-                  }}
-                  transition={{
-                    delay: 0.22,
-                    duration: 0.35
-                  }}
-                  className="relative"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1C2E8F]">
-                    Blink AI
-                  </p>
-
-                  <h3 className="mt-1 text-lg sm:text-xl font-black text-slate-900">
-                    Recovery Reminder Ready
-                  </h3>
-
-                  <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-500">
-                    Fresh Email, WhatsApp & SMS reminders generated.
-                  </p>
-                </motion.div>
-              </motion.div>
-            ) : result ? (
-              <motion.div 
-          key={result.email_subject}
-          initial={{ opacity: 0, scale: 0.99 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full space-y-4 text-left"
-          suppressHydrationWarning={true}
-        >
-          <div className="flex flex-wrap gap-2 border-b pb-2 mb-4 items-center justify-between" suppressHydrationWarning={true}>
-            <div className="flex flex-wrap gap-1 sm:gap-2">
-              {[
-                { id: 'email', label: 'Email' },
-                { id: 'whatsapp', label: 'WhatsApp' },
-                { id: 'sms', label: 'SMS' },
-                { id: 'strategy', label: 'AI Strategy' }
-              ].map((tab) => (
-                <button 
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider transition cursor-pointer shadow-3xs ${activeTab === tab.id ? 'bg-[#1C2E8F] text-white ring-2 ring-[#1C2E8F]/20 scale-102' : 'bg-slate-200 text-slate-600 hover:bg-slate-350'}`}
-                suppressHydrationWarning={true}
-                >
-                {tab.label}
-                </button>
-              ))}
-            </div>
-            <button 
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="text-[10px] font-bold text-[#245B92] hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50 mt-1 sm:mt-0"
-            >
-              <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} /> 
-              {isGenerating ? 'Rewriting...' : 'Regenerate'}
-            </button>
-          </div>
-                 
-          <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
-              {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
-              {activeTab === 'whatsapp' && result.whatsapp_message}
-              {activeTab === 'sms' && result.sms_text}
-              {activeTab === 'strategy' && (
-                <div className="space-y-3 font-sans text-xs text-slate-700">
-                  <div className="font-black text-slate-900 border-b pb-1 mb-2 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#20B8BE]" /> AI Recovery Action Plan
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
-                  <span className="font-semibold text-slate-500">Best tone:</span>
-                  <span className="font-bold text-slate-800 uppercase text-[11px] bg-teal-50 text-[#147D75] px-2 py-0.5 rounded">Professional</span>
-                </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
-                  <span className="font-semibold text-slate-500">Best time to send:</span>
-                  <span className="font-bold text-slate-800">10:00 AM</span>
-                </div>
-                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
-                  <span className="font-semibold text-slate-500">Next follow-up:</span>
-                  <span className="font-bold text-slate-800">In 3 days</span>
-                </div>
-                <div className="bg-teal-50/60 p-3 rounded-lg border border-teal-100/60 text-slate-700 space-y-1">
-                  <span className="font-black text-[#147D75] uppercase text-[10px] block">AI Recommendation</span>
-                  <p className="font-medium">Send a follow-up today via WhatsApp for highest response rate.</p>
-                </div>
-                  </div>
-                </div>
-              )}
-          </div>
-
-          <div className="flex gap-2" suppressHydrationWarning={true}>
-          <button 
-            onClick={() => handleCopy(activeTab === 'email' ? `${result.email_subject}\n\n${result.email_body}` : activeTab === 'strategy' ? `Best tone: Professional\nBest time: 10:00 AM\nNext follow-up: 3 days\nAI recommendation: Send a follow-up today` : (result as any)[activeTab === 'whatsapp' ? 'whatsapp_message' : 'sms_text'])}
-            className="flex-1 py-2.5 bg-[#2BB6A8] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
-            suppressHydrationWarning={true}
-        >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5" /> Copied to Clipboard
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" /> Copy
-              </>
-          )}
-          </button>
-
-          {activeTab !== 'strategy' && (
-            <button
-              onClick={() => handleSend(activeTab as 'email' | 'whatsapp' | 'sms')}
-              className="flex-1 py-2.5 bg-[#245B92] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
-              suppressHydrationWarning={true}
-            >
-              {activeTab === 'email' && (<><Mail className="w-3.5 h-3.5" /> Send email</>)}
-              {activeTab === 'whatsapp' && (<><MessageCircle className="w-3.5 h-3.5" /> Send on WhatsApp</>)}
-              {activeTab === 'sms' && (<><Send className="w-3.5 h-3.5" /> Send SMS</>)}
-            </button>
-          )}
-          </div>
-              </motion.div>
-            ) : generationError ? (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                className="my-auto py-12 flex flex-col items-center text-center"
-                suppressHydrationWarning={true}
-              >
-                <div className="w-11 h-11 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-500 mb-3" suppressHydrationWarning={true}>
-                  <AlertTriangle className="w-5 h-5" suppressHydrationWarning={true} />
-                </div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Couldn't generate that reminder</h4>
-                <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>{generationError}</p>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={(e) => handleGenerate(e as unknown as React.FormEvent)}
-                  className="mt-4 text-xs font-bold text-white px-4 py-2 rounded-lg bg-[#1C2E8F] hover:bg-[#1C2E8F]/90 transition-colors cursor-pointer"
-                >
-                  Try Again
-                </motion.button>
-              </motion.div>
-            ) : (
-              <div className="my-auto py-12" suppressHydrationWarning={true}>
-       <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-11 h-11 rounded-full flex items-center justify-center text-white mb-3 shadow-xs mx-auto" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} /></div>
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
-          <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
-          </div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    </div>
   </div>
   </motion.section>
 

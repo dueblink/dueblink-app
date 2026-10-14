@@ -107,9 +107,8 @@ export default function AddClientModal({
     if (field === 'name' && !value.trim()) {
       errorMsg = 'Client name is required.';
     } else if (field === 'email') {
-      if (!value.trim()) {
-        errorMsg = 'Email address is required.';
-      } else {
+      // Email is optional; if one is typed, it must look valid.
+      if (value.trim()) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(value)) {
           errorMsg = 'Please enter a valid email address.';
@@ -151,7 +150,8 @@ export default function AddClientModal({
 
     // Validate all required fields
     const nameErr = !formData.name.trim() ? 'Client name is required.' : '';
-    const emailErr = !formData.email.trim() ? 'Email address is required.' : (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'Please enter a valid email address.' : '');
+    // Email is optional; if one is typed, it must look valid.
+    const emailErr = formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'Please enter a valid email address.' : '';
     const amountErr = !formData.amount.trim() ? 'Amount due is required.' : '';
     const dueErr = !formData.dueDate.trim() ? 'Due date is required.' : '';
 
@@ -376,7 +376,7 @@ export default function AddClientModal({
                 suppressHydrationWarning={true}
               >
                 <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex justify-between" suppressHydrationWarning={true}>
-                  <span>Client Email *</span>
+                  <span>Client Email <span className="text-slate-400 font-normal lowercase">(Optional, needed for automatic emails)</span></span>
                   <AnimatePresence>
                     {formData.email.trim() && !errors.email && (
                       <motion.span
