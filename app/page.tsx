@@ -1126,7 +1126,7 @@ export default function LandingPage() {
           clientName, 
           amount: formatWithCommas(amount), 
           currency, 
-          invoiceRef: invoiceRef || 'INV-2026-042', 
+          invoiceRef: invoiceRef.trim(), // only what the user typed; never a made-up number 
           daysOverdue, 
           tone,
           previousReminders,
@@ -1193,6 +1193,26 @@ export default function LandingPage() {
   };
 
   const handleCopy = (text: string) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+
+  // Opens the user's own email app, WhatsApp or SMS app with the
+  // generated reminder already filled in. They pick who to send it to.
+  const handleSend = (channel: 'email' | 'whatsapp' | 'sms') => {
+    if (!result) return;
+
+    if (channel === 'email') {
+      window.location.href =
+        `mailto:?subject=${encodeURIComponent(result.email_subject)}&body=${encodeURIComponent(result.email_body)}`;
+    } else if (channel === 'whatsapp') {
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(result.whatsapp_message)}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+    } else {
+      // "sms:?&body=" opens the messages app on both Android and iPhone.
+      window.location.href = `sms:?&body=${encodeURIComponent(result.sms_text)}`;
+    }
+  };
   const handleScrollToGenerator = () => { generatorSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   const handleOpenActionModal = (title: string) => { setModalTitle(title); setIsModalOpen(true); };
 
@@ -2915,9 +2935,10 @@ export default function LandingPage() {
               )}
           </div>
 
+          <div className="flex gap-2" suppressHydrationWarning={true}>
           <button 
             onClick={() => handleCopy(activeTab === 'email' ? `${result.email_subject}\n\n${result.email_body}` : activeTab === 'strategy' ? `Best tone: Professional\nBest time: 10:00 AM\nNext follow-up: 3 days\nAI recommendation: Send a follow-up today` : (result as any)[activeTab === 'whatsapp' ? 'whatsapp_message' : 'sms_text'])}
-            className="w-full py-2.5 bg-[#2BB6A8] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 bg-[#2BB6A8] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
             suppressHydrationWarning={true}
         >
             {copied ? (
@@ -2930,6 +2951,19 @@ export default function LandingPage() {
               </>
           )}
           </button>
+
+          {activeTab !== 'strategy' && (
+            <button
+              onClick={() => handleSend(activeTab as 'email' | 'whatsapp' | 'sms')}
+              className="flex-1 py-2.5 bg-[#245B92] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
+              suppressHydrationWarning={true}
+            >
+              {activeTab === 'email' && (<><Mail className="w-3.5 h-3.5" /> Send email</>)}
+              {activeTab === 'whatsapp' && (<><MessageCircle className="w-3.5 h-3.5" /> Send on WhatsApp</>)}
+              {activeTab === 'sms' && (<><Send className="w-3.5 h-3.5" /> Send SMS</>)}
+            </button>
+          )}
+          </div>
               </motion.div>
             ) : generationError ? (
               <motion.div

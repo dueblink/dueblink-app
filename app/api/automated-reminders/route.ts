@@ -13,6 +13,22 @@ export const dynamic = "force-dynamic";
 
 const cronSecret = process.env.CRON_SECRET;
 
+// ------------------------------------------------------------
+// Reminder stages, in order. A client only ever moves forward:
+// first -> follow-up -> final. Each stage is sent at most once.
+// ------------------------------------------------------------
+const STAGE_ORDER: Record<string, number> = {
+  first: 1,
+  "follow-up": 2,
+  final: 3,
+};
+
+// Never send two automatic reminders to the same client
+// less than this many days apart.
+const MIN_DAYS_BETWEEN_REMINDERS = 2;
+
+const ONE_DAY_MS = 1000 * 60 * 60 * 24;
+
 function getIndiaDate(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
@@ -28,18 +44,56 @@ function parseDateOnly(dateString: string) {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
-async function getOwnerEmail(
+// The stage a client SHOULD be at, based on how late they are.
+// Uses ranges (3 days or more), not exact days, so a missed run
+// or an invoice added late still gets reminded.
+function getStageForDaysOverdue(daysOverdue: number): string | null {
+  if (daysOverdue >= 7) {
+    return "final";
+  }
+
+  if (daysOverdue >= 3) {
+    return "follow-up";
+  }
+
+  if (daysOverdue >= 0) {
+    return "first";
+  }
+
+  return null;
+}
+
+function toDateOrNull(value: any): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value.toDate === "function") {
+    return value.toDate();
+  }
+
+  const date = new Date(value);
+
+  return isNaN(date.getTime()) ? null : date;
+}
+
+// The freelancer's email (for reply-to and the digest) and name
+// (to sign the reminder).
+async function getOwnerInfo(
   adminAuth: ReturnType<typeof getAdminAuth>,
   userId: string
-) {
+): Promise<{ email: string | null; name: string }> {
   try {
     const userRecord = await adminAuth.getUser(userId);
 
-    return userRecord.email || null;
+    return {
+      email: userRecord.email || null,
+      name: (userRecord.displayName || "").trim(),
+    };
   } catch (error) {
-    console.error(`Could not get owner email for user ${userId}:`, error);
+    console.error(`Could not get owner info for user ${userId}:`, error);
 
-    return null;
+    return { email: null, name: "" };
   }
 }
 
@@ -107,19 +161,24 @@ export async function GET(request: Request) {
         const dueDateObject = parseDateOnly(dueDate);
 
         const daysOverdue = Math.floor(
-          (today.getTime() - dueDateObject.getTime()) /
-            (1000 * 60 * 60 * 24)
+          (today.getTime() - dueDateObject.getTime()) / ONE_DAY_MS
         );
 
-        let reminderStage: string | null = null;
+        const reminderStage = getStageForDaysOverdue(daysOverdue);
 
-        if (daysOverdue === 0) {
-          reminderStage = "first";
-        } else if (daysOverdue === 3) {
-          reminderStage = "follow-up";
-        } else if (daysOverdue === 7) {
-          reminderStage = "final";
-        }
+        // How many calendar days (India time) since the last
+        // automatic reminder. null = never sent one.
+        const lastSentAt = toDateOrNull(
+          data.lastAutomatedReminderSentAt
+        );
+
+        const daysSinceLastReminder = lastSentAt
+          ? Math.floor(
+              (today.getTime() -
+                parseDateOnly(getIndiaDate(lastSentAt)).getTime()) /
+                ONE_DAY_MS
+            )
+          : null;
 
         return {
           id: doc.id,
@@ -135,25 +194,54 @@ export async function GET(request: Request) {
           automationStatus: data.automationStatus,
           userId: data.userId,
           tone: data.tone || "professional",
-          invoiceRef: data.invoiceRef || "",
+          // The add-client form saves "invoiceNumber"; older records may use "invoiceRef".
+          invoiceRef: data.invoiceRef || data.invoiceNumber || "",
           reminderStage,
           lastAutomatedReminderStage:
-            data.lastAutomatedReminderStage || null,
+            (data.lastAutomatedReminderStage as string | undefined) ||
+            null,
+          daysSinceLastReminder,
+          reminderHistory: Array.isArray(data.reminderHistory)
+            ? data.reminderHistory
+            : [],
         };
       })
-      .filter(
-        (client) =>
-          client !== null &&
-          client.reminderStage !== null &&
-          client.lastAutomatedReminderStage !== client.reminderStage
-      );
+      .filter((client) => {
+        if (client === null || client.reminderStage === null) {
+          return false;
+        }
+
+        // Only send if the client has reached a LATER stage than
+        // the last one sent. This stops repeats, and if a client is
+        // already 10 days late it sends one firm reminder, not three.
+        const targetStageNumber = STAGE_ORDER[client.reminderStage];
+
+        const lastStageNumber = client.lastAutomatedReminderStage
+          ? STAGE_ORDER[client.lastAutomatedReminderStage] || 0
+          : 0;
+
+        if (targetStageNumber <= lastStageNumber) {
+          return false;
+        }
+
+        // Leave a gap between reminders so a client never gets
+        // two automatic emails on back-to-back days.
+        if (
+          client.daysSinceLastReminder !== null &&
+          client.daysSinceLastReminder < MIN_DAYS_BETWEEN_REMINDERS
+        ) {
+          return false;
+        }
+
+        return true;
+      });
 
     const results = [];
 
     const ownerProStatus = new Map<string, boolean>();
 
     for (const client of eligibleClients) {
-      if (!client) {
+      if (!client || !client.reminderStage) {
         continue;
       }
 
@@ -196,7 +284,13 @@ export async function GET(request: Request) {
       }
 
       try {
-        // Generate a unique email using the same AI reminder system.
+        // The freelancer's email (reply-to + digest) and name (sign-off).
+        const owner = await getOwnerInfo(adminAuth, client.userId);
+        const ownerEmail = owner.email;
+
+        // Write the email with the shared reminder rules: short, amount
+        // and days late first, one question, signed with the
+        // freelancer's name, no invented invoice numbers.
         const generatedEmail = await generateEmailReminder({
           clientName: client.name || "Client",
           currency: client.currency,
@@ -205,21 +299,28 @@ export async function GET(request: Request) {
           invoiceRef: client.invoiceRef,
           tone: client.tone,
           paymentLink: client.paymentLink,
+          // The email shows a "Pay Now" button for the link.
+          paymentLinkShownAsButton: Boolean(client.paymentLink),
+          stage: client.reminderStage,
+          dueDate: client.dueDate,
+          senderName: owner.name,
+          // Original stage instructions, with the real number of days late.
           variationInstruction:
             client.reminderStage === "first"
-              ? "Write a polite first payment reminder appropriate for the due date."
+              ? `Write a polite first payment reminder. The payment is ${
+                  client.daysOverdue === 0 ? "due today" : `${client.daysOverdue} days overdue`
+                }.`
               : client.reminderStage === "follow-up"
-              ? "Write a fresh follow-up for a payment that is 3 days overdue. Do not sound repetitive."
-              : "Write a final but professional follow-up for a payment that is 7 days overdue. Remain respectful and clear.",
+              ? `Write a fresh follow-up for a payment that is ${client.daysOverdue} days overdue. Do not sound repetitive.`
+              : `Write a final but professional follow-up for a payment that is ${client.daysOverdue} days overdue. Remain respectful and clear.`,
+          // Earlier emails to this client, so the new one is different.
+          previousReminders: client.reminderHistory
+            .filter((r: any) => r && r.email_body)
+            .map((r: any) => ({
+              email_subject: r.email_subject || "",
+              email_body: r.email_body || "",
+            })),
         });
-
-        // Look up the owner's real email first — needed both for the
-        // reply-to on this send, and reused below for the digest email
-        // (avoids fetching it twice per owner in the same run).
-        const ownerEmail = await getOwnerEmail(
-          adminAuth,
-          client.userId
-        );
 
         // Send the email — now with the payment link (so the "Pay Now"
         // button actually renders) and the owner's email as reply-to
@@ -343,12 +444,12 @@ export async function GET(request: Request) {
   } catch (error: any) {
     console.error("Automated reminders route error:", error);
 
-   return NextResponse.json(
-  {
-    success: false,
-    error: "Failed to process automated reminders.",
-  },
-  { status: 500 }
-);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to process automated reminders.",
+      },
+      { status: 500 }
+    );
   }
 }

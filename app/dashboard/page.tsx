@@ -372,17 +372,33 @@ export default function DashboardPage() {
 
   const recommendation = clients.filter(c => c.status === 'Pending').sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0)).pop();
 
-  // Same days-overdue formula used for the client list and the backend's
-  // getDaysOverdue — kept in sync so the popup shows the real number
-  // instead of a hardcoded 0.
-  const getRecommendationDaysOverdue = (c: any): number => {
-    if (!c?.dueDate) return 0;
-    const due = new Date(c.dueDate);
-    const today = new Date();
-    const diffTime = today.getTime() - due.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Whole calendar days late, counted in India time — the same way Blink
+  // and the automatic reminders count. Due today = 0 (not overdue yet);
+  // due yesterday = 1. (Before, a client due today showed "1 day overdue".)
+  const getDaysOverdue = (dueDate: any): number => {
+    if (!dueDate) return 0;
+
+    const dueText = String(dueDate).substring(0, 10);
+    const [y, m, d] = dueText.split('-').map(Number);
+    if (!y || !m || !d) return 0;
+
+    const todayText = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const [ty, tm, td] = todayText.split('-').map(Number);
+
+    const diffDays = Math.round(
+      (Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / (1000 * 60 * 60 * 24)
+    );
+
     return diffDays > 0 ? diffDays : 0;
   };
+
+  const getRecommendationDaysOverdue = (c: any): number =>
+    getDaysOverdue(c?.dueDate);
 
   const filteredAndSortedClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -393,12 +409,7 @@ export default function DashboardPage() {
 
     if (statusFilter === 'All') return true;
     
-    let isOverdue = false;
-    if (c.status === 'Pending' && c.dueDate) {
-      const due = new Date(c.dueDate);
-      const today = new Date();
-      isOverdue = today > due;
-    }
+    const isOverdue = c.status === 'Pending' && getDaysOverdue(c.dueDate) > 0;
 
     if (statusFilter === 'Paid') return c.status === 'Paid';
     if (statusFilter === 'Pending') return c.status === 'Pending' && !isOverdue;
@@ -968,12 +979,7 @@ export default function DashboardPage() {
                 {(['All', 'Pending', 'Overdue', 'Paid'] as const).map((tab) => {
                   const count = clients.filter(c => {
                     if (tab === 'All') return true;
-                    let isOverdue = false;
-                    if (c.status === 'Pending' && c.dueDate) {
-                      const due = new Date(c.dueDate);
-                      const today = new Date();
-                      isOverdue = today > due;
-                    }
+                    const isOverdue = c.status === 'Pending' && getDaysOverdue(c.dueDate) > 0;
                     if (tab === 'Paid') return c.status === 'Paid';
                     if (tab === 'Pending') return c.status === 'Pending' && !isOverdue;
                     if (tab === 'Overdue') return c.status === 'Pending' && isOverdue;
@@ -1032,18 +1038,8 @@ export default function DashboardPage() {
                   </motion.div>
                 ) : (
                   filteredAndSortedClients.map((c) => {
-                    let daysOverdue = 0;
-                    let isOverdue = false;
-                    if (c.dueDate) {
-                      const due = new Date(c.dueDate);
-                      const today = new Date();
-                      const diffTime = today.getTime() - due.getTime();
-                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                      if (diffDays > 0) {
-                        daysOverdue = diffDays;
-                        isOverdue = c.status === 'Pending';
-                      }
-                    }
+                    const daysOverdue = getDaysOverdue(c.dueDate);
+                    const isOverdue = daysOverdue > 0 && c.status === 'Pending';
 
                     const isExpanded = expandedClientId === c.id;
 

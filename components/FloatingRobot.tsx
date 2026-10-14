@@ -181,9 +181,14 @@ export default function FloatingRobot({
     const findHeadingIndex = (heading: string) => {
       const target = normalizeHeading(heading);
 
+      // A heading is a short line that IS the heading. A sentence that
+      // only mentions it ("lead with an email follow-up") must not count.
       return lines.findIndex((line) => {
         const normalized = normalizeHeading(line);
-        return normalized === target || normalized.includes(target);
+        return (
+          normalized === target ||
+          (normalized.includes(target) && normalized.length <= target.length + 6)
+        );
       });
     };
 
@@ -202,7 +207,10 @@ export default function FloatingRobot({
         const normalized = normalizeHeading(line);
         const target = normalizeHeading(end);
 
-        return normalized === target || normalized.includes(target);
+        return (
+          normalized === target ||
+          (normalized.includes(target) && normalized.length <= target.length + 6)
+        );
       });
 
       return contentLines
@@ -214,7 +222,7 @@ export default function FloatingRobot({
     return {
       snapshot: getSection(
         "RECOVERY SNAPSHOT",
-        "RECOVERY STATUS"
+        "BLINK RECOMMENDATION"
       ),
 
       recoveryStatus: getSection(
@@ -295,10 +303,10 @@ export default function FloatingRobot({
         ["Blink Insight", "Next Best Action"]
       ),
 
-      insight: getSection(
+      insight: truncateRunawayTail(getSection(
         "Blink Insight",
         ["Next Best Action"]
-      ),
+      )),
 
       nextBestAction: truncateRunawayTail(getSection(
         "Next Best Action",
@@ -509,18 +517,18 @@ export default function FloatingRobot({
     return {
       quickSummary: getSection(
         "Quick Summary",
-        ["Important Information", "Blink Recommendation", "Next Best Action"]
+        ["Important Information", "REWRITTEN REMINDER", "Blink Recommendation", "Next Best Action"]
       ),
 
       importantInformation: getSection(
         "Important Information",
-        ["Blink Recommendation", "Next Best Action"]
+        ["REWRITTEN REMINDER", "Blink Recommendation", "Next Best Action"]
       ),
 
-      recommendation: getSection(
+      recommendation: truncateRunawayTail(getSection(
         "Blink Recommendation",
         ["Next Best Action"]
-      ),
+      )),
 
       nextBestAction: truncateRunawayTail(getSection(
         "Next Best Action",
@@ -564,6 +572,66 @@ export default function FloatingRobot({
     } finally {
       setMarkingSent(false);
     }
+  };
+
+  // Splits Blink's email text into a subject and a body.
+  // Blink writes "Subject: ..." on the first line, then the message.
+  const splitEmailText = (text: string) => {
+    const lines = (text || '').split('\n');
+    const subjectIndex = lines.findIndex((line) => /^\s*subject:/i.test(line));
+
+    const subject =
+      subjectIndex === -1
+        ? 'Payment reminder'
+        : lines[subjectIndex].replace(/^\s*subject:\s*/i, '').trim();
+
+    const body = lines
+      .filter((_, index) => index !== subjectIndex)
+      .join('\n')
+      .replace(/^\s*email body:\s*/im, '')
+      .trim();
+
+    return { subject, body };
+  };
+
+  // Opens the user's own email app or WhatsApp with the message
+  // already filled in, then records it in the client's reminder
+  // history so Blink knows this reminder went out.
+  const sendReminder = (channel: 'email' | 'whatsapp', messageText: string) => {
+    if (!messageText) return;
+
+    const targetClient = clients.find((c: any) => c.id === selectedClientId);
+
+    if (channel === 'email') {
+      const { subject, body } = splitEmailText(messageText);
+      const to = String(targetClient?.email || '').trim();
+
+      window.location.href =
+        `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else {
+      // Use the client's number if one is saved; a 10-digit number is
+      // treated as Indian (+91). With no number, WhatsApp asks who to send to.
+      let phone = String(targetClient?.phone || targetClient?.whatsapp || '').replace(/\D/g, '');
+      if (phone.length === 10) phone = `91${phone}`;
+
+      const url = phone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(messageText)}`
+        : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    markAsSent(channel);
+  };
+
+  // Copies just the rewritten reminder, not the whole Blink answer.
+  const copyRewriteMessage = async (text: string) => {
+    const message = parseRewriteResponse(text).message;
+    if (!message) return;
+
+    await navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   };
 
   const copyFollowUpEmail = async (text: string) => {
@@ -941,8 +1009,20 @@ export default function FloatingRobot({
           ? automatedRemindersSent[automatedRemindersSent.length - 1]
           : null;
 
-      if (clientId) {
-        setSelectedClientId(clientId);
+      // Remember which client this follow-up is for, even when the
+      // client came from the recommendation, so Send can log it.
+      // For a follow-up or rewrite, always pick an UNPAID client and send
+      // its id to Blink, so the screen and Blink talk about the same client.
+      const isFollowUpAction = actionId === 'recommend' || actionId === 'rewrite';
+      const followUpTarget =
+        targetClient && targetClient.status !== 'Paid'
+          ? targetClient
+          : freshClients.find((c: any) => c.status !== 'Paid');
+      const followUpClientId =
+        clientId || (isFollowUpAction ? followUpTarget?.id : undefined);
+
+      if (followUpClientId) {
+        setSelectedClientId(followUpClientId);
       }
 
       const idToken = await auth.currentUser?.getIdToken();
@@ -959,7 +1039,9 @@ export default function FloatingRobot({
         },
         body: JSON.stringify({
           action: actionId,
-          clientId: resolvedClientId || null,
+          clientId:
+            (isFollowUpAction ? followUpClientId : resolvedClientId) ||
+            null,
           client: targetClient || null,
           clients: freshClients,
           total: totalAmount,
@@ -1372,16 +1454,15 @@ export default function FloatingRobot({
                                       {followUp.snapshot
                                         .split('\n')
                                         .filter(line =>
-                                          /amount due:|due date:|status:|days overdue:|automation:|last automated stage:/i.test(line)
+                                          /^(amount due|due date|days overdue|stage):/i.test(line.trim())
                                         )
                                         .map(line =>
                                           line
+                                            .trim()
                                             .replace(/^amount due:\s*/i, '')
                                             .replace(/^due date:\s*/i, 'Due ')
-                                            .replace(/^status:\s*/i, '')
-                                            .replace(/^days overdue:\s*/i, '')
-                                            .replace(/^automation:\s*/i, '')
-                                            .replace(/^last automated stage:\s*/i, '')
+                                            .replace(/^days overdue:\s*(\d+).*$/i, '$1 days overdue')
+                                            .replace(/^stage:\s*/i, 'Stage: ')
                                         )
                                         .join(' · ')}
                                     </p>
@@ -1470,8 +1551,8 @@ export default function FloatingRobot({
                                       </button>
 
                                       <motion.button
-                                        onClick={() => markAsSent('email')}
-                                        disabled={markingSent || !selectedClientId}
+                                        onClick={() => sendReminder('email', followUp.email)}
+                                        disabled={markingSent}
                                         animate={
                                           sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
                                             ? { scale: [1, 1.12, 1] }
@@ -1504,7 +1585,7 @@ export default function FloatingRobot({
                                               exit={{ opacity: 0 }}
                                               className="flex items-center gap-1"
                                             >
-                                              <Check size={11} /> Mark as Sent
+                                              <Mail size={11} /> Send email
                                             </motion.span>
                                           )}
                                         </AnimatePresence>
@@ -1581,8 +1662,8 @@ export default function FloatingRobot({
                                     </button>
 
                                     <motion.button
-                                      onClick={() => markAsSent('whatsapp')}
-                                      disabled={markingSent || !selectedClientId}
+                                      onClick={() => sendReminder('whatsapp', followUp.whatsapp)}
+                                      disabled={markingSent}
                                       animate={
                                         sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId
                                           ? { scale: [1, 1.12, 1] }
@@ -1615,7 +1696,7 @@ export default function FloatingRobot({
                                             exit={{ opacity: 0 }}
                                             className="flex items-center gap-1"
                                           >
-                                            <Check size={11} /> Mark as Sent
+                                            <MessageCircle size={11} /> Send on WhatsApp
                                           </motion.span>
                                         )}
                                       </AnimatePresence>
@@ -1681,9 +1762,9 @@ export default function FloatingRobot({
 
                                             <p className="text-[9px] text-slate-500 mt-1 truncate">
                                               {priority.amount &&
-                                                (priority.amount.trim().startsWith('₹')
-                                                  ? priority.amount
-                                                  : `₹${priority.amount}`)}
+                                                (/^\d/.test(priority.amount.trim())
+                                                  ? `₹${priority.amount}`
+                                                  : priority.amount)}
                                               {priority.daysOverdue
                                                 ? ` · ${priority.daysOverdue} days overdue`
                                                 : ''}
@@ -1951,13 +2032,31 @@ export default function FloatingRobot({
                                         {rewrite.message}
                                       </div>
 
-                                      <button
-                                        onClick={handleCopy}
-                                        className="w-full mt-2 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
-                                      >
-                                        {copied ? <Check size={10} /> : <Copy size={10} />}
-                                        {copied ? 'Copied' : 'Copy Reminder'}
-                                      </button>
+                                      <div className="flex gap-1.5 mt-2">
+                                        <button
+                                          onClick={() => copyRewriteMessage(aiResponse || '')}
+                                          className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                        >
+                                          {copied ? <Check size={10} /> : <Copy size={10} />}
+                                          {copied ? 'Copied' : 'Copy Reminder'}
+                                        </button>
+
+                                        <button
+                                          onClick={() => sendReminder('email', rewrite.message)}
+                                          disabled={markingSent}
+                                          className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[9px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                                            sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
+                                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                              : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
+                                          }`}
+                                        >
+                                          {sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId ? (
+                                            <><CheckCircle2 size={11} /> Sent</>
+                                          ) : (
+                                            <><Mail size={11} /> Send email</>
+                                          )}
+                                        </button>
+                                      </div>
 
                                     </div>
                                   )}
@@ -2071,9 +2170,9 @@ export default function FloatingRobot({
 
                                           {priority.amount && (
                                             <span className="text-[9px] font-bold text-slate-700">
-                                              {priority.amount.trim().startsWith('₹')
-                                                ? priority.amount
-                                                : `₹${priority.amount}`}
+                                              {/^\d/.test(priority.amount.trim())
+                                                ? `₹${priority.amount}`
+                                                : priority.amount}
                                             </span>
                                           )}
 

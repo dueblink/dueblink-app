@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 import { getAdminDb } from '@/lib/firebaseAdmin';
 import { reminderGenerationRateLimit } from '@/lib/rateLimit';
+import { formatAmountWithCurrency } from '@/lib/reminderRules';
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -114,23 +115,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    const ip = forwardedFor?.split(',')[0]?.trim() || 'unknown';
-
-    const { success } = await reminderGenerationRateLimit.limit(
-      `reminder-generation:${ip}`
-    );
-
-    if (!success) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Too many reminder requests. Please try again later.',
-        },
-        { status: 429 }
-      );
-    }
-
     // ============================================================
     // 0. Verify Firebase authentication / Guest access
     // ============================================================
@@ -187,6 +171,32 @@ export async function POST(req: NextRequest) {
           { status: 401 }
         );
       }
+    }
+
+    // ============================================================
+    // Rate limit
+    // ============================================================
+    // Signed-in users are limited per account, so people sharing one
+    // office or café Wi-Fi don't use up each other's limit. Guests have
+    // no account, so they are still limited by Wi-Fi address (IP).
+
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ip = forwardedFor?.split(',')[0]?.trim() || 'unknown';
+
+    const rateLimitKey = verifiedUserId
+      ? `reminder-generation:user:${verifiedUserId}`
+      : `reminder-generation:ip:${ip}`;
+
+    const { success } = await reminderGenerationRateLimit.limit(rateLimitKey);
+
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Too many reminder requests. Please try again later.',
+        },
+        { status: 429 }
+      );
     }
 
     // ============================================================
@@ -332,15 +342,25 @@ ${reminder.sms_text || ''}
     // AI GENERATION (with uniqueness-enforcing retry)
     // ============================================================
 
+    // Only a real invoice number the user typed counts. Empty, "Pending"
+    // or "N/A" means there is none — and then the AI must not invent one.
+    const rawInvoiceRef = String(body.invoiceRef || '').trim();
+    const invoiceRef = /^(pending|n\/?a|none|null|undefined|-)?$/i.test(rawInvoiceRef)
+      ? ''
+      : rawInvoiceRef;
+
+    // One clean amount, e.g. "₹5,000" (never "₹ INR 5,000").
+    const amountDueText = formatAmountWithCurrency(body.amount, body.currency);
+
     const buildPrompt = (extraNote: string) => `
         You are an expert Payment Recovery Specialist for freelancers.
         Your goal is to recover payments quickly while maintaining great client relationships.
        
         Details:
         - Client Name: ${body.clientName}
-        - Amount Due: ${body.currency} ${body.amount}
+        - Amount Due: ${amountDueText}
         - Days Overdue: ${body.daysOverdue || '7'} days
-        - Invoice Reference: ${body.invoiceRef || 'Pending'}
+        - Invoice Reference: ${invoiceRef || 'NONE. No invoice number was given. Do not write any invoice number anywhere (no "INV-...", no "#123"). Just say "the invoice" or "the payment".'}
         - Tone Preference: ${body.tone || 'professional'}
        
         Tone Guidelines:
@@ -470,7 +490,44 @@ ${reminder.sms_text || ''}
       `;
     }
 
-    const result = { object: generated as GeneratedReminder };
+    // Replaces an invented invoice number with natural words, keeping the
+    // sentence readable: "Invoice INV-2026-042 is overdue" -> "The invoice
+    // is overdue"; "settle INV-2026-042" -> "settle the invoice".
+    const naturalInvoiceWords = (
+      match: string,
+      the: string | undefined,
+      offset: number,
+      whole: string
+    ) => {
+      if (the) return `${the}invoice`;
+      const before = whole.slice(0, offset);
+      if (offset === 0 || /[.!?]\s*$/.test(before)) return 'The invoice';
+      if (/:\s*$/.test(before)) return 'Invoice';
+      return 'the invoice';
+    };
+
+    const removeInventedInvoiceNumbers = (text: string) =>
+      invoiceRef
+        ? text
+        : String(text || '')
+            .replace(
+              /(\bthe\s+)?\binvoice\s*(?:#|no\.?|number)?\s*:?\s*(?:INV[-\s]?)?\d[\w-]*/gi,
+              naturalInvoiceWords
+            )
+            .replace(/(\bthe\s+)?#?\bINV[-\s]?\d[\w-]*/gi, naturalInvoiceWords)
+            .replace(/[ \t]{2,}/g, ' ');
+
+    const finalReminder = generated as GeneratedReminder;
+
+    const result = {
+      object: {
+        ...finalReminder,
+        email_subject: removeInventedInvoiceNumbers(finalReminder.email_subject),
+        email_body: removeInventedInvoiceNumbers(finalReminder.email_body),
+        whatsapp_message: removeInventedInvoiceNumbers(finalReminder.whatsapp_message),
+        sms_text: removeInventedInvoiceNumbers(finalReminder.sms_text),
+      },
+    };
 
     // ============================================================
     // Increment AI reminder usage AFTER successful generation

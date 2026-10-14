@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
+import { formatAmountWithCurrency } from "@/lib/reminderRules";
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -14,6 +15,11 @@ export type GenerateEmailReminderInput = {
   invoiceRef?: string;
   tone?: string;
   paymentLink?: string;
+  // Extra details the reminder job sends. Not used by the writing prompt.
+  stage?: string;
+  dueDate?: string;
+  senderName?: string;
+  paymentLinkShownAsButton?: boolean;
   previousReminders?: Array<{
     email_subject?: string;
     email_body?: string;
@@ -74,9 +80,9 @@ You are generating an AUTOMATED PAYMENT REMINDER EMAIL.
 
 Details:
 - Client Name: ${input.clientName}
-- Amount Due: ${input.currency} ${input.amount}
+- Amount Due: ${formatAmountWithCurrency(input.amount, input.currency)}
 - Days Overdue: ${input.daysOverdue || "0"} days
-- Invoice Reference: ${input.invoiceRef || "Pending"}
+- Invoice Reference: ${input.invoiceRef || 'NONE. No invoice number was given. Do not write any invoice number anywhere (no "INV-...", no "#123"). Just say "the invoice" or "the payment".'}
 - Payment Link: ${input.paymentLink || "No payment link provided"}
 - Tone Preference: ${input.tone || "professional"}
 

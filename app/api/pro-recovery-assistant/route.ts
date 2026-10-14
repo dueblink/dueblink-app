@@ -119,12 +119,11 @@ export async function POST(req: Request) {
     // Rate limit Pro Recovery Assistant
     // ============================================================
 
-    const forwardedFor = req.headers.get("x-forwarded-for");
-    const ip = forwardedFor?.split(",")[0]?.trim() || "unknown";
-
+    // Limit per signed-in user, not per Wi-Fi address, so people on the
+    // same office or café Wi-Fi don't share one limit.
     const { success } =
       await proRecoveryAssistantRateLimit.limit(
-        `pro-recovery-assistant:${ip}`
+        `pro-recovery-assistant:user:${userId}`
       );
 
     if (!success) {
@@ -185,35 +184,101 @@ export async function POST(req: Request) {
     // status is derived from the due date, just like the dashboard.
     // ============================================================
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Today's date in India time, as a plain calendar day. The server runs
+    // on UTC, so "new Date()" alone is a day behind between midnight and
+    // 5:30 am India time.
+    const indiaToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const [todayYear, todayMonth, todayDay] = indiaToday.split("-").map(Number);
+    const todayUtc = Date.UTC(todayYear, todayMonth - 1, todayDay);
 
-    // Format a raw numeric amount with Indian-style comma grouping,
-    // e.g. 100000 -> "1,00,000". Every place that injects an amount into
-    // the AI prompt/system text must use this, so the model (which is
-    // told to copy amountDue verbatim) always outputs it correctly.
-    const formatAmount = (amount: unknown): string => {
+    // ============================================================
+    // CURRENCY — every amount uses the client's own currency.
+    // The client's "currency" field may be a symbol ("₹", "$"),
+    // a code ("INR", "USD") or both ("₹ INR"). Old clients with no
+    // currency saved fall back to ₹, same as the reminder job.
+    // ============================================================
+    const CURRENCY_SYMBOLS: Record<string, string> = {
+      INR: "₹",
+      USD: "$",
+      EUR: "€",
+      GBP: "£",
+      AUD: "A$",
+      CAD: "C$",
+      SGD: "S$",
+      NZD: "NZ$",
+      JPY: "¥",
+      AED: "AED ",
+    };
+
+    const getCurrencySymbol = (currency: unknown): string => {
+      const raw = String(currency ?? "").trim();
+
+      if (!raw) return "₹";
+
+      const code = raw.toUpperCase().match(/[A-Z]{3}/)?.[0];
+
+      if (code && CURRENCY_SYMBOLS[code]) return CURRENCY_SYMBOLS[code];
+
+      // A plain symbol like "₹" or "$" (letters and spaces removed).
+      const symbol = raw.replace(/[A-Za-z\s]/g, "");
+
+      if (symbol) return symbol;
+
+      // An unknown code like "CHF": show it with a space, e.g. "CHF 500".
+      return `${raw.toUpperCase()} `;
+    };
+
+    // Indian comma grouping (1,00,000) for rupees; normal grouping
+    // (100,000) for every other currency.
+    const formatNumber = (amount: unknown, symbol: string): string => {
       const num = Number(amount);
       if (!Number.isFinite(num)) return String(amount ?? "0");
-      return num.toLocaleString("en-IN");
+      return num.toLocaleString(symbol === "₹" ? "en-IN" : "en-US");
+    };
+
+    // Amount with the client's currency, e.g. "₹1,00,000" or "$500".
+    // Every place that puts an amount into the AI prompt must use this,
+    // so the model (which is told to copy amountDue exactly) always
+    // shows the right currency.
+    const formatMoney = (amount: unknown, currency: unknown): string => {
+      const symbol = getCurrencySymbol(currency);
+      return `${symbol}${formatNumber(amount, symbol)}`;
+    };
+
+    // Total of many clients, kept separate per currency so rupees and
+    // dollars are never added together, e.g. "₹45,000 + $1,200".
+    const formatTotalsByCurrency = (list: any[]): string => {
+      const totals = new Map<string, number>();
+
+      for (const c of list) {
+        const symbol = getCurrencySymbol(c.currency);
+        totals.set(symbol, (totals.get(symbol) || 0) + Number(c.amount || 0));
+      }
+
+      if (totals.size === 0) return "₹0";
+
+      return Array.from(totals.entries())
+        .map(([symbol, total]) => `${symbol}${formatNumber(total, symbol)}`)
+        .join(" + ");
     };
 
     const getDaysOverdue = (dueDate: string | undefined): number => {
       if (!dueDate) return 0;
 
-      const [year, month, day] = dueDate.split("-").map(Number);
+      const [year, month, day] = String(dueDate).substring(0, 10).split("-").map(Number);
 
       if (!year || !month || !day) return 0;
 
-      const due = new Date(year, month - 1, day);
-      due.setHours(0, 0, 0, 0);
-
-      const diffTime = today.getTime() - due.getTime();
-
-      return Math.max(
-        0,
-        Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      const diffDays = Math.round(
+        (todayUtc - Date.UTC(year, month - 1, day)) / (1000 * 60 * 60 * 24)
       );
+
+      return Math.max(0, diffDays);
     };
 
     // ============================================================
@@ -282,6 +347,10 @@ export async function POST(req: Request) {
 
       return {
         ...c,
+
+        // Amount already formatted with this client's own currency,
+        // so the AI never has to guess the currency.
+        amountDue: formatMoney(c.amount, c.currency),
 
         // Live payment state
         daysOverdue,
@@ -367,51 +436,24 @@ export async function POST(req: Request) {
       }
     }
 
-    // Comprehensive System Role definition ensuring strict role-adherence and live synchronization
-    let systemPrompt = `You are Blink, DueBlink's AI Recovery Assistant.
-You help freelancers, agencies, consultants and businesses recover payments faster.
-Never act like a general chatbot. Only answer using the latest live dashboard data provided. Never use cached or outdated data.
-CRITICAL RULE: Automatically exclude paid clients from all recovery recommendations, priority lists, outstanding calculation breakdowns, and follow-up generation unless specifically queried about payment history.
+    // Base rules for every Blink answer. Each action below adds its own
+    // short layout. The screen (FloatingRobot.tsx) turns these headings
+    // into cards, so headings must stay exactly as written.
+    let systemPrompt = `You are Blink, DueBlink's payment recovery assistant for freelancers and small agencies.
+Only use the live client data given to you. Never invent clients, amounts, dates, invoice numbers or reminder history.
+Paid clients never appear in recovery advice.
 
-RECOVERY MEMORY RULE:
-Always use the live automated-reminder fields when deciding what to recommend:
-- automatedReminders
-- automationStatus
-- lastAutomatedReminderStage
-- lastAutomatedReminderSentAt
-- reminderHistory
-
-Never recommend an action as if no reminder has been sent when reminderHistory shows that an automated reminder was already sent.
-
-When a payment is still unpaid after an automated reminder, explain the current recovery stage and recommend the most appropriate next manual or automated action.
-
-Every action response MUST end with:
-✨ Blink Recommendation
-What should be done next based on the live recovery state.
-
-🎯 Next Best Action
-Give ONE clear next action the user can take.
-
-The Next Best Action must match the actual situation. Do not recommend sending another reminder immediately if the appropriate automated reminder stage was already sent.
-
-DESIGN PRINCIPLE:
-- Every response must be visual, structured, scannable, and understood in under 10 seconds.
-- Return ONLY plain text. No JSON, no Markdown asterisks (**), no code blocks, no streaming metadata.
-- Every label and field must be strictly separated. Never combine labels and values into a single sentence or paragraph.
-- Keep recommendations under 3 lines. Avoid long paragraphs or walls of text.
-- Include appropriate icons and clean emojis for headers and info fields.
-
-OUTPUT FORMAT IS STRICT AND MUST NOT BE CHANGED.
-Return ONLY the exact headings and labels specified in the layout below.
-Do not rename headings.
-Do not add alternative headings.
-Do not use Markdown headings (no #, no ##, no **bold**).
-Do not use explanations, greetings, or commentary before the first heading.
-Do not add commentary, disclaimers, or notes after the final section.
-Do not change the capitalization of labels.
-Do not omit any required section, even if a field's value is empty or unknown — use "N/A" instead of removing the label.
-Do not invent additional sections that are not in the layout.
-Every label below (e.g. "Client:", "Company:", "Days Overdue:") must appear on its own line, followed immediately by its value, with the exact spelling, punctuation, and colon shown.`;
+HOW EVERY ANSWER MUST LOOK:
+- Short. The owner must understand it in 5 seconds.
+- Plain text only. No Markdown (no **, no #), no code blocks, no emojis.
+- Use ONLY the headings and labels in the layout for this request, spelled exactly as shown, each on its own line. Never add, rename, skip or repeat a heading.
+- Never say the same fact twice. If a value is already shown (amount, days overdue, stage), do not repeat it in the advice.
+- Advice is ONE short sentence: who to chase, how, and why.
+- Replace every line in brackets with real text. Never output the brackets themselves.
+- Never write placeholders like [Your Name], [Payment Link] or [Invoice Number].
+- Stop right after the last section of the layout. Nothing before the first heading, nothing after the last.
+- CURRENCY: every amount already includes the client's own currency symbol (₹, $, € and so on). Copy it exactly. Never assume rupees, never convert currencies, never add different currencies together.
+- REMINDER HISTORY: never suggest a reminder that was already sent, and never restart the sequence with a "first" style message.`;
 
     let userPrompt = "";
 
@@ -474,170 +516,75 @@ Choose a quick action below to begin recovering payments.`;
         // Code decides the stage/tone/channel — the AI just writes to spec.
         const escalation = getEscalationStage(targetClient);
 
+        const recommendAmount = formatMoney(targetClient.amount, targetClient.currency);
+        const recommendStageText = `${escalation.stage} (reminder #${escalation.sentCount + 1})`;
+
         systemPrompt += `
-Follow this exact layout for Generate Follow-up. Write each section ONCE — never repeat a section or restate earlier content later in the response.
+Follow this exact layout for Generate Follow-up:
 
-BLINK
-GENERATE FOLLOW-UP
-
-━━━━━━━━━━━━━━━━━━━━
 RECOVERY SNAPSHOT
-
 Client: ${targetClient.name}
-Company: ${targetClient.company || 'N/A'}
-Amount Due: ₹${formatAmount(targetClient.amount)}
+Amount Due: ${recommendAmount}
 Due Date: ${targetClient.dueDate || 'N/A'}
-Status: ${targetStatus}
 Days Overdue: ${targetClient.daysOverdue || 0}
-Automation: ${reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded'}
-Last Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
-Reminders Sent: ${escalation.sentCount}
-Escalation Stage: ${escalation.stage}
+Stage: ${recommendStageText}
 
-━━━━━━━━━━━━━━━━━━━━
-RECOVERY STATUS
-
-One or two sentences: what has already happened with this client and what stage they're at now.
-
-━━━━━━━━━━━━━━━━━━━━
 BLINK RECOMMENDATION
+[One short sentence: lead with ${escalation.suggestedChannel} and why.]
 
-One or two sentences: the single most appropriate recovery action right now.
-
-━━━━━━━━━━━━━━━━━━━━
 EMAIL FOLLOW-UP
+Subject: [short subject that fits the "${escalation.stage}" stage]
+[the email body, written for the "${escalation.stage}" stage]
 
-Subject:
-Email Body:
-
-━━━━━━━━━━━━━━━━━━━━
 WHATSAPP FOLLOW-UP
+[the WhatsApp message, written for the "${escalation.stage}" stage]
 
-WhatsApp Message:
-
-━━━━━━━━━━━━━━━━━━━━
-NEXT BEST ACTION
-
-ONE specific sentence telling the owner exactly what to do next. Do not repeat the email or WhatsApp text here.
-
-==================================================
-STRICT RULES
-==================================================
-- The RECOVERY SNAPSHOT above already has the correct values filled in — copy it exactly as shown, do not change any value.
-- Escalation Stage must be exactly: "${escalation.stage}"
-- Required tone for this stage: ${escalation.tone}. Suggested channel to lead with: ${escalation.suggestedChannel}.
+RULES:
+- Copy the RECOVERY SNAPSHOT lines exactly as shown.
+- Tone for this stage: ${escalation.tone}.
   - "first": friendly, no pressure.
-  - "second": direct, restate amount/date, ask for expected payment date, suggest switching channel.
-  - "final": firm, state a real deadline and consequence. No apologizing.
-  - "stalled": do NOT ask for full payment again — offer a payment plan, ask what's blocking payment, suggest a call.
-- Write EVERY section exactly once. After NEXT BEST ACTION, stop — add nothing else.
-- Do not rename any heading or label. Do not use Markdown (**bold**, #headings).
-- Required labels: Client:, Company:, Amount Due:, Due Date:, Status:, Days Overdue:, Automation:, Last Automated Stage:, Reminders Sent:, Escalation Stage:, Subject:, Email Body:, WhatsApp Message:
-`;
+  - "second": direct, ask for a payment date.
+  - "final": firm, give a clear deadline date and the real next step. No apologizing.
+  - "stalled": do not ask for the full amount again. Offer a payment plan or part payment, ask what is blocking payment, suggest a short call.
+- Status is ${targetStatus}. Never call an overdue invoice "pending".
+- The email and WhatsApp messages must not repeat each other word for word.
+- WHATSAPP FOLLOW-UP is the last section. Stop after it.`;
 
-        userPrompt = `Client data (use these exact values — do not invent or alter them):
-${JSON.stringify({
+        userPrompt = `Write the Generate Follow-up for this client: ${JSON.stringify({
   client: targetClient.name,
-  company: targetClient.company || 'N/A',
-  amountDue: `₹${formatAmount(targetClient.amount)}`,
+  amountDue: recommendAmount,
   dueDate: targetClient.dueDate || 'N/A',
   status: targetStatus,
   daysOverdue: targetClient.daysOverdue || 0,
-  automation: reminderAlreadySent ? 'Active history recorded' : 'No automated reminder recorded',
-  lastAutomatedStage: targetClient.lastAutomatedReminderStage || 'None',
   remindersSent: escalation.sentCount,
+  lastAutomatedStage: lastAutomatedStage,
+  automatedReminderAlreadySent: reminderAlreadySent,
   escalationStage: escalation.stage,
-})}
-
-Write the response using the exact layout and rules from the system prompt above. Write it once, completely, then stop.
-`;
+})}`;
 
       } else if (action === "priorities") {
         systemPrompt += `
-Follow this exact Blink layout for Today's Priorities.
-
-🤖 Blink
-📌 Today's Priorities
-
-TODAY'S RECOVERY QUEUE
-
-Analyze the supplied live client records and rank the clients who need the owner's attention most urgently.
-
-For each priority, show:
+Follow this exact layout for Today's Priorities. Show at most 3 clients, most urgent first. Only show clients that exist in the data.
 
 PRIORITY 1
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
+Client: [name]
+Amount Due: [amountDue, copied exactly]
+Days Overdue: [daysOverdue]
+Recommended Action: [one short sentence that fits this client's stage]
 
 PRIORITY 2
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
+(same 4 lines)
 
 PRIORITY 3
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
+(same 4 lines)
 
-Rules:
-- Only include unpaid clients.
-- Paid clients must never appear.
-- Overdue clients come before non-overdue clients.
-- Higher days overdue means higher urgency.
-- If an automated reminder has already been sent, do not recommend sending the same reminder again.
-- Consider the client's current automated recovery stage.
-- A client who is overdue with no automated reminder should be considered highly actionable.
-- A client who has already received a final automated reminder should not simply be given another generic reminder.
-- Do not call an overdue invoice "pending."
-- Do not invent client information.
-- Use the actual live records supplied.
-- Keep every priority concise and specific.
-- If fewer than 3 unpaid clients exist, show only the clients that actually exist.
-- Do not generate email or WhatsApp content in this action.
+TODAY'S FOCUS
+[One sentence: the client to handle first, and why.]
 
-REQUIRED LABELS for every PRIORITY block (exact spelling, exact colon, one per line, do not rename):
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
-
-Do not use "Customer:", "Balance:", "Late By:", "Action:" or any other alternative wording.
-
-━━━━━━━━━━━━━━━━━━━━
-
-🎯 TODAY'S FOCUS
-
-Give ONE concise sentence identifying the client that should be handled first and exactly why.
-
-Do not say "send reminders to clients."
-Name the actual priority and the reason.
-
-Keep the entire response compact and decision-focused.
-`;
+RULES:
+- If an automated reminder was already sent at a stage, do not recommend that same reminder again.
+- A "stalled" client gets a call or payment plan, not another reminder.
+- TODAY'S FOCUS is the last section. Stop after it.`;
 
         const priorityClients = [...activeClients]
           .filter((c: any) => c.status !== 'Paid')
@@ -674,25 +621,27 @@ Keep the entire response compact and decision-focused.
           })
           .slice(0, 5);
 
-        userPrompt = `Identify today's priorities using these live recovery cases: ${JSON.stringify(priorityClients)}.
+        // Only the fields Blink needs, not the full client records.
+        const priorityData = priorityClients.slice(0, 3).map((c: any) => {
+          const esc = getEscalationStage(c);
+          return {
+            client: c.name,
+            amountDue: c.amountDue,
+            daysOverdue: c.daysOverdue || 0,
+            status: c.liveStatus,
+            stage: esc.stage,
+            remindersSent: esc.sentCount,
+            lastAutomatedStage: c.lastAutomatedReminderStage || 'None',
+          };
+        });
 
-Prioritize:
-1. Overdue clients first.
-2. Clients with the highest days overdue.
-3. Clients where automated reminders have already been sent but payment is still pending.
-4. Then other pending clients.
-
-For every priority, explain the reason and the recommended next action.
-
-Do not recommend repeating an automated reminder that has already been sent.
-
-End with exactly one clear Next Best Action.
-Use the exact Blink layout.`;
+        userPrompt = `Today's most urgent unpaid clients, already sorted (most urgent first): ${JSON.stringify(priorityData)}`;
 
       } else if (action === "summarize" || action === "summarize_outstanding") {
         const pendingCount = activeClients.filter((c: any) => c.status !== 'Paid')?.length || 0;
         const overdueCount = activeClients.filter((c: any) => c.isOverdue === true).length;
-        const computedTotal = activeClients.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
+        // Totals kept per currency, never mixed (e.g. "₹45,000 + $1,200").
+        const outstandingTotalText = formatTotalsByCurrency(activeClients);
 
         const automatedReminderClients = activeClients.filter(
           (c: any) =>
@@ -706,59 +655,32 @@ Use the exact Blink layout.`;
             !c.lastAutomatedReminderStage
         );
 
+        const summaryClients = activeClients.map((c: any) => ({
+          client: c.name,
+          amountDue: c.amountDue,
+          daysOverdue: c.daysOverdue || 0,
+          status: c.liveStatus,
+          stage: getEscalationStage(c).stage,
+        }));
+
         systemPrompt += `
 Follow this exact layout for Outstanding Summary:
-🤖 Blink
-📌 Outstanding Summary
 
-━━━━━━━━━━━━━━━━━━━━━━
-💡 Quick Summary
-Complete breakdown of the current outstanding portfolio based on active unpaid records.
-
-━━━━━━━━━━━━━━━━━━━━━━
-📌 Important Information
-• Outstanding Amount: ₹${formatAmount(computedTotal)}
+Important Information
+• Outstanding Amount: ${outstandingTotalText}
 • Pending Clients: ${pendingCount}
 • Overdue Clients: ${overdueCount}
 • Paid Clients: ${paidClients.length}
 
-━━━━━━━━━━━━━━━━━━━━━━
-📈 Blink Insight
-Cash flow requires active monitoring on overdue active accounts this week.
+Blink Insight
+[One sentence: the ONE client to chase first and why, using the data.]
 
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 Next Best Action
-Review overdue clients to protect cash flow.
+RULES:
+- Copy the four Important Information lines exactly as shown.
+- Blink Insight is the last section. Stop after it.`;
 
-REQUIRED HEADINGS (do not rename, do not skip, do not reorder):
-💡 Quick Summary
-📌 Important Information
-📈 Blink Insight
-🎯 Next Best Action
-
-Do not merge these headings or present them as a single paragraph.`;
-
-        userPrompt = `Summarize the live outstanding payment portfolio.
-
-Live data:
-${JSON.stringify(activeClients)}
-
-Include:
-- Total outstanding amount
-- Pending client count
-- Overdue client count
-- Paid client count
-- Which clients have already received automated reminders
-- Which overdue clients still need manual attention
-
-Do not count paid clients as outstanding.
-
-Do not recommend repeating an automated reminder that has already been sent.
-
-End with one clear:
-  Next Best Action
-
-Choose the next action based on the live recovery state.`;
+        userPrompt = `Unpaid clients: ${JSON.stringify(summaryClients)}
+Clients already getting automated reminders: ${automatedReminderClients.length}. Overdue clients with no automated reminder yet: ${manuallyActionableClients.length}.`;
 
       } else if (action === "rewrite") {
         const targetClient =
@@ -787,100 +709,58 @@ Choose the next action based on the live recovery state.`;
         // Code decides the stage — same escalation ladder used by "recommend".
         const rewriteEscalation = getEscalationStage(targetClient);
 
+        // The tone shown on the Rewrite screen, in plain words, taken
+        // from the real stage (it used to always say "Professional & Firm").
+        const TONE_LABELS: Record<string, string> = {
+          friendly: "Friendly",
+          direct: "Direct",
+          "firm-with-deadline": "Firm, with a deadline",
+          "problem-solving": "Helpful, offers a payment plan",
+        };
+        const rewriteToneLabel =
+          TONE_LABELS[rewriteEscalation.tone] || rewriteEscalation.tone;
+
+        const rewriteAmount = formatMoney(targetClient.amount, targetClient.currency);
+
         systemPrompt += `
-ESCALATION LADDER (follow exactly — computed from real reminder history):
-Current stage: ${rewriteEscalation.stage}
-Required tone: ${rewriteEscalation.tone}
-Suggested channel to lead with: ${rewriteEscalation.suggestedChannel}
-Reason: ${rewriteEscalation.reason}
+Follow this exact layout for Rewrite Reminder:
 
-Stage meanings:
-- "first": friendly, informative, no pressure.
-- "second": more direct, restate amount/due date, ask for expected payment date, suggest switching channel.
-- "final": firm tone with a real deadline and a real consequence. No apologizing.
-- "stalled": do not demand payment again — offer a payment plan/partial payment and ask what's blocking payment.
-
-Follow this exact layout for Rewrite Reminder.
-
-🤖 Blink
-📌 Rewrite Reminder
-
-━━━━━━━━━━━━━━━━━━━━
-💡 Quick Summary
-Explain briefly what this rewritten reminder is designed to accomplish for the current recovery situation.
-
-━━━━━━━━━━━━━━━━━━━━
-📌 Important Information
-• Client: ${targetClient.name}
-• Amount Due: ₹${formatAmount(targetClient.amount)}
-• Due Date: ${targetClient.dueDate || 'N/A'}
-• Status: ${targetClient.status || 'Pending'}
-• Days Overdue: ${targetClient.daysOverdue || 0}
-• Previous Automated Stage: ${targetClient.lastAutomatedReminderStage || 'None'}
-• Selected Tone: Professional & Firm
-
-━━━━━━━━━━━━━━━━━━━━
-📝 REWRITTEN REMINDER
-
-Write ONE complete rewritten payment reminder matching the ESCALATION LADDER stage above exactly.
-
-Rules:
-- Reflect the actual payment status and overdue duration.
-- Match the required tone for the current stage — do not soften "final"/"stalled", do not escalate "first".
-- If stage is "stalled", offer a payment plan/partial payment and ask what's blocking payment instead of repeating a demand.
-- Keep it professional, concise and payment-focused.
-- Do not call an overdue invoice "pending".
-- Do not create a recovery reminder if the client is Paid.
-
-Show:
-Subject:
-Email Body:
-
-━━━━━━━━━━━━━━━━━━━━
-✨ Blink Recommendation
-Explain briefly why this version is appropriate for the current recovery stage.
-
-━━━━━━━━━━━━━━━━━━━━
-🎯 Next Best Action
-Give ONE clear next action for the owner.
-
-REQUIRED HEADINGS (do not rename, do not skip, do not reorder):
-💡 Quick Summary
-📌 Important Information
-📝 REWRITTEN REMINDER
-✨ Blink Recommendation
-🎯 Next Best Action
-
-REQUIRED LABELS inside REWRITTEN REMINDER (exact spelling, exact colon):
-Subject:
-Email Body:
-`;
-
-        userPrompt = `Rewrite the payment reminder for this live recovery case:
-
-${JSON.stringify({
-  ...targetClient,
-  reminderHistory: previousAutomatedReminders,
-})}
-
-Use the exact Rewrite Reminder layout.
-
-The escalation stage has already been computed: "${rewriteEscalation.stage}" (tone: ${rewriteEscalation.tone}, suggested channel: ${rewriteEscalation.suggestedChannel}).
-Write the rewritten reminder to match this exact stage — do not infer a different stage from the raw data.
-
-Keep it professional, concise and payment-focused.
-
-The response MUST contain these sections:
-Quick Summary
 Important Information
-REWRITTEN REMINDER
-Blink Recommendation
-Next Best Action
+• Client: ${targetClient.name}
+• Amount Due: ${rewriteAmount}
+• Days Overdue: ${targetClient.daysOverdue || 0}
+• Tone: ${rewriteToneLabel}
 
-Inside REWRITTEN REMINDER, provide:
-Subject:
-Email Body:
-`;
+REWRITTEN REMINDER
+Subject: [short subject that fits the "${rewriteEscalation.stage}" stage]
+[the email body, written for the "${rewriteEscalation.stage}" stage]
+
+Blink Recommendation
+[One short sentence: why this tone fits right now.]
+
+RULES:
+- Copy the four Important Information lines exactly as shown.
+- Stage: ${rewriteEscalation.stage}. ${rewriteEscalation.reason}
+  - "first": friendly, no pressure.
+  - "second": direct, ask for a payment date.
+  - "final": firm, give a clear deadline date and the real next step. No apologizing.
+  - "stalled": offer a payment plan or part payment and ask what is blocking payment. Do not demand the full amount again.
+- Write it in fresh words, not a copy of an earlier reminder.
+- Never call an overdue invoice "pending".
+- Blink Recommendation is the last section. Stop after it.`;
+
+        userPrompt = `Rewrite the reminder for this client: ${JSON.stringify({
+  client: targetClient.name,
+  amountDue: rewriteAmount,
+  dueDate: targetClient.dueDate || 'N/A',
+  status: targetClient.liveStatus || targetClient.status || 'Pending',
+  daysOverdue: targetClient.daysOverdue || 0,
+  remindersSent: rewriteEscalation.sentCount,
+  escalationStage: rewriteEscalation.stage,
+  previousAutomatedSubjects: previousAutomatedReminders
+    .map((r: any) => r?.email_subject)
+    .filter(Boolean),
+})}`;
 
       } else if (action === "overdue") {
         const overdueList = activeClients
@@ -889,8 +769,7 @@ Email Body:
             const esc = getEscalationStage(c);
             return {
               name: c.name,
-              company: c.company || 'N/A',
-              amountDue: `₹${formatAmount(c.amount)}`,
+              amountDue: formatMoney(c.amount, c.currency),
               dueDate: c.dueDate || 'N/A',
               status: c.liveStatus || 'Overdue',
               daysOverdue: c.daysOverdue || 0,
@@ -900,127 +779,37 @@ Email Body:
               recommendedActionHint: esc.reason,
               stage: esc.stage,
             };
-          });
+          })
+          // Most days overdue first, so PRIORITY 1 is the most urgent.
+          .sort((a: any, b: any) => Number(b.daysOverdue) - Number(a.daysOverdue));
 
         systemPrompt += `
-Follow this exact layout for Find Overdue Clients.
+Follow this exact layout for Find Overdue Clients:
 
- Blink
- Find Overdue Clients
+Quick Summary
+${overdueList.length} client${overdueList.length === 1 ? " has an overdue payment" : "s have overdue payments"}.
 
-━━━━━━━━━━━━━━━━━━━━━━
- Quick Summary
-${overdueList.length} active client${overdueList.length === 1 ? "" : "s"} currently have overdue payments.
-
-━━━━━━━━━━━━━━━━━━━━━━
- Important Information
-
-CRITICAL RULE:
-You MUST include EVERY overdue client supplied in the live data below.
-
-Do NOT:
-- omit any overdue client
-- show only the highest-priority client
-- summarize multiple clients into one
-- combine clients
-- invent clients
-
-The number of PRIORITY blocks MUST exactly match the number of overdue clients supplied.
-
-For EVERY overdue client, use this exact structure:
-
+Important Information
 PRIORITY 1
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
+Client: [name]
+Amount Due: [amountDue, copied exactly]
+Days Overdue: [daysOverdue]
+Recovery Stage: [recoveryStageText, copied exactly]
+Recommended Action: [one short sentence based on recommendedActionHint]
 
 PRIORITY 2
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
-
-Continue PRIORITY 3, PRIORITY 4, PRIORITY 5, etc. until EVERY overdue client has been included.
-
-Use the actual client data supplied. Never invent missing information.
-Never leave a label with no value after it — if a value is genuinely unavailable, write "N/A", never leave it blank.
-
-━━━━━━━━━━━━━━━━━━━━━━
- Blink Recommendation
-Identify the most important recovery opportunity after considering ALL overdue clients.
-
-━━━━━━━━━━━━━━━━━━━━━━
- Next Best Action
-Give ONE clear action the user should take next.
-
-IMPORTANT:
-The overdue client list is authoritative live dashboard data.
-Every overdue client must appear in the response.
-
-==================================================
-OUTPUT FORMAT IS STRICT AND MUST NOT BE CHANGED
-==================================================
-Return ONLY the exact headings below, in this exact order:
-Quick Summary
-Important Information
-PRIORITY 1 (and PRIORITY 2, PRIORITY 3, ... as needed)
-Blink Recommendation
-Next Best Action
-
-Do not rename "Important Information" to anything else (no "Key Details", no "Overview", no "Summary of Clients").
-Do not rename "PRIORITY" to anything else (no "Client 1", no "Case 1", no "Overdue Client").
-The PRIORITY blocks MUST be located directly inside the Important Information section — never as a separate section, never after Blink Recommendation.
-Do not switch to bullet-point-only formatting instead of the required PRIORITY blocks.
-Do not use Markdown headings, bold text, or numbered lists in place of the required plain-text labels.
-
-REQUIRED FIELD LABELS inside every PRIORITY block (exact spelling, exact colon, one per line, in this order):
-Client:
-Company:
-Amount Due:
-Due Date:
-Status:
-Days Overdue:
-Recovery Stage:
-Why It Matters:
-Recommended Action:
-
-Do not use "Customer:", "Balance:", "Late By:", "Action:" or any other alternative wording for these labels.
-Do not add commentary before "Quick Summary" or after "Next Best Action".
-`;
-
-        userPrompt = `Find and prioritize all overdue clients from this live data:
-
-${JSON.stringify(overdueList)}
-
-Each client object gives you exactly what to write — do not compute or guess anything extra:
-- Use "name" for Client:, "company" for Company:, "amountDue" for Amount Due: (already includes the ₹ symbol, copy exactly), "dueDate" for Due Date:, "status" for Status:, "daysOverdue" for Days Overdue:.
-- Copy "recoveryStageText" verbatim into Recovery Stage: — do not reword it.
-- Use "recommendedActionHint" as the basis for Recommended Action:, written as one natural sentence (you may rephrase this one field only, to sound natural — but keep its meaning exactly).
-- Write "Why It Matters:" yourself in one sentence, based on amount and days overdue.
-
-If a client's "stage" is "stalled", the Recommended Action must NOT be another reminder — it must suggest a phone call, payment plan, or asking directly what's blocking payment.
-If a client's "stage" is "final", the Recommended Action must mention a real deadline/consequence.
-
-After the overdue list, provide:
-
-Blink Recommendation
-Explain the most important recovery opportunity.
+(same 5 lines, and so on)
 
 Next Best Action
-Give ONE clear action the user should take next.
+[One sentence: the client to handle first, and why.]
 
-Use the exact Blink layout.`;
+RULES:
+- Include EVERY overdue client in the data, one PRIORITY block each, in the order given. Never merge or skip clients.
+- Copy "Quick Summary" exactly as shown.
+- A "stalled" client gets a call or payment plan, not another reminder. A "final" client gets a clear deadline.
+- Next Best Action is the last section. Stop after it.`;
+
+        userPrompt = `Overdue clients, most urgent first: ${JSON.stringify(overdueList)}`;
       }
     } 
     // 2. Handle Individual Client Reminders using live object data
@@ -1032,52 +821,82 @@ Use the exact Blink layout.`;
         );
       }
 
+      // Same escalation ladder as Generate Follow-up: code decides the
+      // stage, tone and channel from real reminder history; the AI only
+      // writes the words.
+      const singleEscalation = getEscalationStage(client);
+      const singleStatus = client.liveStatus || client.status || 'Pending';
+      const singleAmount = formatMoney(client.amount, client.currency);
+
       systemPrompt += `
+ESCALATION LADDER (follow exactly — computed from real reminder history):
+Current stage: ${singleEscalation.stage}
+Required tone: ${singleEscalation.tone}
+Suggested channel to lead with: ${singleEscalation.suggestedChannel}
+Reason: ${singleEscalation.reason}
+
+Stage meanings (the email subject, the email and the WhatsApp message must ALL match the current stage):
+- "first": friendly, informative, no pressure.
+- "second": more direct, restate amount and due date, ask when they will pay.
+- "final": firm, state a clear deadline date and the real next step. No apologizing.
+- "stalled": do NOT demand full payment again — offer a payment plan or part payment, ask what is blocking payment, and suggest a short call.
+
 Follow this exact layout for Individual Client Reminders:
 🤖 Blink
 📌 Generate Follow-up
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💡 Quick Summary
-Tailored multi-channel reminder generated for active client ${client.name}.
+One sentence: which reminder this is for ${client.name} (stage "${singleEscalation.stage}", reminder #${singleEscalation.sentCount + 1}) and why.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 📌 Important Information
 • Client: ${client.name}
 • Company: ${client.company || 'N/A'}
-• Amount Due: ₹${formatAmount(client.amount)}
+• Amount Due: ${singleAmount}
 • Due Date: ${client.dueDate || 'N/A'}
-• Status: ${client.status || 'Pending'}
+• Status: ${singleStatus}
+• Days Overdue: ${client.daysOverdue || 0}
+• Reminders Sent: ${singleEscalation.sentCount}
+• Escalation Stage: ${singleEscalation.stage}
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✉️ AI Email
-Subject: Friendly Payment Reminder - Invoice Follow-up
-Use the client's live payment status, overdue days, recovery state, and automated reminder history to write the appropriate recovery message.
-
-Recovery-stage rules:
-- If the client is Paid: do not write a payment recovery reminder.
-- If no automated reminder has been sent and the payment is overdue: write the first recovery follow-up.
-- If automated stage "first" was already sent: do not repeat the first reminder; write the next-stage follow-up if payment is still unpaid.
-- If automated stage "follow-up" was already sent: do not repeat the same follow-up; write a stronger manual recovery message.
-- If automated stage "final" was already sent: do not write another generic reminder; use an escalation-oriented message only when appropriate.
-
-Never pretend that no reminder was sent when reminder history shows one was already sent.
-Never call an overdue invoice "pending."
-The message must reflect the client's current recovery stage and should not restart the recovery sequence.
+Subject: (write a short subject that matches the "${singleEscalation.stage}" stage — friendly for "first", direct for "second", firm with the deadline for "final", "Can we sort out a plan?" style for "stalled")
+(then the email body, written for the "${singleEscalation.stage}" stage)
 
 ━━━━━━━━━━━━━━━━━━━━━━
 💬 AI WhatsApp
-Hi ${client.name}! Just following up on the pending invoice of ₹${formatAmount(client.amount)}. Let's get this settled this week. Thanks!
+(a short WhatsApp message for the "${singleEscalation.stage}" stage, with the amount ${singleAmount} and the days overdue)
 
 ━━━━━━━━━━━━━━━━━━━━━━
 ✨ Blink Recommendation
-Send this reminder via email and WhatsApp to ensure visibility.
+One sentence: lead with ${singleEscalation.suggestedChannel} and why, based on the reason above.
 
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 Next Best Action
-Send the reminder today.`;
+ONE specific action for the owner that matches the "${singleEscalation.stage}" stage.
 
-      userPrompt = `Write a professional follow-up message using live active client data: ${JSON.stringify(client)}. Use the exact Blink layout.`;
+STRICT RULES:
+- Replace every line in brackets above with real text. Never output the bracketed instructions themselves.
+- Keep the headings and the "Subject:" label exactly as shown.
+- Never pretend no reminder was sent when Reminders Sent is more than 0. Never restart the sequence with a "first" style message.
+- Never call an overdue invoice "pending."
+- Copy the Important Information values exactly as given.`;
+
+      userPrompt = `Write the follow-up for this live client: ${JSON.stringify({
+  client: client.name,
+  company: client.company || 'N/A',
+  amountDue: singleAmount,
+  dueDate: client.dueDate || 'N/A',
+  status: singleStatus,
+  daysOverdue: client.daysOverdue || 0,
+  remindersSent: singleEscalation.sentCount,
+  lastAutomatedStage: client.lastAutomatedReminderStage || 'None',
+  escalationStage: singleEscalation.stage,
+})}
+
+The escalation stage has already been computed: "${singleEscalation.stage}". Write the email subject, email and WhatsApp message for exactly this stage. Use the exact Blink layout.`;
     } 
     // 3. Fallback error handling if payload lacks necessary context
     else {
