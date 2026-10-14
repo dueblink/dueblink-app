@@ -1012,6 +1012,24 @@ export default function DashboardPage() {
 
             </header>
 
+            {/* Mobile Quick Add Client */}
+            {clients.length > 0 && (
+            <div className="sm:hidden">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setClientToEdit(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-white px-5 py-4 rounded-2xl text-sm font-bold shadow-md transition"
+                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+              >
+                <Plus size={18} />
+                Add Client
+              </motion.button>
+            </div>
+            )}
+
             {/* TODAY — who to chase today, with the stage, advice and quick actions */}
             {clients.some((c) => c.status === 'Pending') && (
               <section className="p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-4" suppressHydrationWarning={true}>
@@ -1208,7 +1226,7 @@ export default function DashboardPage() {
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => { setClientToEdit(null); setIsModalOpen(true); }} 
-                    className="flex items-center justify-center gap-2 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md transition cursor-pointer" 
+                    className="hidden sm:flex items-center justify-center gap-2 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md transition cursor-pointer" 
                     style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
                     suppressHydrationWarning={true}
                   >
