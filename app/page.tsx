@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, MotionValue, animate } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig, animate } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
@@ -21,62 +21,15 @@ import { getSeasonalPricing } from '@/lib/seasonalPricing';
 // Wraps any block of content and, as it scrolls into view, fades and
 // lifts it in slightly — calm and controlled rather than a flashy
 // 3D flip, to match a fintech-adjacent B2B tool's tone.
-function Tilt3D({
-  children,
-  className = '',
-  intensity = 14,
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  intensity?: number;
-  delay?: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ['start 95%', 'start 40%'],
-  });
+// Rows for the "Why not my invoicing tool or ChatGPT?" comparison.
+const COMPARISON_ROWS = [
+  { label: "Works with invoices you already send", us: "Yes, made anywhere", tools: "Only invoices made in that tool", gpt: "Only if you paste the details each time" },
+  { label: "Remembers every reminder you sent", us: "Yes", tools: "For their own invoices", gpt: "You have to tell it each time" },
+  { label: "Tells you who to chase today, and how firmly", us: "Yes", tools: "Not usually", gpt: "No" },
+  { label: "Writes the email and WhatsApp message", us: "Yes", tools: "Mostly fixed templates", gpt: "Yes" },
+  { label: "Simple, built for one person", us: "Yes", tools: "Built for full invoicing and accounting", gpt: "A general chat tool" },
+];
 
-  const opacity = useTransform(scrollYProgress, [0, 1], [0, 1]);
-  const y = useTransform(scrollYProgress, [0, 1], [24, 0]);
-
-  return (
-    <motion.div
-      ref={ref}
-      style={{ opacity, y }}
-      transition={{ delay }}
-      className={className}
-      suppressHydrationWarning={true}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-// A background layer that drifts at a different speed than the page as
-// you scroll — the classic parallax "depth" illusion.
-function ParallaxLayer({
-  scrollYProgress,
-  range,
-  children,
-  className = '',
-}: {
-  scrollYProgress: MotionValue<number>;
-  range: [number, number];
-  children?: React.ReactNode;
-  className?: string;
-}) {
-  const y = useTransform(scrollYProgress, [0, 1], range);
-  return (
-    <motion.div style={{ y }} className={className} suppressHydrationWarning={true}>
-      {children}
-    </motion.div>
-  );
-}
-
-// Strips everything except digits (and a single decimal point) — this is
-// the "clean" value that gets sent to the API / stored in state.
 function stripToDigits(val: string): string {
   const cleaned = val.replace(/[^\d.]/g, '');
   const parts = cleaned.split('.');
@@ -285,10 +238,6 @@ export default function LandingPage() {
   // Page-level scroll progress, used to drive parallax depth on the
   // hero's background blobs (they move slower/faster than the content).
   const pageRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: pageScrollProgress } = useScroll({
-    target: pageRef,
-    offset: ['start start', 'end end'],
-  });
 
   const [isAtTop, setIsAtTop] = useState(true);
   const toggleFaq = (index: number) => {
@@ -547,7 +496,7 @@ export default function LandingPage() {
         return;
       }
 
-      const sections = ['features', 'faq'];
+      const sections = ['dashboard-preview', 'faq'];
       const scrollPosition = window.scrollY + 250;
 
       let currentActive = '';
@@ -797,12 +746,12 @@ export default function LandingPage() {
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => scrollToSection('features')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeSection === 'features' && pathname === '/' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
+                onClick={() => scrollToSection('dashboard-preview')} 
+                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeSection === 'dashboard-preview' && pathname === '/' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Features</span>
-                {activeSection === 'features' && pathname === '/' ? (
+                {activeSection === 'dashboard-preview' && pathname === '/' ? (
                   <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
                 ) : (
                   <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-150 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
@@ -926,7 +875,7 @@ export default function LandingPage() {
           >
             <div className="flex flex-col space-y-3 font-bold text-slate-700">
               <button 
-                onClick={() => scrollToSection('features')}
+                onClick={() => scrollToSection('dashboard-preview')}
                 className="text-left py-2 px-3 rounded-lg transition hover:bg-slate-50 font-bold text-[#1E293B]"
               >
                 Features
@@ -998,21 +947,9 @@ export default function LandingPage() {
   variants={{
     visible: { transition: { staggerChildren: 0.12 } }
   }}
-  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-20 sm:pb-24 border-b border-slate-50 px-4"
+  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4"
   suppressHydrationWarning={true}
 >
-  <ParallaxLayer
-    scrollYProgress={pageScrollProgress}
-    range={[0, 220]}
-    className="absolute top-[-10%] left-[5%] -z-10 h-[300px] sm:h-[500px] w-[300px] sm:w-[500px] rounded-full bg-gradient-to-tr from-[#1C2E8F]/10 to-transparent blur-3xl opacity-70"
-  />
-
-  <ParallaxLayer
-    scrollYProgress={pageScrollProgress}
-    range={[0, -180]}
-    className="absolute bottom-[10%] right-[-5%] -z-10 h-[350px] sm:h-[600px] w-[350px] sm:w-[600px] rounded-full bg-gradient-to-br from-[#2BB6A8]/10 to-transparent blur-3xl opacity-60"
-  />
-
   <div
     className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
     suppressHydrationWarning={true}
@@ -1140,14 +1077,14 @@ export default function LandingPage() {
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true, margin: "-50px" }}
     transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-16 sm:py-20 scroll-mt-24 px-4"
+    className="bg-white pt-10 sm:pt-12 pb-16 sm:pb-20 scroll-mt-24 px-4"
     suppressHydrationWarning={true}
     >
     <div className="max-w-7xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
       <div className="space-y-2" suppressHydrationWarning={true}>
         <Sparkles className="w-8 h-8 text-[#20B8BE] mx-auto mb-1" suppressHydrationWarning={true} />
-        <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-          {isPro ? 'Generate AI Reminder — Pro Unlimited Edition' : user ? 'Generate AI Reminder — Member Edition (15 Monthly Free)' : 'Generate Your First AI Reminder — Free'}
+        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
+          {isPro ? 'Generate AI Reminders — Pro Unlimited' : user ? 'Generate AI Reminders — 15 Free Every Month' : 'Generate Your First AI Reminder — Free'}
         </h2>
         <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Create professional Email & WhatsApp payment reminders in seconds.</p>
       </div>
@@ -1742,7 +1679,7 @@ export default function LandingPage() {
       <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" suppressHydrationWarning={true} />
 
       <h2
-        className="text-xl sm:text-3xl font-black text-[#0F172A] tracking-tight uppercase"
+        className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight"
         suppressHydrationWarning={true}
       >
         Late Payments{' '}
@@ -1769,16 +1706,16 @@ export default function LandingPage() {
         "How much am I still owed?", 
         "What should I do next?"
       ].map((question, qIdx) => (
-        <Tilt3D
+        <div
           key={qIdx}
-          delay={qIdx * 0.05}
           className="flex items-center gap-3.5 bg-white border border-slate-200/85 rounded-2xl p-4 shadow-3xs transition hover:border-amber-300 hover:shadow-xs group"
+          suppressHydrationWarning={true}
         >
           <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0 group-hover:bg-amber-100/60 transition" suppressHydrationWarning={true}>
             <AlertTriangle className="w-4 h-4" suppressHydrationWarning={true} />
           </div>
           <span className="text-sm font-semibold text-slate-700 tracking-wide" suppressHydrationWarning={true}>{question}</span>
-        </Tilt3D>
+        </div>
       ))}
     </div>
 
@@ -1840,8 +1777,8 @@ export default function LandingPage() {
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
           <Zap className="w-10 h-10 text-[#20B8BE] mx-auto fill-[#20B8BE]" suppressHydrationWarning={true} />
-          <h2 className="text-2xl sm:text-[32px] font-black text-[#0F172A] tracking-tight uppercase" suppressHydrationWarning={true}>How it works</h2>
-          <p className="text-sm sm:text-base text-slate-400 font-medium" suppressHydrationWarning={true}>Five simple steps from invoice to paid.</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>How It Works</h2>
+          <p className="text-sm sm:text-base text-slate-400 font-medium" suppressHydrationWarning={true}>Three simple steps from invoice to paid.</p>
         </div>
 
         <motion.div 
@@ -1851,15 +1788,13 @@ export default function LandingPage() {
           variants={{
           visible: { transition: { staggerChildren: 0.05 } }
         }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 max-w-6xl mx-auto pt-2"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-5xl mx-auto pt-2"
           suppressHydrationWarning={true}
         >
           {[
-        { icon: <Users className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "01", label: "Add Client", desc: "Enter client details and amount due." },
-        { icon: <Sparkles className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "02", label: "Generate AI Reminder", desc: "Create a professional AI payment reminder instantly." },
-        { icon: <FileText className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "03", label: "Send Reminder", desc: "Send via Email, WhatsApp or SMS." },
-        { icon: <Clipboard className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "04", label: "Track Payment Status", desc: "Pending → Reminder Sent → Paid." },
-        { icon: <Target className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "05", label: "Get Paid Faster", desc: "Recover payments with less manual follow-up." }
+        { icon: <Users className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "01", label: "Add the invoice", desc: "Client, amount and due date. Works with invoices you already send, made anywhere." },
+        { icon: <Sparkles className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "02", label: "Send the reminder", desc: "DueBlink writes it. Send by Email, WhatsApp or SMS in one tap." },
+        { icon: <Target className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "03", label: "DueBlink follows up", desc: "It remembers every follow-up, gets firmer when a client goes quiet, and you mark it paid in one click." }
           ].map((item, idx) => (
         <motion.div 
           key={idx}
@@ -1891,468 +1826,57 @@ export default function LandingPage() {
   </div>
   </motion.section>
 
-    {/* --- SECTION 3: VALUE PROP 6-GRID WITH PREMIUM ANIMATION --- */}
-    <motion.section 
-    id="features"
-    initial={{ opacity: 0 }}
-    whileInView={{ opacity: 1 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3 }}
-    className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4 scroll-mt-24"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-        
-      <div className="space-y-3" suppressHydrationWarning={true}>
-        <Layers className="w-8 h-8 text-[#245B92] mx-auto" suppressHydrationWarning={true} />
-        <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>One place to recover payments.</h2>
-        <p className="text-sm sm:text-base text-slate-500 font-medium max-w-xl mx-auto leading-relaxed px-2" suppressHydrationWarning={true}>
-          DueBlink is your Payment Recovery Assistant. Instead of manually chasing clients, DueBlink helps you:
-        </p>
-      </div>
-
-      <div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-left"
-        suppressHydrationWarning={true}
-      >
-        {[
-        { title: "Track Unpaid Clients", desc: "Know exactly who owes you money.", icon: <Users className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { title: "AI Reminder Generator", desc: "Generate professional Email & WhatsApp reminders instantly.", icon: <Sparkles className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { title: "Payment Tracking", desc: "Track Pending → Reminder Sent → Paid.", icon: <Activity className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { title: "AI Recovery Assistant (Pro)", desc: "AI recommends who to contact next and helps recover payments faster.", icon: <Bot className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { title: "Automatic Payment Reminders (Pro)", desc: "Automatically remind clients when payments are due.", icon: <Clock className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { title: "One-Click Payment Updates (Pro)", desc: "Mark payments as paid directly from your email — no dashboard required.", icon: <CheckCircle className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> }
-        ].map((card, cIdx) => (
-        <Tilt3D key={cIdx} delay={(cIdx % 3) * 0.05} className="group">
-          <motion.div
-            whileHover={{ y: -4, scale: 1.015 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="bg-white border border-slate-200/60 rounded-2xl p-6 shadow-3xs flex flex-col justify-between space-y-4 group-hover:shadow-lg transition-shadow duration-150 h-full"
-            suppressHydrationWarning={true}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-[#245B92]/10" suppressHydrationWarning={true}>
-              {card.icon}
-            </div>
-            <div className="space-y-1" suppressHydrationWarning={true}>
-              <h3 className="text-base font-bold text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>{card.title}</h3>
-              <p className="text-sm text-slate-400 font-medium leading-relaxed" suppressHydrationWarning={true}>{card.desc}</p>
-            </div>
-          </motion.div>
-        </Tilt3D>
-        ))}
-      </div>
-  </div>
-    </motion.section>
-
-    {/* --- BUILT FOR (MOVED IMMEDIATELY AFTER FEATURES) --- */}
-    <motion.section 
-    id="built-for"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-slate-50/50 py-16 sm:py-20 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-6xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
-      <div className="space-y-2" suppressHydrationWarning={true}>
-        <div className="flex justify-center select-none" suppressHydrationWarning={true}>
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#245B92]" suppressHydrationWarning={true}>
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" suppressHydrationWarning={true} />
-          <circle cx="9" cy="7" r="4" suppressHydrationWarning={true} />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" suppressHydrationWarning={true} />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" suppressHydrationWarning={true} />
-        </svg>
-        </div>
-        <h2 className="text-2xl sm:text-[32px] font-black text-[#0F172A] tracking-tight uppercase" suppressHydrationWarning={true}>Built for</h2>
-        <p className="text-sm sm:text-base text-slate-400 font-medium" suppressHydrationWarning={true}>If clients owe you money, DueBlink is built for you.</p>
-      </div>
-
-      <motion.div 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-50px" }}
-        variants={{
-        visible: { transition: { staggerChildren: 0.03 } }
-        }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto pt-2"
-        suppressHydrationWarning={true}
-      >
-        {[
-        { label: "Freelancers", icon: <Briefcase className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Agencies", icon: <Layers className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Consultants", icon: <Users className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Marketers", icon: <Send className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Service Businesses", icon: <Briefcase className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> }
-        ].map((persona, pIdx) => (
-        <motion.div 
-          key={pIdx}
-          variants={{
-            hidden: { opacity: 0, scale: 0.95 },
-            visible: { opacity: 1, scale: 1, transition: { duration: 0.2 } }
-          }}
-          whileHover={{ y: -2, borderColor: "#bfdbfe" }}
-          className="px-6 py-6 bg-white border border-slate-200 rounded-3xl shadow-3xs text-sm font-bold text-slate-700 flex flex-col items-center justify-center gap-3 transition cursor-default"
-          suppressHydrationWarning={true}
-        >
-          {persona.icon}
-          {persona.label}
-        </motion.div>
-        ))}
-      </motion.div>
-  </div>
-    </motion.section>
-
     {/* --- AUTOMATED REMINDERS GUIDE SECTION --- */}
     <section id="automated-reminders" className="py-16 sm:py-20 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
-      <div className="max-w-5xl mx-auto px-4" suppressHydrationWarning={true}>
-        <div className="rounded-3xl border border-slate-200 bg-slate-50/60 p-6 sm:p-10 text-center" suppressHydrationWarning={true}>
+      <div className="max-w-5xl mx-auto px-4 text-center space-y-10" suppressHydrationWarning={true}>
+        <div className="space-y-3" suppressHydrationWarning={true}>
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
             <Clock size={14} />
             AUTOMATED REMINDERS
           </div>
 
-          <h2 className="mt-4 text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-            Wondering how automatic reminders work?
+          <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
+            What Happens When a Client Ignores You
           </h2>
 
-          <p className="mt-3 mx-auto max-w-2xl text-sm sm:text-base text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>
-            See exactly when reminders are sent, how the follow-up sequence
-            works, how long emails take to arrive, and what happens after your
-            client pays.
+          <p className="mx-auto max-w-xl text-sm sm:text-base text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>
+            DueBlink follows up for you, a little firmer each time.
           </p>
-
-          <button
-            onClick={() => router.push('/help/automated-reminders')}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#245B92] to-[#20B8BE] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:shadow-md cursor-pointer"
-            suppressHydrationWarning={true}
-        >
-            See How It Works
-            <ArrowRight size={16} />
-          </button>
         </div>
+
+        {/* Timeline: a row on bigger screens, a vertical line on phones */}
+        <ol className="relative grid grid-cols-1 sm:grid-cols-4 gap-7 sm:gap-4 max-w-4xl mx-auto text-left sm:text-center" suppressHydrationWarning={true}>
+          <span aria-hidden="true" className="hidden sm:block absolute top-4 left-[12.5%] right-[12.5%] h-px bg-slate-200" />
+          <span aria-hidden="true" className="sm:hidden absolute left-4 top-4 bottom-4 w-px bg-slate-200" />
+          {[
+            { when: "Due date", title: "Friendly reminder", desc: "A polite nudge." },
+            { when: "Day 3", title: "Direct follow-up", desc: "Asks for a payment date." },
+            { when: "Day 7", title: "Firm final reminder", desc: "Clear, with the next step." },
+            { when: "After that", title: "Call or payment plan", desc: "Blink suggests what to try." }
+          ].map((step, sIdx) => (
+            <li key={sIdx} className="relative flex sm:flex-col items-start sm:items-center gap-4 sm:gap-3" suppressHydrationWarning={true}>
+              <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 ring-4 ring-white" style={{ background: 'linear-gradient(135deg, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
+                {sIdx + 1}
+              </div>
+              <div className="space-y-0.5" suppressHydrationWarning={true}>
+                <p className="text-[11px] font-black text-slate-400 tracking-widest uppercase" suppressHydrationWarning={true}>{step.when}</p>
+                <p className="text-sm font-black text-[#0F172A]" suppressHydrationWarning={true}>{step.title}</p>
+                <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>{step.desc}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <button
+          onClick={() => router.push('/help/automated-reminders')}
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#245B92] to-[#20B8BE] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:shadow-md cursor-pointer"
+          suppressHydrationWarning={true}
+        >
+          See How It Works
+          <ArrowRight size={16} />
+        </button>
       </div>
     </section>
-
-    {/* --- DEDICATED AI RECOVERY ASSISTANT SECTION --- */}
-    <section id="ai-recovery-assistant" className="py-16 sm:py-20 bg-slate-50/60 border-b border-slate-100 relative overflow-hidden px-4" suppressHydrationWarning={true}>
-    <div className="max-w-5xl mx-auto" suppressHydrationWarning={true}>
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-14 shadow-xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center" suppressHydrationWarning={true}>
-         
-      <div className="space-y-6" suppressHydrationWarning={true}>
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider shadow-3xs" suppressHydrationWarning={true}>
-          <Bot size={14} /> AI RECOVERY ASSISTANT (PRO)
-        </div>
-
-        <div className="space-y-2" suppressHydrationWarning={true}>
-          <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-            AI Recovery Assistant
-          </h2>
-          <p className="text-sm sm:text-base text-slate-600 font-medium" suppressHydrationWarning={true}>
-            Your AI assistant that analyzes payments, recommends who to contact, and helps you recover money faster.
-          </p>
-        </div>
-
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pt-1" suppressHydrationWarning={true}>
-          What it can do
-        </p>
-
-        <div className="space-y-3 pt-1" suppressHydrationWarning={true}>
-          {[
-            "Recommending who to contact today",
-            "Generating AI follow-up reminders",
-            "Rewriting reminders professionally",
-            "Finding overdue clients",
-            "Summarizing outstanding payments"
-        ].map((item, idx) => (
-            <div key={idx} className="flex items-center gap-3 text-sm font-semibold text-slate-700" suppressHydrationWarning={true}>
-              <CheckCircle2 size={16} className="text-[#2BB6A8] shrink-0" suppressHydrationWarning={true} />
-              <span suppressHydrationWarning={true}>{item}</span>
-            </div>
-        ))}
-        </div>
-
-        <p className="text-xs font-semibold text-slate-400 italic pt-1" suppressHydrationWarning={true}>
-          Available with DueBlink Pro.
-        </p>
-
-        <div className="pt-2" suppressHydrationWarning={true}>
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleAssistantCta}
-            className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-bold text-white text-sm shadow-xs transition hover:opacity-95 flex items-center justify-center gap-2 cursor-pointer"
-            style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-            suppressHydrationWarning={true}
-        >
-            {isPro ? 'Open Dashboard' : !user ? 'Create Free Account' : wasPro ? 'Renew Pro' : 'Upgrade to Pro'} <ArrowRight size={16} />
-          </motion.button>
-        </div>
-      </div>
-
-      {/* ============================================================
-        STATIC AI RECOVERY ASSISTANT PREVIEW
-        Visual replica of the Dashboard Recovery Assistant.
-        This is intentionally NON-FUNCTIONAL.
-        ============================================================ */}
-
-      <div
-        className="bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl rounded-2xl w-full max-w-[320px] mx-auto overflow-hidden"
-    >
-        {/* HEADER */}
-        <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] p-3.5 text-white relative overflow-hidden">
-
-          <div className="absolute -right-6 -bottom-6 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none" />
-
-          <div className="flex justify-between items-start relative z-10">
-
-            <div className="flex items-center gap-2">
-
-              <div className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
-                <Brain size={14} className="text-white" />
-              </div>
-
-              <div>
-                <div className="flex items-center gap-1.5">
-
-                  <h3 className="font-black tracking-wider uppercase text-[9px] text-white/90">
-                    Blink
-                  </h3>
-
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-
-                  <span className="text-[8px] font-bold text-white/80 uppercase">
-                    Online
-                  </span>
-
-                </div>
-
-                <p className="text-xs font-bold text-white mt-0.5">
-                  Your AI Recovery Assistant
-                </p>
-              </div>
-
-            </div>
-
-            {/* Static close icon — intentionally non-functional */}
-            <div className="text-white/70 bg-white/10 p-1.5 rounded-full">
-              <X size={12} />
-            </div>
-
-          </div>
-
-          {/* GREETING */}
-          <div className="mt-2.5 pt-2 border-t border-white/15">
-
-            <p className="text-[11px] font-bold text-white/90">
-              {new Date().getHours() < 12
-                ? "Good morning!"
-                : new Date().getHours() < 17
-                ? "Good afternoon!"
-                : "Good evening!"}
-            </p>
-
-            <p className="text-[10px] text-white/80 font-medium mt-0.5">
-              What can I help you with today?
-            </p>
-
-          </div>
-
-        </div>
-
-
-        {/* BODY */}
-        <div className="p-3.5 text-xs">
-
-          <div className="space-y-2">
-
-            {/* TITLE + PRO BADGE */}
-            <div className="flex items-center justify-between mb-1">
-
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Choose an action
-              </p>
-
-              <span className="text-[9px] font-bold text-[#20B8BE] bg-teal-50 px-2 py-0.5 rounded-full">
-                Pro Active
-              </span>
-
-            </div>
-
-
-            {/* ACTION 1 */}
-            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
-
-              <div className="flex items-center gap-2 truncate">
-
-                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
-                  <Sparkles size={13} />
-                </div>
-
-                <div className="truncate">
-
-                  <p className="font-bold text-[11px] text-slate-800 truncate">
-                    Generate Follow-up
-                  </p>
-
-                  <p className="text-[9px] text-slate-400 font-medium truncate">
-                    Generate an AI Email & WhatsApp follow-up
-                  </p>
-
-                </div>
-
-              </div>
-
-              <ChevronRight
-                size={12}
-                className="text-slate-300 flex-shrink-0 ml-1"
-          />
-
-            </div>
-
-
-            {/* ACTION 2 */}
-            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
-
-              <div className="flex items-center gap-2 truncate">
-
-                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
-                  <Brain size={13} />
-                </div>
-
-                <div className="truncate">
-
-                  <p className="font-bold text-[11px] text-slate-800 truncate">
-                    Today's Priorities
-                  </p>
-
-                  <p className="text-[9px] text-slate-400 font-medium truncate">
-                    See who needs your attention today
-                  </p>
-
-                </div>
-
-              </div>
-
-              <ChevronRight
-                size={12}
-                className="text-slate-300 flex-shrink-0 ml-1"
-          />
-
-            </div>
-
-
-            {/* ACTION 3 */}
-            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
-
-              <div className="flex items-center gap-2 truncate">
-
-                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
-                  <BarChart3 size={13} />
-                </div>
-
-                <div className="truncate">
-
-                  <p className="font-bold text-[11px] text-slate-800 truncate">
-                    Outstanding Summary
-                  </p>
-
-                  <p className="text-[9px] text-slate-400 font-medium truncate">
-                    Analyze your outstanding payments
-                  </p>
-
-                </div>
-
-              </div>
-
-              <ChevronRight
-                size={12}
-                className="text-slate-300 flex-shrink-0 ml-1"
-          />
-
-            </div>
-
-
-            {/* ACTION 4 */}
-            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
-
-              <div className="flex items-center gap-2 truncate">
-
-                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
-                  <Clock size={13} />
-                </div>
-
-                <div className="truncate">
-
-                  <p className="font-bold text-[11px] text-slate-800 truncate">
-                    Rewrite Reminder
-                  </p>
-
-                  <p className="text-[9px] text-slate-400 font-medium truncate">
-                    Rewrite your reminder professionally
-                  </p>
-
-                </div>
-
-              </div>
-
-              <ChevronRight
-                size={12}
-                className="text-slate-300 flex-shrink-0 ml-1"
-          />
-
-            </div>
-
-
-            {/* ACTION 5 */}
-            <div className="w-full text-left p-2 rounded-xl border border-slate-100 flex items-center justify-between shadow-2xs">
-
-              <div className="flex items-center gap-2 truncate">
-
-                <div className="w-6 h-6 rounded-lg bg-slate-100 text-[#245B92] flex items-center justify-center flex-shrink-0">
-                  <Users size={13} />
-                </div>
-
-                <div className="truncate">
-
-                  <p className="font-bold text-[11px] text-slate-800 truncate">
-                    Find Overdue Clients
-                  </p>
-
-                  <p className="text-[9px] text-slate-400 font-medium truncate">
-                    Find clients with overdue payments
-                  </p>
-
-                </div>
-
-              </div>
-
-              <ChevronRight
-                size={12}
-                className="text-slate-300 flex-shrink-0 ml-1"
-          />
-
-            </div>
-
-
-            {/* FOOTER */}
-            <div className="pt-2 text-center border-t border-slate-100 mt-2">
-
-              <p className="text-[9px] font-medium text-slate-400">
-                Powered by DueBlink AI
-              </p>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-  </div>
-  </section>
 
     {/* --- SECTION 4: WORKSPACE DASHBOARD VIEW WITH ANIMATION --- */}
     <motion.section 
@@ -2367,7 +1891,7 @@ export default function LandingPage() {
     <div className="max-w-6xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
       <div className="space-y-2" suppressHydrationWarning={true}>
         <BarChart3 className="w-8 h-8 text-[#245B92] mx-auto mb-1" suppressHydrationWarning={true} />
-        <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Everything You Need to Recover Payments</h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Everything You Need to Recover Payments</h2>
         <p className="text-sm sm:text-base text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Track clients, generate reminders, monitor payments, and recover money faster—all from one dashboard.</p>
       </div>
 
@@ -2457,6 +1981,22 @@ export default function LandingPage() {
         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No confusion.</div>
         <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No forgotten follow-ups.</div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-left" suppressHydrationWarning={true}>
+        {[
+          { title: "Automatic reminders (Pro)", desc: "Sent on the due date, day 3 and day 7.", icon: <Clock className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
+          { title: "Blink assistant (Pro)", desc: "Tells you who to contact today and writes the message.", icon: <Bot className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
+          { title: "Paid in one click (Pro)", desc: "Mark a payment as paid straight from your email.", icon: <CheckCircle className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> }
+        ].map((point, pIdx) => (
+          <div key={pIdx} className="bg-white border border-slate-200/60 rounded-xl p-4 flex items-start gap-3" suppressHydrationWarning={true}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[#245B92]/10" suppressHydrationWarning={true}>{point.icon}</div>
+            <div className="space-y-0.5" suppressHydrationWarning={true}>
+              <p className="text-sm font-bold text-[#0F172A]" suppressHydrationWarning={true}>{point.title}</p>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>{point.desc}</p>
+            </div>
+          </div>
+        ))}
+            </div>
         </motion.div>
       </div>
   </div>
@@ -2475,7 +2015,7 @@ export default function LandingPage() {
     <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
       <div className="space-y-2.5" suppressHydrationWarning={true}>
         <div className="flex justify-center select-none" suppressHydrationWarning={true}><Clipboard className="w-10 h-10 text-slate-600" suppressHydrationWarning={true} /></div>
-        <h2 className="text-2xl sm:text-[32px] font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Real Reminder Examples</h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Real Reminder Examples</h2>
         <p className="text-sm text-slate-500 font-medium px-2" suppressHydrationWarning={true}>See how DueBlink automatically adjusts the reminder tone based on how overdue a payment is.</p>
       </div>
 
@@ -2577,6 +2117,129 @@ export default function LandingPage() {
   </motion.section>
 
 
+    {/* --- WHO IT'S FOR (AFTER THE EXAMPLES) --- */}
+    <motion.section 
+    id="built-for"
+    initial={{ opacity: 0, y: 15 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: "-50px" }}
+    transition={{ duration: 0.3, ease: "easeOut" }}
+    className="bg-slate-50/50 py-16 sm:py-20 border-b border-slate-100 px-4"
+    suppressHydrationWarning={true}
+    >
+    <div className="max-w-6xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
+      <div className="space-y-2" suppressHydrationWarning={true}>
+        <div className="flex justify-center select-none" suppressHydrationWarning={true}>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#245B92]" suppressHydrationWarning={true}>
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" suppressHydrationWarning={true} />
+          <circle cx="9" cy="7" r="4" suppressHydrationWarning={true} />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" suppressHydrationWarning={true} />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" suppressHydrationWarning={true} />
+        </svg>
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Built For</h2>
+        <p className="text-sm sm:text-base text-slate-400 font-medium" suppressHydrationWarning={true}>If clients owe you money, DueBlink is built for you.</p>
+      </div>
+
+      <motion.div 
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-50px" }}
+        variants={{
+        visible: { transition: { staggerChildren: 0.03 } }
+        }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto pt-2"
+        suppressHydrationWarning={true}
+      >
+        {[
+        { label: "Freelancers", icon: <Briefcase className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
+        { label: "Agencies", icon: <Layers className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
+        { label: "Consultants", icon: <Users className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
+        { label: "Marketers", icon: <Send className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
+        { label: "Service Businesses", icon: <Briefcase className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> }
+        ].map((persona, pIdx) => (
+        <motion.div 
+          key={pIdx}
+          variants={{
+            hidden: { opacity: 0, scale: 0.95 },
+            visible: { opacity: 1, scale: 1, transition: { duration: 0.2 } }
+          }}
+          whileHover={{ y: -2, borderColor: "#bfdbfe" }}
+          className="px-6 py-6 bg-white border border-slate-200 rounded-3xl shadow-3xs text-sm font-bold text-slate-700 flex flex-col items-center justify-center gap-3 transition cursor-default"
+          suppressHydrationWarning={true}
+        >
+          {persona.icon}
+          {persona.label}
+        </motion.div>
+        ))}
+      </motion.div>
+  </div>
+    </motion.section>
+
+    {/* --- COMPARISON: DUEBLINK VS INVOICING TOOLS VS CHATGPT ---
+         Phones: one card per row (no sideways scrolling). Computers: a table. */}
+    <section id="comparison" className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4" suppressHydrationWarning={true}>
+      <div className="max-w-5xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
+        <div className="space-y-2" suppressHydrationWarning={true}>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
+            <Layers size={14} />
+            DueBlink vs invoicing tools vs ChatGPT
+          </div>
+          <h2 className="text-2xl sm:text-3xl pt-2 font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
+            More Than an Invoice Tool.{' '}
+            <span className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent" suppressHydrationWarning={true}>
+              Smarter Than ChatGPT.
+            </span>
+          </h2>
+          <p className="text-sm sm:text-base text-slate-500 font-medium max-w-2xl mx-auto px-2" suppressHydrationWarning={true}>
+            DueBlink remembers every follow-up and tells you the next right step: who to chase, how firmly, and on which channel.
+          </p>
+        </div>
+
+        <div className="sm:hidden space-y-3 text-left" suppressHydrationWarning={true}>
+          {COMPARISON_ROWS.map((row, rIdx) => (
+            <div key={rIdx} className="bg-white border border-slate-200 rounded-2xl shadow-3xs p-4 space-y-3" suppressHydrationWarning={true}>
+              <p className="text-sm font-bold text-[#0F172A]" suppressHydrationWarning={true}>{row.label}</p>
+              <div className="flex items-start gap-2 rounded-xl bg-teal-50/40 border border-teal-100 px-3 py-2" suppressHydrationWarning={true}>
+                <Check className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" suppressHydrationWarning={true} />
+                <p className="text-sm" suppressHydrationWarning={true}><span className="font-black text-[#245B92]">DueBlink:</span> <span className="font-bold text-[#147D75]">{row.us}</span></p>
+              </div>
+              <p className="text-xs text-slate-500 font-medium px-1" suppressHydrationWarning={true}><span className="font-bold text-slate-600">Invoicing tools:</span> {row.tools}</p>
+              <p className="text-xs text-slate-500 font-medium px-1" suppressHydrationWarning={true}><span className="font-bold text-slate-600">ChatGPT:</span> {row.gpt}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-x-auto text-left" suppressHydrationWarning={true}>
+          <table className="w-full text-sm" suppressHydrationWarning={true}>
+            <thead suppressHydrationWarning={true}>
+              <tr className="border-b border-slate-100" suppressHydrationWarning={true}>
+                <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-[34%]" suppressHydrationWarning={true}></th>
+                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-white text-center" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>DueBlink</th>
+                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-slate-500 text-center" suppressHydrationWarning={true}>Invoicing tools</th>
+                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-slate-500 text-center" suppressHydrationWarning={true}>ChatGPT</th>
+              </tr>
+            </thead>
+            <tbody suppressHydrationWarning={true}>
+              {COMPARISON_ROWS.map((row, rIdx) => (
+                <tr key={rIdx} className="border-b border-slate-100 last:border-b-0" suppressHydrationWarning={true}>
+                  <td className="p-4 font-bold text-[#0F172A]" suppressHydrationWarning={true}>{row.label}</td>
+                  <td className="p-4 text-center font-bold text-[#147D75] bg-teal-50/40" suppressHydrationWarning={true}>
+                    <span className="inline-flex items-center justify-center gap-1.5" suppressHydrationWarning={true}>
+                      <Check className="w-4 h-4 text-teal-500 shrink-0" suppressHydrationWarning={true} /> {row.us}
+                    </span>
+                  </td>
+                  <td className="p-4 text-center text-slate-500 font-medium" suppressHydrationWarning={true}>{row.tools}</td>
+                  <td className="p-4 text-center text-slate-500 font-medium" suppressHydrationWarning={true}>{row.gpt}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
     {/* --- PRICING SECTION WITH PREMIUM ANIMATION --- */}
     <motion.section 
     id="pricing"
@@ -2592,7 +2255,7 @@ export default function LandingPage() {
         <div className="mx-auto w-12 h-12 flex items-center justify-center" suppressHydrationWarning={true}>
           <Sparkles className="w-8 h-8 text-[#20B8BE]" suppressHydrationWarning={true} />
         </div>
-        <h2 className="text-3xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Simple pricing</h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Simple Pricing</h2>
         <p className="text-slate-500 font-medium" suppressHydrationWarning={true}>Choose the plan that fits your recovery needs.</p>
       </div>
 
@@ -2789,7 +2452,7 @@ export default function LandingPage() {
         
       <div className="space-y-12" suppressHydrationWarning={true}>
         <div className="space-y-2" suppressHydrationWarning={true}>
-          <h2 className="text-2xl sm:text-4xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently asked questions</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently Asked Questions</h2>
           <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Common questions about DueBlink.</p>
         </div>
 
@@ -2864,8 +2527,8 @@ export default function LandingPage() {
     >
     <div className="max-w-4xl mx-auto" suppressHydrationWarning={true}>
       <div className="bg-gradient-to-br from-[#245B92] to-[#20B8BE] rounded-[32px] p-6 sm:p-12 text-center text-white relative shadow-lg overflow-hidden" suppressHydrationWarning={true}>
-        <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
-          {isPro ? 'Welcome back! Your Pro features are ready.' : user ? 'Welcome back. Ready to recover more payments?' : 'Stop Chasing Clients. Get Paid Faster.'}
+        <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
+          {isPro ? 'Welcome Back! Your Pro Features Are Ready.' : user ? 'Welcome Back. Ready to Recover More Payments?' : 'Stop Chasing Clients. Get Paid Faster.'}
         </h2>
           
         <motion.div 
@@ -2955,8 +2618,8 @@ export default function LandingPage() {
 
         <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
           <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Product</p>
-          <a href="#features" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Features</a>
-          <a href="#ai-recovery-assistant" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>AI recovery assistant</a>
+          <a href="#dashboard-preview" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Features</a>
+          <a href="#automated-reminders" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Automatic reminders</a>
           <a href="#how-it-works" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>How it works</a>
           <a href="/pricing" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Pricing</a>
         </div>
