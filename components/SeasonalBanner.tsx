@@ -11,12 +11,30 @@ export default function SeasonalBanner() {
   const [event, setEvent] =
     useState<SeasonalEvent | null>(null);
 
+  // null = still checking the visitor's country
+  const [isIndia, setIsIndia] = useState<boolean | null>(null);
+
   useEffect(() => {
-    setEvent(getSeasonalEvent());
+    const todayEvent = getSeasonalEvent();
+    setEvent(todayEvent);
+
+    // Christmas is shown to everyone, so no country check is needed.
+    if (!todayEvent || todayEvent.type === 'christmas') return;
+
+    fetch('/api/visitor-country')
+      .then((response) => response.json())
+      .then((data) => setIsIndia(data.isIndia !== false))
+      .catch(() => setIsIndia(true));
   }, []);
 
   // Normal days
   if (!event) {
+    return null;
+  }
+
+  // Indian festivals (Diwali, Holi, Eid, 15 Aug, 26 Jan) only for
+  // visitors in India; Christmas for everyone.
+  if (event.type !== 'christmas' && isIndia !== true) {
     return null;
   }
 

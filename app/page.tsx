@@ -16,6 +16,7 @@ import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from 'fi
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
+import { getSeasonalEvent } from '@/lib/seasonalEvents';
 
 // --- SCROLL REVEAL ---
 // Wraps any block of content and, as it scrolls into view, fades and
@@ -52,6 +53,26 @@ export default function LandingPage() {
   // True when the visitor's phone or computer asks for less motion
   // (an accessibility setting). The hero cards then stay still.
   const reduceMotion = useReducedMotion();
+
+  // Hero badge: a common late-payment problem, changing every 3 seconds.
+  // The heading below ("Stop chasing clients. Get paid faster.") answers it.
+  const HERO_PROBLEMS = [
+    'Invoice overdue again?',
+    'Client stopped replying?',
+    '"I\'ll pay next week" again?',
+    'Tired of awkward follow-ups?',
+    'Chasing payments on WhatsApp?',
+  ];
+  const [problemIndex, setProblemIndex] = useState(0);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    const timer = setInterval(() => {
+      setProblemIndex((i) => (i + 1) % HERO_PROBLEMS.length);
+    }, 3000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduceMotion]);
   const router = useRouter();
   const pathname = usePathname();
     
@@ -65,6 +86,17 @@ export default function LandingPage() {
   const [myClients, setMyClients] = useState<any[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
   const [isIndia, setIsIndia] = useState(true);
+
+  // Festival greeting above the problem badge.
+  // Visitors in India see every festival; visitors outside India
+  // see only Christmas.
+  const [festivalType, setFestivalType] = useState<string | null>(null);
+  useEffect(() => {
+    setFestivalType(getSeasonalEvent()?.type ?? null);
+  }, []);
+  const GLOBAL_FESTIVALS = ['christmas'];
+  const showFestivalGreeting =
+    !!festivalType && (isIndia || GLOBAL_FESTIVALS.includes(festivalType));
 
   useEffect(() => {
     const detectCountry = async () => {
@@ -1055,7 +1087,42 @@ export default function LandingPage() {
   >
 
     {/* SEASONAL LANDING ACCENT */}
-    <SeasonalLandingAccent />
+    {showFestivalGreeting && <SeasonalLandingAccent />}
+
+    {/* PROBLEM BADGE (changes every 3s; hidden when a festival greeting shows) */}
+    {!showFestivalGreeting && (
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="flex justify-center"
+      suppressHydrationWarning={true}
+    >
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border border-[#20B8BE]/30 bg-[#20B8BE]/5 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[#245B92]"
+        suppressHydrationWarning={true}
+      >
+        <Clock className="w-3.5 h-3.5 text-[#20B8BE] shrink-0" aria-hidden="true" />
+        {/* All phrases share one spot, so the pill keeps the width of the longest */}
+        <span className="inline-grid overflow-hidden" aria-live="polite">
+          {HERO_PROBLEMS.map((text, i) => (
+            <motion.span
+              key={text}
+              initial={false}
+              animate={{
+                opacity: i === problemIndex ? 1 : 0,
+                y: i === problemIndex ? '0%' : '60%',
+              }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className="[grid-area:1/1] whitespace-nowrap text-center"
+              aria-hidden={i !== problemIndex}
+            >
+              {text}
+            </motion.span>
+          ))}
+        </span>
+      </span>
+    </motion.div>
+    )}
 
     {/* HERO HEADING */}
     <motion.h1

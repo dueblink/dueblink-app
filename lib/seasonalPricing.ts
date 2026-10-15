@@ -54,6 +54,18 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+// Today's date in India (YYYY-MM-DD). The server runs in UTC, so
+// without this the offer would start 5½ hours late on the server
+// while the page (in the visitor's browser) already shows it.
+function getIndiaDateString(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 function addDays(dateString: string, days: number): string {
   const date = new Date(`${dateString}T12:00:00`);
   date.setDate(date.getDate() + days);
@@ -129,8 +141,8 @@ export function getSeasonalPricing(
   date: Date = new Date()
 ): SeasonalPricing | null {
 
-  const currentYear = date.getFullYear();
-  const currentDate = formatDate(date);
+  const currentDate = getIndiaDateString(date);
+  const currentYear = Number(currentDate.slice(0, 4));
 
   const fixedOffer = (
     id: string,
