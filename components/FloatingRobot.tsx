@@ -8,21 +8,24 @@ import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, 
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Landing page sections Blink reacts to, in the order they appear on the page.
+// Same order as the sections on the landing page (app/page.tsx).
 const LANDING_SECTION_IDS = [
   'hero',
+  'reminder-generator',
   'late-payments',
   'how-it-works',
-  'features',
-  'built-for',
   'automated-reminders',
-  'ai-recovery-assistant',
   'dashboard-preview',
-  'reminder-generator',
   'reminder-examples',
+  'built-for',
+  'comparison',
   'pricing',
   'faq',
   'final-cta',
 ] as const;
+
+// Sections where Blink's bubble also shows the main button.
+const SECTIONS_WITH_BUTTON = ['hero', 'reminder-generator', 'final-cta'];
 
 interface FloatingRobotProps {
   clients?: any[];
@@ -849,15 +852,14 @@ export default function FloatingRobot({
     if (isLoggedIn && isPro) {
       return {
         'hero': "Your Pro workspace is ready.",
-        'late-payments': "See everything DueBlink can do for your payments.",
-        'features': "Your complete payment recovery toolkit.",
-        'built-for': "Built for businesses that invoice and follow up.",
-        'automated-reminders': "Set it once and let DueBlink follow up automatically.",
-        'ai-recovery-assistant': "I can help you decide which payment to chase first.",
-        'dashboard-preview': "Your payment recovery activity, all in one place.",
         'reminder-generator': "Create unlimited AI payment reminders in seconds.",
+        'late-payments': "Late payments hurt cash flow. You're already covered.",
+        'how-it-works': "Add a client, send reminders, mark paid. That's it.",
+        'automated-reminders': "Your automatic follow-ups run for you, step by step.",
+        'dashboard-preview': "Your payment recovery activity, all in one place.",
         'reminder-examples': "See reminders for different payment stages.",
-        'how-it-works': "Add clients, follow up, and track payments.",
+        'built-for': "Built for freelancers and small businesses.",
+        'comparison': "See how DueBlink compares to other tools.",
         'pricing': "Your Pro plan unlocks the full recovery toolkit.",
         'faq': "Find quick answers to common questions.",
         'final-cta': "Ready to recover more payments?"
@@ -865,31 +867,29 @@ export default function FloatingRobot({
     } else if (isLoggedIn) {
       return {
         'hero': "Welcome back. Let's recover your payments.",
-        'late-payments': "Stay on top of every payment you are owed.",
-        'features': "Your tools for faster payment recovery.",
-        'built-for': "Built for businesses that invoice and follow up.",
-        'automated-reminders': "Let DueBlink handle your follow-ups automatically.",
-        'ai-recovery-assistant': "Upgrade to Pro for smarter recovery recommendations.",
-        'dashboard-preview': "Manage your clients and payment activity here.",
         'reminder-generator': "Create AI payment reminders when you need them.",
+        'late-payments': "Stay on top of every payment you are owed.",
+        'how-it-works': "Add a client, send reminders, mark paid. That's it.",
+        'automated-reminders': "With Pro, DueBlink follows up for you automatically.",
+        'dashboard-preview': "Manage your clients and payment activity here.",
         'reminder-examples': "See examples for different payment stages.",
-        'how-it-works': "Add clients, send reminders, and track payments.",
-        'pricing': "Upgrade when you need unlimited recovery tools.",
+        'built-for': "Built for freelancers and small businesses.",
+        'comparison': "See how DueBlink compares to other tools.",
+        'pricing': "Upgrade when you need automatic follow-ups.",
         'faq': "Find quick answers to common questions.",
         'final-cta': "Ready to get paid faster?"
       };
     } else {
       return {
         'hero': "Start with 5 free AI reminders.",
-        'late-payments': "Late payments are easier to manage with timely follow-ups.",
-        'features': "Everything you need to recover payments, in one place.",
-        'built-for': "Built for businesses that invoice and follow up.",
-        'automated-reminders': "Set it once and let DueBlink follow up automatically.",
-        'ai-recovery-assistant': "See how AI can help you recover payments.",
-        'dashboard-preview': "Your payment recovery workspace.",
         'reminder-generator': "Create a professional payment reminder in seconds.",
+        'late-payments': "Late payments are easier to manage with timely follow-ups.",
+        'how-it-works': "Add a client, send reminders, mark paid. That's it.",
+        'automated-reminders': "Client ignoring you? DueBlink follows up step by step.",
+        'dashboard-preview': "Your payment recovery workspace.",
         'reminder-examples': "See reminders for different payment stages.",
-        'how-it-works': "Add a client, send reminders, and track payment.",
+        'built-for': "Built for freelancers and small businesses.",
+        'comparison': "See how DueBlink compares to other tools.",
         'pricing': "Start free, then upgrade when you need more.",
         'faq': "Find quick answers to common questions.",
         'final-cta': "Ready to get paid faster?"
@@ -1094,20 +1094,17 @@ export default function FloatingRobot({
   const handleLandingAction = () => {
     if (isLoggedIn) {
       router.push('/dashboard');
-    } else if (remainingFreeReminders > 0) {
-      const newCount = remainingFreeReminders - 1;
-      setRemainingFreeReminders(newCount);
-      localStorage.setItem('freeReminders', newCount.toString());
+    } else {
+      // Just take the visitor to the free generator. The real free-reminder
+      // limit is counted by the generator itself, not here.
       const element = document.getElementById('reminder-generator');
       if (element) {
         element.scrollIntoView({ behavior: 'smooth' });
         setIsExpanded(false);
         setShowMessageBubble(false);
       } else {
-        router.push('/create-account');
+        router.push('/#reminder-generator');
       }
-    } else {
-      router.push('/create-account');
     }
   };
 
@@ -1185,13 +1182,13 @@ export default function FloatingRobot({
               {getActiveMessage()}
             </p>
 
-            {pathname !== '/dashboard' && (isLoggedIn || currentSectionIndex === 0 || currentSectionIndex === 12 || clickedSectionText) && (
+            {pathname !== '/dashboard' && (isLoggedIn || SECTIONS_WITH_BUTTON.includes(LANDING_SECTION_IDS[currentSectionIndex] ?? 'hero') || clickedSectionText) && (
               <button 
                 onClick={handleLandingAction} 
                 className="mt-0.5 w-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white py-2 px-3 rounded-xl font-bold text-[11px] shadow-md hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#245B92]"
                 suppressHydrationWarning={true}
               >
-                {isLoggedIn ? "Open Dashboard" : (isPro ? "Open Dashboard" : "Try 5 AI Reminders Free")} <ArrowRight size={12} />
+                {isLoggedIn ? "Open Dashboard" : "Generate a free reminder"} <ArrowRight size={12} />
               </button>
             )}
           </motion.div>
@@ -2560,10 +2557,10 @@ export default function FloatingRobot({
         ) : (
           <div className="text-center py-2" suppressHydrationWarning={true}>
             <p className="text-[11px] font-bold text-slate-800 mb-3 leading-relaxed" suppressHydrationWarning={true}>
-              {remainingFreeReminders > 0 ? `Hi! You have ${remainingFreeReminders} free reminders remaining.` : "You've used your free reminders. Create an account to continue!"}
+              Hi! Generate your first payment reminder for free.
             </p>
             <button onClick={handleLandingAction} className="w-full text-white py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider shadow-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer mb-2 focus:outline-none focus:ring-2 focus:ring-[#245B92]" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
-              <span>{remainingFreeReminders > 0 ? "Try 5 AI Reminders Free" : "Create Account"}</span> 
+              <span>Generate a free reminder</span> 
               <ArrowRight size={12} />
             </button>
             <div className="pt-1.5 text-center border-t border-slate-100">
