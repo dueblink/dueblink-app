@@ -35,6 +35,11 @@ export default function PricingPage() {
   // When the current Pro plan ends (shown so Pro users can renew early).
   const [proEndsAt, setProEndsAt] = useState<Date | null>(null);
 
+  // Pro users can renew only in the last 3 days before their plan ends
+  // (same time the reminder email and dashboard banner appear).
+  const RENEW_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+  const renewWindowOpen = !proEndsAt || proEndsAt.getTime() - Date.now() <= RENEW_WINDOW_MS;
+
   const seasonalPricing = getSeasonalPricing();
 
   // Early offer (first 20 paying users). The server decides who
@@ -827,13 +832,15 @@ return (
               </div>
 
               <button 
-                onClick={() => handleUpgradeClick('pro')} 
+                onClick={() => (isUserPro && !renewWindowOpen ? router.push('/dashboard') : handleUpgradeClick('pro'))} 
                 disabled={isProcessing}
                 className="w-full py-3 sm:py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95"
                 suppressHydrationWarning={true}
               >
                 {isProcessing ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Opening secure checkout...</>
+                ) : isUserPro && !renewWindowOpen ? (
+                  <><CheckCircle2 className="w-4 h-4" /> You&apos;re on Pro · Open Dashboard</>
                 ) : isUserPro ? (
                   <><Sparkles className="w-4 h-4" /> Renew early ✨</>
                 ) : wasPro ? (
@@ -845,9 +852,11 @@ return (
 
               {isUserPro && (
                 <p className="mt-3 text-[11px] font-semibold text-slate-500 text-center" suppressHydrationWarning={true}>
-                  {proEndsAt
-                    ? `Your Pro is active until ${proEndsAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}. Renewing adds time on top, so you lose no days.`
-                    : 'Renewing adds time on top of your current plan, so you lose no days.'}
+                  {proEndsAt && !renewWindowOpen
+                    ? `Your Pro is active until ${proEndsAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}. You can renew from ${new Date(proEndsAt.getTime() - RENEW_WINDOW_MS).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}.`
+                    : proEndsAt
+                      ? `Your Pro ends on ${proEndsAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}. Renewing adds time on top, so you lose no days.`
+                      : 'Renewing adds time on top of your current plan, so you lose no days.'}
                 </p>
               )}
             </motion.div>
