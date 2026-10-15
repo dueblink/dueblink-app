@@ -4,9 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check } from 'lucide-react';
+import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check, MessageCircle, MessageSquare } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { formatAmountWithCurrency } from '@/lib/reminderRules';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
@@ -477,7 +478,11 @@ export default function DashboardPage() {
   const getNextAutoReminder = (c: any): string => {
     if (c.status !== 'Pending') return '';
     if (!(c.automatedReminders === true && c.automationStatus === 'active')) return 'Automatic reminders off';
-    if (!c.email) return 'Automatic reminders need an email';
+    if (!c.email) {
+      return c.whatsapp || c.phone
+        ? 'No email: send reminders from the Today list in one tap'
+        : 'Automatic reminders need an email';
+    }
 
     const last = String(c.lastAutomatedReminderStage || '');
     if (last === 'final') return 'All automatic reminders sent';
@@ -519,6 +524,170 @@ export default function DashboardPage() {
       return `Next automatic reminder ${when} (${STAGE_NAMES[stage]})`;
     }
     return '';
+  };
+
+  // ============================================================
+  // TAP TO SEND — a ready message for each client in the Today list.
+  // Opens WhatsApp, SMS or email on the user's own phone with the
+  // message filled in, then records it in the client's reminder
+  // history, so the stage moves on (first -> follow-up -> final).
+  // Works for free users too (no AI needed).
+  // ============================================================
+  const buildTapMessage = (c: any, days: number) => {
+    const stage = getTodayStage(c, days).label;
+    const name = String(c.name || '').trim().split(' ')[0] || 'there';
+    const amount = formatAmountWithCurrency(c.amount, c.currency);
+    const late = days <= 0 ? 'due today' : `now ${days} ${days === 1 ? 'day' : 'days'} overdue`;
+    const ownerName = String(user?.displayName || '').trim();
+    const sign = ownerName ? `\n\nThanks,\n${ownerName}` : '\n\nThanks!';
+    const link = c.paymentLink ? `\n\nYou can pay here: ${c.paymentLink}` : '';
+
+    const deadline = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long',
+    }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+
+    if (stage === 'Stalled') {
+      return {
+        subject: 'Can we sort out the pending payment?',
+        text: `Hi ${name}, I wanted to check in about the pending payment of ${amount}. If paying it all at once is difficult, I'm happy to split it into two parts. Could we have a quick call this week to sort it out?${link}${sign}`,
+      };
+    }
+    if (stage === 'Final reminder') {
+      return {
+        subject: `Final reminder: payment of ${amount} overdue`,
+        text: `Hi ${name}, the payment of ${amount} is ${late}, and I haven't received it despite my earlier reminders. Please clear it by ${deadline}. If there's an issue, just let me know so we can sort it out.${link}${sign}`,
+      };
+    }
+    if (stage === 'Follow-up') {
+      return {
+        subject: `Following up: payment of ${amount}`,
+        text: `Hi ${name}, following up on the payment of ${amount}, which is ${late}. Could you let me know the date I can expect it?${link}${sign}`,
+      };
+    }
+    return {
+      subject: days <= 0 ? `Payment of ${amount} due today` : `Reminder: payment of ${amount}`,
+      text: `Hi ${name}, hope you're doing well! Just a quick reminder that the payment of ${amount} is ${late}. Could you let me know once it's done?${link}${sign}`,
+    };
+  };
+
+  const getClientPhone = (c: any): string => {
+    let phone = String(c.whatsapp || c.phone || '').replace(/\D/g, '');
+    if (phone.length === 10) phone = `91${phone}`; // 10 digits = Indian number
+    return phone;
+  };
+
+  // Which button is busy writing an AI message, e.g. "abc123-whatsapp".
+  const [tapWriting, setTapWriting] = useState<string | null>(null);
+
+  // Pro users: Blink AI writes a fresh message for this client and stage.
+  // Free users (or if the AI fails): the ready-made template above.
+  const getAiTapMessage = async (c: any, days: number, channel: 'whatsapp' | 'sms' | 'email') => {
+    const stage = getTodayStage(c, days).label;
+    const stageGuide: Record<string, { tone: string; note: string }> = {
+      'First reminder': { tone: 'gentle', note: 'This is the FIRST reminder. Friendly, assume they forgot.' },
+      'Follow-up': { tone: 'professional', note: 'This is a FOLLOW-UP. One reminder was already sent. Be direct and ask for a payment date.' },
+      'Final reminder': { tone: 'firm', note: 'This is the FINAL reminder. Two reminders were ignored. Be firm, give a clear deadline 3 days from today, stay respectful.' },
+      'Stalled': { tone: 'professional', note: 'Reminders are being ignored. Do not demand the full amount again. Offer to split the payment, ask what is blocking it, and suggest a short call.' },
+    };
+    const guide = stageGuide[stage] || stageGuide['First reminder'];
+
+    const idToken = await user?.getIdToken();
+    if (!idToken) throw new Error('Not signed in');
+
+    // Earlier messages to this client, so the new one is worded differently.
+    const previousReminders = (Array.isArray(c.reminderHistory) ? c.reminderHistory : [])
+      .filter((r: any) => r && (r.message || r.email_body))
+      .slice(-5)
+      .map((r: any) => ({
+        email_subject: r.email_subject || '',
+        email_body: r.email_body || (r.channel === 'email' ? r.message : '') || '',
+        whatsapp_message: r.channel === 'whatsapp' ? r.message || '' : '',
+        sms_text: r.channel === 'sms' ? r.message || '' : '',
+      }));
+
+    const response = await fetch('/api/generate-reminder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({
+        clientName: String(c.name || '').trim(),
+        amount: c.amount,
+        currency: c.currency,
+        daysOverdue: Math.max(0, days),
+        invoiceRef: c.invoiceNumber || c.invoiceRef || '',
+        tone: guide.tone,
+        variationInstruction: `${guide.note} The payment is ${days <= 0 ? 'due today' : `${days} days overdue`}.`,
+        previousReminders,
+      }),
+    });
+    if (!response.ok) throw new Error('AI message failed');
+
+    const data = await response.json();
+    const link = c.paymentLink ? `\n\nYou can pay here: ${c.paymentLink}` : '';
+
+    if (channel === 'email') {
+      if (!data.email_body) throw new Error('Empty email');
+      return { subject: data.email_subject || buildTapMessage(c, days).subject, text: `${data.email_body}${link}` };
+    }
+    const text = channel === 'sms' ? data.sms_text : data.whatsapp_message;
+    if (!text) throw new Error('Empty message');
+    return { subject: '', text: `${text}${link}` };
+  };
+
+  const sendTapReminder = async (c: any, channel: 'whatsapp' | 'sms' | 'email') => {
+    if (tapWriting) return;
+
+    const days = getDaysOverdue(c.dueDate);
+    const phone = getClientPhone(c);
+
+    // Open the WhatsApp tab straight away (phones block tabs opened
+    // after waiting), then fill in the address once the message is ready.
+    const whatsappTab = channel === 'whatsapp' ? window.open('', '_blank') : null;
+    if (whatsappTab) whatsappTab.opener = null;
+
+    let message = buildTapMessage(c, days);
+    let usedAi = false;
+
+    if (isPro) {
+      setTapWriting(`${c.id}-${channel}`);
+      try {
+        message = await getAiTapMessage(c, days, channel);
+        usedAi = true;
+      } catch {
+        // Keep the ready-made template so the user can still send.
+      } finally {
+        setTapWriting(null);
+      }
+    }
+
+    const { subject, text } = message;
+
+    if (channel === 'whatsapp') {
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+      if (whatsappTab) whatsappTab.location.href = url;
+      else window.open(url, '_blank', 'noopener,noreferrer');
+    } else if (channel === 'sms') {
+      // "sms:+number?&body=" works on both Android and iPhone.
+      window.location.href = `sms:+${phone}?&body=${encodeURIComponent(text)}`;
+    } else {
+      window.location.href = `mailto:${String(c.email || '').trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    }
+
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        reminderHistory: arrayUnion({
+          type: 'manual',
+          channel,
+          sentAt: new Date().toISOString(),
+          label: channel === 'whatsapp' ? 'Manual WhatsApp sent' : channel === 'sms' ? 'Manual SMS sent' : 'Manual email sent',
+          message: text,
+          ...(channel === 'email' ? { email_subject: subject, email_body: text } : {}),
+          writtenBy: usedAi ? 'ai' : 'template',
+        }),
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      // If saving fails, the message still opened; the user can send again later.
+    }
   };
 
   const todayClients = clients
@@ -1097,12 +1266,61 @@ export default function DashboardPage() {
                                 </span>
                               </div>
                               <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>
-                                ₹{Number(c.amount || 0).toLocaleString('en-IN')} · {days === 0 ? 'Due today' : `${days} ${days === 1 ? 'day' : 'days'} overdue`} · {lastDays === null ? 'No reminder sent yet' : `Last reminder ${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}
+                                {formatAmountWithCurrency(c.amount, c.currency)} · {days === 0 ? 'Due today' : `${days} ${days === 1 ? 'day' : 'days'} overdue`} · {lastDays === null ? 'No reminder sent yet' : `Last reminder ${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}
                               </p>
                             </div>
                           </div>
 
                           <p className="text-sm text-slate-700 font-medium" suppressHydrationWarning={true}>{stage.advice}</p>
+
+                          {/* Tap to send: a ready message, opened on the user's own phone */}
+                          {(getClientPhone(c) || c.email) ? (
+                            <div className="grid grid-cols-3 gap-2" suppressHydrationWarning={true}>
+                              {getClientPhone(c) && (
+                                <motion.button
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => sendTapReminder(c, 'whatsapp')}
+                                  disabled={tapWriting !== null}
+                                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                                  suppressHydrationWarning={true}
+                                >
+                                  {tapWriting === `${c.id}-whatsapp` ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+                                  {tapWriting === `${c.id}-whatsapp` ? 'Writing…' : 'WhatsApp'}
+                                </motion.button>
+                              )}
+                              {getClientPhone(c) && (
+                                <motion.button
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => sendTapReminder(c, 'sms')}
+                                  disabled={tapWriting !== null}
+                                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                                  suppressHydrationWarning={true}
+                                >
+                                  {tapWriting === `${c.id}-sms` ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                                  {tapWriting === `${c.id}-sms` ? 'Writing…' : 'SMS'}
+                                </motion.button>
+                              )}
+                              {c.email && (
+                                <motion.button
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => sendTapReminder(c, 'email')}
+                                  disabled={tapWriting !== null}
+                                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                                  suppressHydrationWarning={true}
+                                >
+                                  {tapWriting === `${c.id}-email` ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                                  {tapWriting === `${c.id}-email` ? 'Writing…' : 'Email'}
+                                </motion.button>
+                              )}
+                              <p className="col-span-3 text-[11px] text-slate-400 font-medium" suppressHydrationWarning={true}>
+                                {isPro ? '✨ Blink AI writes a fresh message for this stage.' : 'Ready-made message. Pro: Blink AI writes a fresh one each time.'}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>
+                              Add this client&apos;s WhatsApp number or email to send a reminder in one tap.
+                            </p>
+                          )}
 
                           <div className="flex flex-col sm:flex-row gap-2" suppressHydrationWarning={true}>
                             <motion.button
