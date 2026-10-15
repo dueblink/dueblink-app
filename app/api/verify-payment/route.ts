@@ -4,6 +4,8 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import { sendProWelcomeEmail } from '@/lib/emailService';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 import { verifyPaymentRateLimit } from '@/lib/rateLimit';
+import { FieldValue } from 'firebase-admin/firestore';
+import { EARLY_OFFER_DOC_PATH } from '@/lib/earlyOffer';
 
 export async function POST(req: Request) {
   try {
@@ -183,6 +185,37 @@ export async function POST(req: Request) {
     }
 
     // ======================================================
+    // 5b. Use the plan that was actually paid for
+    // ======================================================
+    // create-order saved what each order is for. Use that, not
+    // the billingCycle the browser sends, so nobody can pay for
+    // a month and claim a year. (Orders made before this update
+    // have no saved record; those fall back to the old way.)
+
+    const orderRef =
+      adminDb.collection('paymentOrders').doc(String(razorpay_order_id));
+
+    const orderSnapshot = await orderRef.get();
+    const savedOrder = orderSnapshot.exists ? orderSnapshot.data() || {} : null;
+
+    if (savedOrder && savedOrder.userId !== userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'This payment belongs to a different account',
+        },
+        { status: 403 }
+      );
+    }
+
+    const paidBillingCycle: 'monthly' | 'yearly' =
+      savedOrder?.billingCycle === 'yearly' || savedOrder?.billingCycle === 'monthly'
+        ? savedOrder.billingCycle
+        : billingCycle;
+
+    const isEarlyOffer = savedOrder?.offer === 'early-offer';
+
+    // ======================================================
     // 6. Get user from Firebase
     // ======================================================
 
@@ -220,7 +253,7 @@ export async function POST(req: Request) {
           success: true,
           message: 'Payment has already been verified.',
           billingCycle:
-            userData.billingCycle || billingCycle,
+            userData.billingCycle || paidBillingCycle,
           proExpiresAt:
             userData.proExpiresAt?.toDate
               ? userData.proExpiresAt.toDate().toISOString()
@@ -236,7 +269,7 @@ export async function POST(req: Request) {
 
     const proExpiresAt = new Date();
 
-    if (billingCycle === 'yearly') {
+    if (paidBillingCycle === 'yearly') {
       proExpiresAt.setFullYear(
         proExpiresAt.getFullYear() + 1
       );
@@ -254,7 +287,8 @@ export async function POST(req: Request) {
       {
         isPro: true,
         wasPro: true,
-        billingCycle: billingCycle,
+        billingCycle: paidBillingCycle,
+        ...(isEarlyOffer ? { earlyOfferUsed: true } : {}),
         proExpiresAt: proExpiresAt,
         razorpayPaymentId:
           razorpay_payment_id,
@@ -267,6 +301,30 @@ export async function POST(req: Request) {
         merge: true,
       }
     );
+
+    // Mark the order paid, and count an early-offer spot as used.
+    // (Never let this block Pro activation if it fails.)
+    try {
+      if (savedOrder) {
+        await orderRef.update({
+          status: 'paid',
+          razorpayPaymentId: razorpay_payment_id,
+          paidAt: new Date(),
+        });
+      }
+
+      if (isEarlyOffer) {
+        await adminDb.doc(EARLY_OFFER_DOC_PATH).set(
+          { claimed: FieldValue.increment(1), updatedAt: new Date() },
+          { merge: true }
+        );
+      }
+    } catch (bookkeepingError) {
+      console.error(
+        'Pro activated, but order/offer bookkeeping failed:',
+        bookkeepingError
+      );
+    }
 
     // ======================================================
     // 9. Send Pro Welcome Email
@@ -324,7 +382,7 @@ export async function POST(req: Request) {
         success: true,
         message:
           'Payment verified and Pro status activated successfully',
-        billingCycle,
+        billingCycle: paidBillingCycle,
         proExpiresAt:
           proExpiresAt.toISOString(),
       },

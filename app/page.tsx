@@ -15,7 +15,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
-import { getSeasonalPricing } from '@/lib/seasonalPricing';
+import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
 
 // --- SCROLL REVEAL ---
 // Wraps any block of content and, as it scrolls into view, fades and
@@ -103,6 +103,29 @@ export default function LandingPage() {
   const [mounted, setMounted] = useState(false);
 
   const seasonalPricing = getSeasonalPricing();
+
+  // Early offer (first 20 paying users) — the server decides who
+  // qualifies; this only controls what the pricing card shows.
+  const [earlyOffer, setEarlyOffer] = useState<{ eligible: boolean; spotsLeft: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = user ? await user.getIdToken() : null;
+        const response = await fetch('/api/early-offer', {
+          headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+        });
+        const data = await response.json();
+        if (!cancelled) setEarlyOffer({ eligible: !!data.eligible, spotsLeft: Number(data.spotsLeft || 0) });
+      } catch {
+        if (!cancelled) setEarlyOffer({ eligible: false, spotsLeft: 0 });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const showEarlyOffer = isIndia && !!earlyOffer?.eligible && !isPro;
 
   // Sync pro status from localStorage and event listeners
   useEffect(() => {
@@ -2421,18 +2444,18 @@ export default function LandingPage() {
             className="text-4xl sm:text-5xl font-black mb-1"
             suppressHydrationWarning={true}
           >
-            {isIndia && seasonalPricing?.id === 'launch-offer' && (
+            {isIndia && (showEarlyOffer || seasonalPricing) && (
               <span className="text-xl sm:text-2xl text-slate-300 line-through mr-2">
-                ₹499
+                ₹{NORMAL_PRICES.monthly}
               </span>
             )}
 
             {isIndia ? (
-              seasonalPricing?.id === 'launch-offer'
-                ? '₹249'
+              showEarlyOffer
+                ? `₹${EARLY_OFFER.monthly}`
                 : seasonalPricing
                   ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
-                  : '₹499'
+                  : `₹${NORMAL_PRICES.monthly}`
             ) : (
               '$9'
             )}
@@ -2441,7 +2464,7 @@ export default function LandingPage() {
               className="text-xs sm:text-sm font-bold text-slate-400"
               suppressHydrationWarning={true}
             >
-              / month
+              {showEarlyOffer ? ' first month' : ' / month'}
             </span>
           </div>
 
@@ -2450,17 +2473,17 @@ export default function LandingPage() {
             suppressHydrationWarning={true}
           >
             {isIndia ? (
-              seasonalPricing?.id === 'launch-offer' ? (
-                '50% OFF first month · Then ₹499/month'
+              showEarlyOffer ? (
+                `Then ₹${NORMAL_PRICES.monthly}/month · or ₹${EARLY_OFFER.yearly.toLocaleString('en-IN')} for the first year`
               ) : seasonalPricing ? (
                 <>
                   <span className="line-through text-slate-300 mr-1">
-                    ₹4,999
+                    ₹{NORMAL_PRICES.yearly.toLocaleString('en-IN')}
                   </span>
                   or ₹{seasonalPricing.yearlyPrice.toLocaleString('en-IN')} / year
                 </>
               ) : (
-                'or ₹4,999 / year'
+                `or ₹${NORMAL_PRICES.yearly.toLocaleString('en-IN')} / year`
               )
             ) : (
               'or $89 / year'
@@ -2469,9 +2492,9 @@ export default function LandingPage() {
 
           <p className="text-[11px] text-slate-400 font-medium mb-8">
             {isIndia ? (
-              seasonalPricing?.id === 'launch-offer' ? (
+              showEarlyOffer ? (
                 <span className="text-[#20B8BE] font-bold">
-                  Limited-Time Launch Offer
+                  Early offer · first {EARLY_OFFER.totalSpots} users · {earlyOffer?.spotsLeft} {earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left
                 </span>
               ) : seasonalPricing ? (
                 <span className="text-[#20B8BE] font-bold">

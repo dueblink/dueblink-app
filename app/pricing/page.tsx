@@ -10,6 +10,8 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import {
   getSeasonalPricing,
+  NORMAL_PRICES,
+  EARLY_OFFER,
 } from '@/lib/seasonalPricing';
 import { loadRazorpay } from '@/lib/loadRazorpay';
 
@@ -32,6 +34,44 @@ export default function PricingPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const seasonalPricing = getSeasonalPricing();
+
+  // Early offer (first 20 paying users). The server decides who
+  // qualifies; this only controls what the page shows.
+  const [earlyOffer, setEarlyOffer] = useState<{ eligible: boolean; spotsLeft: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadEarlyOffer = async () => {
+      try {
+        const idToken = user ? await user.getIdToken() : null;
+        const response = await fetch('/api/early-offer', {
+          headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
+        });
+        const data = await response.json();
+        if (!cancelled) {
+          setEarlyOffer({ eligible: !!data.eligible, spotsLeft: Number(data.spotsLeft || 0) });
+        }
+      } catch {
+        if (!cancelled) setEarlyOffer({ eligible: false, spotsLeft: 0 });
+      }
+    };
+
+    loadEarlyOffer();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const showEarlyOffer = isIndia && !!earlyOffer?.eligible && !isUserPro;
+
+  const indiaPrice =
+    showEarlyOffer
+      ? (billingCycle === 'monthly' ? EARLY_OFFER.monthly : EARLY_OFFER.yearly)
+      : seasonalPricing
+        ? (billingCycle === 'monthly' ? seasonalPricing.monthlyPrice : seasonalPricing.yearlyPrice)
+        : (billingCycle === 'monthly' ? NORMAL_PRICES.monthly : NORMAL_PRICES.yearly);
+
+  const normalIndiaPrice =
+    billingCycle === 'monthly' ? NORMAL_PRICES.monthly : NORMAL_PRICES.yearly;
 
   useEffect(() => {
     const detectCountry = async () => {
@@ -647,7 +687,7 @@ return (
                 className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${billingCycle === 'yearly' ? 'bg-[#245B92] text-white shadow-3xs' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 <span>Yearly</span>
-                <span className="text-[9px] font-black bg-teal-500 text-white px-1.5 py-0.5 rounded-md">Save ~15%</span>
+                <span className="text-[9px] font-black bg-teal-500 text-white px-1.5 py-0.5 rounded-md">Save ~30%</span>
               </button>
             </div>
           </div>
@@ -711,18 +751,13 @@ return (
                   className="text-5xl font-black mb-1 text-[#0F172A]"
                   suppressHydrationWarning={true}
                 >
+                  {isIndia && indiaPrice < normalIndiaPrice && (
+                    <span className="text-xl sm:text-2xl text-slate-300 line-through mr-2" suppressHydrationWarning={true}>
+                      ₹{normalIndiaPrice.toLocaleString('en-IN')}
+                    </span>
+                  )}
                   {isIndia
-                    ? (
-                        billingCycle === 'monthly'
-                          ? seasonalPricing?.id === 'launch-offer'
-                            ? '₹249'
-                            : seasonalPricing
-                              ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
-                              : '₹499'
-                          : seasonalPricing
-                            ? `₹${seasonalPricing.yearlyPrice.toLocaleString('en-IN')}`
-                            : '₹4,999'
-                      )
+                    ? `₹${indiaPrice.toLocaleString('en-IN')}`
                     : (
                         billingCycle === 'monthly'
                           ? '$9'
@@ -733,7 +768,9 @@ return (
                     className="text-sm font-bold text-slate-400"
                     suppressHydrationWarning={true}
                   >
-                    {billingCycle === 'monthly' ? ' / month' : ' / year'}
+                    {showEarlyOffer
+                      ? (billingCycle === 'monthly' ? ' first month' : ' first year')
+                      : (billingCycle === 'monthly' ? ' / month' : ' / year')}
                   </span>
                 </div>
                 <p
@@ -742,17 +779,13 @@ return (
                 >
                   {isIndia
                     ? (
-                        seasonalPricing?.id === 'launch-offer'
-                          ? (
-                              billingCycle === 'monthly'
-                                ? '50% OFF first month · Then ₹499/month'
-                                : '₹4,999/year · Normal annual pricing'
-                            )
+                        showEarlyOffer
+                          ? `Early offer for the first ${EARLY_OFFER.totalSpots} users · ${earlyOffer?.spotsLeft} ${earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left · Then ₹${normalIndiaPrice.toLocaleString('en-IN')}${billingCycle === 'monthly' ? '/month' : '/year'}`
                           : seasonalPricing
                             ? `${seasonalPricing.name} · Limited time`
                             : (
                                 billingCycle === 'yearly'
-                                  ? 'Best value: Save 15% annually'
+                                  ? 'Best value: Save ~30% annually'
                                   : 'Billed monthly · Cancel anytime'
                               )
                       )

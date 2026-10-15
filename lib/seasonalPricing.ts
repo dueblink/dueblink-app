@@ -1,22 +1,36 @@
 // ==================================================
-// DUEBLINK SEASONAL PRICING
+// DUEBLINK PRICING (INDIA)
 // ==================================================
 //
 // Normal pricing:
-// Monthly: ₹499
-// Yearly: ₹4,999
+//   Monthly: ₹299
+//   Yearly:  ₹2,499
 //
-// Launch Offer:
-// ₹249 first month
-// Then ₹499/month
+// Early offer (first 20 paying users, once per person):
+//   ₹99 for the first month (then ₹299/month), or
+//   ₹999 for the first year (then ₹2,499/year).
+//   Who qualifies is decided on the SERVER (lib/earlyOffer.ts),
+//   because it needs the database counter.
 //
 // Festival offers:
-// Start 3 days before the festival.
-// End 1 day after the festival.
+//   Start 3 days before the festival, end 1 day after.
+//   A festival offer is ONLY used when it is CHEAPER than the
+//   normal price. To run one, set its prices below ₹299 / ₹2,499.
 //
-// Birthday:
-// December 6 only.
+// International pricing ($9 / $89) is handled separately and
+// is not changed here.
 // ==================================================
+
+export const NORMAL_PRICES = {
+  monthly: 299,
+  yearly: 2499,
+};
+
+export const EARLY_OFFER = {
+  monthly: 99,
+  yearly: 999,
+  totalSpots: 20,
+};
 
 export type SeasonalPricing = {
   id: string;
@@ -48,33 +62,20 @@ function addDays(dateString: string, days: number): string {
 }
 
 // ==================================================
-// 🚀 LIMITED-TIME LAUNCH OFFER
+// FESTIVAL OFFER PRICES
 // ==================================================
 //
-// First month: ₹249
-// After first month: ₹499/month
-//
-// Offer is available for 30 days.
-//
-// ONLY CHANGE launchOfferStartDate WHEN THE
-// LAUNCH OFFER START DATE IS DECIDED.
+// Festivals:  ₹249/month, ₹1,999/year  (about 20% off normal)
+// Birthday:   ₹199/month, ₹1,499/year
+// They must stay BELOW ₹299 / ₹2,499, or they are ignored.
 //
 // ==================================================
 
-const launchOfferStartDate = '2026-10-10';
+const FESTIVAL_MONTHLY_PRICE = 249;
+const FESTIVAL_YEARLY_PRICE = 1999;
 
-const launchOffer: SeasonalPricing = {
-  id: 'launch-offer',
-  name: 'Limited-Time Launch Offer',
-
-  monthlyPrice: 249,
-  yearlyPrice: 4999,
-
-  festivalDate: launchOfferStartDate,
-
-  start: launchOfferStartDate,
-  end: addDays(launchOfferStartDate, 29),
-};
+const BIRTHDAY_MONTHLY_PRICE = 199;
+const BIRTHDAY_YEARLY_PRICE = 1499;
 
 // ==================================================
 // CHANGING FESTIVAL DATES
@@ -82,10 +83,6 @@ const launchOffer: SeasonalPricing = {
 //
 // ONLY UPDATE THESE DATES WHEN THE FESTIVAL DATE
 // CHANGES FROM YEAR TO YEAR.
-//
-// The system automatically calculates:
-// START = 3 days before
-// END = 1 day after
 //
 // ==================================================
 
@@ -122,6 +119,11 @@ const FESTIVAL_DATES = [
 // ==================================================
 // GET ACTIVE SEASONAL OFFER
 // ==================================================
+//
+// Returns an offer only when one is running today AND it is
+// cheaper than the normal price (monthly and yearly).
+//
+// ==================================================
 
 export function getSeasonalPricing(
   date: Date = new Date()
@@ -130,151 +132,51 @@ export function getSeasonalPricing(
   const currentYear = date.getFullYear();
   const currentDate = formatDate(date);
 
-  // ==================================================
-  // 🚀 LIMITED-TIME LAUNCH OFFER
-  // ==================================================
-
-  if (
-    currentDate >= launchOffer.start &&
-    currentDate <= launchOffer.end
-  ) {
-    return launchOffer;
-  }
-
-  // ==================================================
-  // 🇮🇳 INDEPENDENCE DAY
-  // Automatically every year — August 15
-  // ==================================================
-
-  const independenceDate =
-    `${currentYear}-08-15`;
-
-  const independenceOffer: SeasonalPricing = {
-    id: 'independence-day',
-    name: 'Independence Day Offer',
-
-    monthlyPrice: 399,
-    yearlyPrice: 3999,
-
-    festivalDate: independenceDate,
-
-    start: addDays(independenceDate, -3),
-    end: addDays(independenceDate, 1),
-  };
-
-  // ==================================================
-  // 🇮🇳 REPUBLIC DAY
-  // Automatically every year — January 26
-  // ==================================================
-
-  const republicDate =
-    `${currentYear}-01-26`;
-
-  const republicOffer: SeasonalPricing = {
-    id: 'republic-day',
-    name: 'Republic Day Offer',
-
-    monthlyPrice: 399,
-    yearlyPrice: 3999,
-
-    festivalDate: republicDate,
-
-    start: addDays(republicDate, -3),
-    end: addDays(republicDate, 1),
-  };
-
-  // ==================================================
-  // 🎄 CHRISTMAS
-  // Automatically every year — December 25
-  // ==================================================
-
-  const christmasDate =
-    `${currentYear}-12-25`;
-
-  const christmasOffer: SeasonalPricing = {
-    id: 'christmas',
-    name: 'Christmas Offer',
-
-    monthlyPrice: 399,
-    yearlyPrice: 3999,
-
-    festivalDate: christmasDate,
-
-    start: addDays(christmasDate, -3),
-    end: addDays(christmasDate, 1),
-  };
-
-  // ==================================================
-  // 🎂 FOUNDER'S BIRTHDAY
-  // Automatically every year — December 6
-  //
-  // IMPORTANT:
-  // Birthday is ONLY December 6.
-  // No 3-day-before / 1-day-after period.
-  // ==================================================
-
-  const birthdayDate =
-    `${currentYear}-12-06`;
-
-  const birthdayOffer: SeasonalPricing = {
-    id: 'founders-birthday',
-    name: "Founder's Birthday Special",
-
-    monthlyPrice: 299,
-    yearlyPrice: 2999,
-
-    festivalDate: birthdayDate,
-
-    start: birthdayDate,
-    end: birthdayDate,
-  };
-
-  // ==================================================
-  // BUILD FESTIVAL OFFERS
-  // ==================================================
-
-  const changingFestivalOffers: SeasonalPricing[] =
-    FESTIVAL_DATES.map((festival) => ({
-      id: festival.id,
-      name: festival.name,
-
-      monthlyPrice: 399,
-      yearlyPrice: 3999,
-
-      festivalDate: festival.festivalDate,
-
-      start: addDays(
-        festival.festivalDate,
-        -3
-      ),
-
-      end: addDays(
-        festival.festivalDate,
-        1
-      ),
-    }));
-
-  // ==================================================
-  // ALL OFFERS
-  // ==================================================
+  const fixedOffer = (
+    id: string,
+    name: string,
+    festivalDate: string,
+    monthlyPrice: number,
+    yearlyPrice: number,
+    daysBefore = 3,
+    daysAfter = 1
+  ): SeasonalPricing => ({
+    id,
+    name,
+    monthlyPrice,
+    yearlyPrice,
+    festivalDate,
+    start: addDays(festivalDate, -daysBefore),
+    end: addDays(festivalDate, daysAfter),
+  });
 
   const allOffers: SeasonalPricing[] = [
-    independenceOffer,
-    republicOffer,
-    ...changingFestivalOffers,
-    christmasOffer,
-    birthdayOffer,
-  ];
+    // 🇮🇳 Independence Day — August 15 every year
+    fixedOffer('independence-day', 'Independence Day Offer', `${currentYear}-08-15`, FESTIVAL_MONTHLY_PRICE, FESTIVAL_YEARLY_PRICE),
 
-  // ==================================================
-  // FIND ACTIVE OFFER
-  // ==================================================
+    // 🇮🇳 Republic Day — January 26 every year
+    fixedOffer('republic-day', 'Republic Day Offer', `${currentYear}-01-26`, FESTIVAL_MONTHLY_PRICE, FESTIVAL_YEARLY_PRICE),
+
+    // 🌙🪔🎨 Festivals whose dates change each year
+    ...FESTIVAL_DATES.map((festival) =>
+      fixedOffer(festival.id, festival.name, festival.festivalDate, FESTIVAL_MONTHLY_PRICE, FESTIVAL_YEARLY_PRICE)
+    ),
+
+    // 🎄 Christmas — December 25 every year
+    fixedOffer('christmas', 'Christmas Offer', `${currentYear}-12-25`, FESTIVAL_MONTHLY_PRICE, FESTIVAL_YEARLY_PRICE),
+
+    // 🎂 Founder's birthday — December 6 only
+    fixedOffer('founders-birthday', "Founder's Birthday Special", `${currentYear}-12-06`, BIRTHDAY_MONTHLY_PRICE, BIRTHDAY_YEARLY_PRICE, 0, 0),
+  ];
 
   return (
     allOffers.find(
       (offer) =>
         currentDate >= offer.start &&
-        currentDate <= offer.end
+        currentDate <= offer.end &&
+        // Never charge more than the normal price
+        offer.monthlyPrice < NORMAL_PRICES.monthly &&
+        offer.yearlyPrice < NORMAL_PRICES.yearly
     ) ?? null
   );
 }

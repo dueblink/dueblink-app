@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getSeasonalPricing } from '@/lib/seasonalPricing';
+import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
+import { getEarlyOfferStatus } from '@/lib/earlyOffer';
+import { getAdminDb } from '@/lib/firebaseAdmin';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 import { createOrderRateLimit } from '@/lib/rateLimit';
 
@@ -114,28 +116,40 @@ export async function POST(req: Request) {
 
     const currency = 'INR';
 
+    // Order of priority:
+    // 1. Early offer (first 20 paying users, once per person)
+    // 2. A festival offer, only if it is cheaper than normal
+    // 3. Normal price
+    const earlyOffer =
+      await getEarlyOfferStatus(userId);
+
     const seasonalPricing =
-      getSeasonalPricing();
+      earlyOffer.eligible ? null : getSeasonalPricing();
+
+    const offerId =
+      earlyOffer.eligible
+        ? 'early-offer'
+        : seasonalPricing?.id || 'none';
 
     const amountInRupees =
-      seasonalPricing?.id === 'launch-offer'
+      earlyOffer.eligible
         ? billingCycle === 'monthly'
-          ? 249
-          : 4999
+          ? EARLY_OFFER.monthly
+          : EARLY_OFFER.yearly
         : seasonalPricing
         ? billingCycle === 'monthly'
           ? seasonalPricing.monthlyPrice
           : seasonalPricing.yearlyPrice
         : billingCycle === 'monthly'
-          ? 499
-          : 4999;
+          ? NORMAL_PRICES.monthly
+          : NORMAL_PRICES.yearly;
 
     const numericAmount =
       amountInRupees * 100;
 
     console.log(
-      'Seasonal offer:',
-      seasonalPricing?.name || 'None'
+      'Offer:',
+      offerId
     );
 
     console.log(
@@ -243,9 +257,7 @@ export async function POST(req: Request) {
               billingCycle,
               product: 'DueBlink Pro',
 
-              seasonalOffer:
-                seasonalPricing?.id ||
-                'none',
+              offer: offerId,
             },
           }),
         }
@@ -294,6 +306,24 @@ export async function POST(req: Request) {
       razorpayData.id
     );
 
+    // --------------------------------------------------
+    // 10. Remember exactly what this order is for.
+    // verify-payment reads this, so the plan given is the
+    // plan that was paid for (not what the browser says).
+    // --------------------------------------------------
+
+    await getAdminDb()
+      .collection('paymentOrders')
+      .doc(String(razorpayData.id))
+      .set({
+        userId,
+        billingCycle,
+        amountInRupees,
+        offer: offerId,
+        status: 'created',
+        createdAt: new Date(),
+      });
+
     return NextResponse.json(
       {
         success: true,
@@ -301,9 +331,7 @@ export async function POST(req: Request) {
         amount: razorpayData.amount,
         currency:
           razorpayData.currency,
-        seasonalOffer:
-          seasonalPricing?.name ||
-          null,
+        offer: offerId,
       },
       { status: 200 }
     );
