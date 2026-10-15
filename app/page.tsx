@@ -127,6 +127,28 @@ export default function LandingPage() {
 
   const showEarlyOffer = isIndia && !!earlyOffer?.eligible && !isPro;
 
+  // Top strip: the early offer first; otherwise a running festival offer
+  // (not the founder's birthday one). Never for Pro users or outside India.
+  const showEarlyStrip = showEarlyOffer && !!earlyOffer && earlyOffer.spotsLeft > 0;
+  const FESTIVAL_STRIP_EMOJI: Record<string, string> = {
+    'diwali': '🪔',
+    'holi': '🎨',
+    'eid-al-fitr': '🌙',
+    'eid-al-adha': '🌙',
+    'christmas': '🎄',
+    'independence-day': '🇮🇳',
+    'republic-day': '🇮🇳',
+  };
+  const festivalStripOffer =
+    !showEarlyStrip && isIndia && !isPro && earlyOffer !== null &&
+    seasonalPricing && seasonalPricing.id !== 'founders-birthday'
+      ? seasonalPricing
+      : null;
+  const festivalStripEnds = festivalStripOffer
+    ? new Date(`${festivalStripOffer.end}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : '';
+  const showOfferStrip = showEarlyStrip || !!festivalStripOffer;
+
   // Sync pro status from localStorage and event listeners
   useEffect(() => {
     setMounted(true);
@@ -755,6 +777,51 @@ export default function LandingPage() {
     <MotionConfig reducedMotion="user">
     <div ref={pageRef} className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
         
+      {/* --- EARLY OFFER STRIP (only while spots are left) --- */}
+      {showEarlyStrip && earlyOffer && (
+        <button
+          type="button"
+          onClick={() => scrollToSection('pricing')}
+          className="w-full h-9 px-4 flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-xs sm:text-sm cursor-pointer hover:opacity-95 transition"
+          suppressHydrationWarning={true}
+        >
+          <span aria-hidden="true">🎉</span>
+          <span className="truncate">
+            <span className="font-bold">Early offer:</span> Pro at ₹{EARLY_OFFER.monthly} for the first month
+            {earlyOffer.spotsLeft >= EARLY_OFFER.totalSpots ? (
+              <>
+                <span className="hidden sm:inline"> · first {EARLY_OFFER.totalSpots} users only</span>
+                <span className="sm:hidden"> · first {EARLY_OFFER.totalSpots} only</span>
+              </>
+            ) : (
+              <>
+                <span className="hidden sm:inline"> · only {earlyOffer.spotsLeft} of {EARLY_OFFER.totalSpots} {earlyOffer.spotsLeft === 1 ? 'spot' : 'spots'} left</span>
+                <span className="sm:hidden"> · {earlyOffer.spotsLeft} {earlyOffer.spotsLeft === 1 ? 'spot' : 'spots'} left</span>
+              </>
+            )}
+          </span>
+          <span className="font-bold underline underline-offset-2 whitespace-nowrap">Claim →</span>
+        </button>
+      )}
+
+      {/* --- FESTIVAL OFFER STRIP (when no early offer is showing) --- */}
+      {festivalStripOffer && (
+        <button
+          type="button"
+          onClick={() => scrollToSection('pricing')}
+          className="w-full h-9 px-4 flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-xs sm:text-sm cursor-pointer hover:opacity-95 transition"
+          suppressHydrationWarning={true}
+        >
+          <span aria-hidden="true">{FESTIVAL_STRIP_EMOJI[festivalStripOffer.id] || '🎉'}</span>
+          <span className="truncate">
+            <span className="font-bold">{festivalStripOffer.name}:</span> Pro at ₹{festivalStripOffer.monthlyPrice}/month
+            <span className="hidden sm:inline"> · ends {festivalStripEnds}</span>
+            <span className="sm:hidden"> · till {festivalStripEnds}</span>
+          </span>
+          <span className="font-bold underline underline-offset-2 whitespace-nowrap">Claim →</span>
+        </button>
+      )}
+
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
@@ -979,7 +1046,7 @@ export default function LandingPage() {
   variants={{
     visible: { transition: { staggerChildren: 0.12 } }
   }}
-  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 min-h-[calc(100svh-8rem)] flex flex-col justify-center"
+  className={`relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 ${showOfferStrip ? 'min-h-[calc(100svh-10.25rem)]' : 'min-h-[calc(100svh-8rem)]'} sm:portrait:min-h-0 flex flex-col justify-center`}
   suppressHydrationWarning={true}
 >
   <div
