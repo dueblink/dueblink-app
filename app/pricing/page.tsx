@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2, Mail } from 'lucide-react';
+import { Check, Sparkles, Zap, X, Menu, ChevronDown, CheckCircle2, Mail, Loader2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -833,7 +833,7 @@ return (
                 suppressHydrationWarning={true}
               >
                 {isProcessing ? (
-                  <><Zap className="w-4 h-4 animate-spin" /> Connecting Gateway...</>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Opening secure checkout...</>
                 ) : isUserPro ? (
                   <><Sparkles className="w-4 h-4" /> Renew early ✨</>
                 ) : wasPro ? (
