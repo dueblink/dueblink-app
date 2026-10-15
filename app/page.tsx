@@ -2904,6 +2904,9 @@ export default function LandingPage() {
         <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
           <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Free Tools</p>
           <a href="/tools/invoice-due-date-calculator" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Invoice due date calculator</a>
+          <a href="/tools/whatsapp-payment-reminder" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>WhatsApp payment reminders</a>
+          <a href="/tools/payment-reminder-email-templates" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Payment reminder emails</a>
+          <a href="/tools/late-payment-interest-calculator" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Late payment interest calculator</a>
         </div>
 
         <div className="flex flex-col gap-3" suppressHydrationWarning={true}>

@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, ArrowRight, Menu, X, ChevronDown, Mail, Clock, HelpCircle, Copy, Check, CalendarPlus, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { Calendar, ArrowRight, Mail, Clock, HelpCircle, Copy, Check, CalendarPlus, CheckCircle2, AlertTriangle, MessageCircle } from 'lucide-react';
+import { ToolNav, ToolFooter } from '@/components/ToolLayout';
+import { FAQS } from './faqs';
 
 const TERM_OPTIONS = [
   { label: 'Net 7', days: 7 },
@@ -18,32 +17,9 @@ const TERM_OPTIONS = [
   { label: 'Custom', days: null as number | null },
 ];
 
-const FAQS = [
-  {
-    q: 'What does "Net 30" mean on an invoice?',
-    a: 'Net 30 means the full invoice amount is due 30 days after the invoice date. The same logic applies to Net 7, Net 15, Net 45, Net 60, and Net 90 — the number is simply how many days the client has to pay, counted from the date the invoice was issued, not from when they received or opened it.',
-  },
-  {
-    q: 'Is the due date counted from the invoice date or the delivery date?',
-    a: 'Almost always the invoice date, unless your contract or payment terms explicitly say otherwise. Some businesses count from the delivery or completion date instead — if that applies to you, use that date as the starting point in the calculator above.',
-  },
-  {
-    q: 'What happens if the due date falls on a weekend or holiday?',
-    a: 'Most invoices don\u2019t automatically extend to the next business day — the due date stays as calculated unless your payment terms specifically state otherwise. It\u2019s worth checking your contract, since this varies by industry and region.',
-  },
-  {
-    q: 'Should I offer longer payment terms to win more clients?',
-    a: 'Longer terms (Net 60, Net 90) can make you more attractive to larger clients, but every extra day is cash sitting in someone else\u2019s account instead of yours. Shorter terms (Net 7, Net 15) improve your cash flow but may not fit every client relationship. There\u2019s no universally "right" answer — it depends on your leverage and how badly you need predictable cash flow.',
-  },
-];
 
 export default function InvoiceDueDateCalculatorClient() {
   const router = useRouter();
-  const pathname = usePathname();
-
-  const [user, setUser] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [invoiceDate, setInvoiceDate] = useState('');
   const [termIndex, setTermIndex] = useState(2); // default Net 30
@@ -51,27 +27,14 @@ export default function InvoiceDueDateCalculatorClient() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // Today's date on the visitor's own calendar (toISOString would use
+    // UTC and show yesterday's date in India before 5:30 am).
     const today = new Date();
-    setInvoiceDate(today.toISOString().slice(0, 10));
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    setInvoiceDate(`${y}-${m}-${d}`);
   }, []);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setUser(null);
-      router.push('/');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
 
   const selectedTerm = TERM_OPTIONS[termIndex];
   const daysToAdd = selectedTerm.days ?? (parseInt(customDays, 10) || 0);
@@ -103,13 +66,15 @@ export default function InvoiceDueDateCalculatorClient() {
       diffDays,
       progressPct,
       status,
-      formatted: due.toLocaleDateString('en-US', {
+      formatted: due.toLocaleDateString('en-IN', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
+        timeZone: 'UTC',
       }),
-      compact: due.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      compact: due.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }),
+      isWeekend: due.getUTCDay() === 0 || due.getUTCDay() === 6,
     };
   }, [invoiceDate, daysToAdd]);
 
@@ -127,7 +92,7 @@ export default function InvoiceDueDateCalculatorClient() {
       return {
         label: t.label,
         days: t.days as number,
-        date: due.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        date: due.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }),
         isSelected: selectedTerm.days === t.days,
       };
     });
@@ -135,7 +100,7 @@ export default function InvoiceDueDateCalculatorClient() {
 
   const handleCopyResult = () => {
     if (!result) return;
-    const text = `Invoice dated ${new Date(invoiceDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} \u2014 ${selectedTerm.label === 'Custom' ? `${daysToAdd} days` : selectedTerm.label} terms \u2014 payment due ${result.formatted}.`;
+    const text = `Invoice dated ${new Date(invoiceDate + 'T00:00:00').toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })} \u2014 ${selectedTerm.label === 'Custom' ? `${daysToAdd} days` : selectedTerm.label} terms \u2014 payment due ${result.formatted}.`;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -165,115 +130,7 @@ export default function InvoiceDueDateCalculatorClient() {
   return (
     <div className="min-h-screen bg-white text-[#0F172A] antialiased" suppressHydrationWarning={true}>
 
-      {/* --- NAV --- */}
-      <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
-
-          <motion.div
-            whileHover={{ scale: 1.03 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none"
-            onClick={() => router.push('/')}
-            suppressHydrationWarning={true}
-          >
-            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
-          </motion.div>
-
-          <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
-            <div className="flex items-center gap-6 text-sm font-bold text-slate-600" suppressHydrationWarning={true}>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={`relative py-2 px-3 cursor-pointer transition-colors duration-200 group ${pathname === '/pricing' ? 'text-[#245B92]' : 'hover:text-[#245B92]'}`}
-                onClick={() => router.push('/pricing')}
-                suppressHydrationWarning={true}
-              >
-                <span suppressHydrationWarning={true}>Pricing</span>
-                <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-200 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
-              </motion.div>
-
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={`relative py-2 px-3 cursor-pointer transition-colors duration-200 group ${pathname?.startsWith('/tools') ? 'text-[#245B92]' : 'hover:text-[#245B92]'}`}
-                onClick={() => router.push('/contact')}
-                suppressHydrationWarning={true}
-              >
-                <span suppressHydrationWarning={true}>Contact</span>
-                <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-200 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
-              </motion.div>
-            </div>
-
-            <div className="flex items-center gap-4" suppressHydrationWarning={true}>
-              {!mounted ? (
-                <div className="h-9 w-32" suppressHydrationWarning={true} />
-              ) : user ? (
-                <div className="flex items-center gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push('/dashboard')}
-                    className="px-4 py-2 text-sm font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 text-white hover:opacity-95"
-                    style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-                    suppressHydrationWarning={true}
-                  >
-                    Dashboard
-                  </motion.button>
-                  <div className="relative group py-2">
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-[#245B92] transition cursor-pointer px-3 py-2 rounded-xl hover:bg-slate-50" suppressHydrationWarning={true}>
-                      Account <ChevronDown size={14} />
-                    </motion.button>
-                    <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 hidden group-hover:block z-50">
-                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => router.push('/login')} className="text-sm font-bold text-slate-600 hover:text-[#245B92] hover:bg-slate-50 transition cursor-pointer px-3 py-2 rounded-xl" suppressHydrationWarning={true}>Login</motion.button>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => router.push('/create-account')} className="text-xs sm:text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex md:hidden items-center">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer" aria-label="Toggle Menu">
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </motion.button>
-          </div>
-        </div>
-
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
-            >
-              <div className="flex flex-col space-y-3 font-bold text-slate-700">
-                <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg text-[#1E293B] hover:bg-slate-50 font-bold">Pricing</button>
-                <button onClick={() => { router.push('/contact'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg text-[#1E293B] hover:bg-slate-50 font-bold">Contact</button>
-              </div>
-              <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
-                {user ? (
-                  <>
-                    <button onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition">Dashboard</button>
-                    <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">Logout</button>
-                  </>
-                ) : (
-                  <>
-                    <button onClick={() => { router.push('/login'); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition">Login</button>
-                    <button onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}>Create Account</button>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
+      <ToolNav />
 
       {/* --- HERO / TOOL --- */}
       <section className="py-14 sm:py-20 px-4 border-b border-slate-100" suppressHydrationWarning={true}>
@@ -408,6 +265,35 @@ export default function InvoiceDueDateCalculatorClient() {
             </AnimatePresence>
           </div>
 
+          {/* Helpful notes */}
+          {result && (result.isWeekend || daysToAdd > 45) && (
+            <div className="mt-4 space-y-2" suppressHydrationWarning={true}>
+              {result.isWeekend && (
+                <p className="text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5" suppressHydrationWarning={true}>
+                  This due date falls on a weekend. Many clients pay on the next working day, so it&apos;s worth sending a reminder on Friday.
+                </p>
+              )}
+              {daysToAdd > 45 && (
+                <p className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5" suppressHydrationWarning={true}>
+                  India: if you&apos;re a micro or small enterprise (Udyam), the MSMED Act limits payment terms to 45 days. After that, your client owes interest.{' '}
+                  <a href="/tools/late-payment-interest-calculator" className="font-bold underline">Calculate it</a>
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Next step when the payment is close or late */}
+          {result && result.status !== 'upcoming' && (
+            <div className="mt-4 grid grid-cols-2 gap-2" suppressHydrationWarning={true}>
+              <a href="/tools/whatsapp-payment-reminder" className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-[#245B92] bg-[#245B92]/5 hover:bg-[#245B92]/10 border border-[#245B92]/15 rounded-xl py-3 transition">
+                <MessageCircle size={14} /> WhatsApp reminder
+              </a>
+              <a href="/tools/payment-reminder-email-templates" className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-[#245B92] bg-[#245B92]/5 hover:bg-[#245B92]/10 border border-[#245B92]/15 rounded-xl py-3 transition">
+                <Mail size={14} /> Email reminder
+              </a>
+            </div>
+          )}
+
           {/* Compare every term length at a glance */}
           {allTermsComparison.length > 0 && (
             <div className="mt-6" suppressHydrationWarning={true}>
@@ -492,78 +378,7 @@ export default function InvoiceDueDateCalculatorClient() {
         </div>
       </section>
 
-      {/* --- FOOTER --- */}
-      <motion.footer
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.3 }}
-        className="bg-white border-t border-slate-200"
-        suppressHydrationWarning={true}
-      >
-        <div className="max-w-7xl mx-auto px-6 pt-16 pb-10" suppressHydrationWarning={true}>
-
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-x-6 gap-y-10 md:gap-x-8" suppressHydrationWarning={true}>
-
-            <div className="col-span-2 flex flex-col gap-4" suppressHydrationWarning={true}>
-              <div className="h-16 sm:h-20 w-[220px] sm:w-[260px] -ml-2 flex items-center justify-start" suppressHydrationWarning={true}>
-                <Image src="/logo.png" alt="DueBlink Logo" width={260} height={88} className="h-full w-full object-contain object-left" />
-              </div>
-              <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[240px]" suppressHydrationWarning={true}>
-                Know who owes you money. Know exactly what to do next.
-              </p>
-              <a href="mailto:support@dueblink.com" className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>
-                <Mail size={13} />
-                support@dueblink.com
-              </a>
-            </div>
-
-            <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
-              <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Product</p>
-              <a href="/#features" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Features</a>
-              <a href="/#ai-recovery-assistant" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>AI recovery assistant</a>
-              <a href="/#how-it-works" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>How it works</a>
-              <a href="/pricing" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Pricing</a>
-            </div>
-
-            <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
-              <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Resources</p>
-              <a href="/#reminder-examples" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Reminder examples</a>
-              <a href="/#faq" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>FAQ</a>
-              <a href="/contact" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Contact us</a>
-            </div>
-
-            <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
-              <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Free Tools</p>
-              <a href="/tools/invoice-due-date-calculator" className="text-xs font-medium text-[#245B92] w-fit" suppressHydrationWarning={true}>Invoice due date calculator</a>
-              <a href="/tools/late-payment-calculator" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Late payment calculator</a>
-              <a href="/tools/payment-terms-calculator" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Payment terms calculator</a>
-              <a href="/tools/late-payment-interest-calculator" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Late payment interest calculator</a>
-            </div>
-
-            <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
-              <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Account</p>
-              <a href="/login" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Login</a>
-              <a href="/create-account" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Create account</a>
-              <a href="/dashboard" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Dashboard</a>
-            </div>
-
-            <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
-              <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Legal</p>
-              <a href="/privacy" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Privacy policy</a>
-              <a href="/terms" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Terms of service</a>
-              <a href="/refund-policy" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Refund policy</a>
-            </div>
-
-          </div>
-
-          <div className="mt-14 pt-6 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-center justify-between gap-4" suppressHydrationWarning={true}>
-            <span className="text-xs font-medium text-slate-400" suppressHydrationWarning={true}>© 2026 DueBlink. All rights reserved.</span>
-            <span className="text-xs font-medium text-slate-400 text-center sm:text-right" suppressHydrationWarning={true}>Built for the ones who'd rather get paid than chase payments.</span>
-          </div>
-
-        </div>
-      </motion.footer>
+      <ToolFooter />
 
     </div>
   );
