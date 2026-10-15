@@ -440,8 +440,14 @@ export default function LandingPage() {
           localStorage.removeItem(
             'dueblink_pro_active'
         );
+          // Nobody is signed in, so this browser's old "was Pro" memory
+          // must not turn the button into "Renew" for a new visitor.
+          localStorage.removeItem(
+            'dueblink_was_pro'
+        );
 
           setIsPro(false);
+          setWasPro(false);
 
           await loadUsageForUser(null);
         }

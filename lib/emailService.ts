@@ -2344,3 +2344,119 @@ export async function sendOwnerPaymentStatusEmail(
     };
   }
 }
+// ============================================================
+// Pro Ending Soon Email (sent 3 days before Pro ends)
+// ============================================================
+
+export async function sendProExpiryReminderEmail(
+  toEmail: string,
+  userName: string,
+  endsOn: string
+) {
+  try {
+    const resend = getResendClient();
+
+    const displayName = (userName || "there")
+      .trim()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    const data = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: [toEmail],
+
+      subject: `Your DueBlink Pro ends on ${endsOn}`,
+
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Your DueBlink Pro ends soon</title>
+        </head>
+
+        <body style="margin:0;padding:0;background-color:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0F172A;">
+
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#F8FAFC;padding:32px 12px;">
+            <tr>
+              <td align="center">
+
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px;background-color:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #E2E8F0;">
+
+                  <!-- HEADER -->
+                  <tr>
+                    <td style="padding:28px 36px 20px;background-color:#ffffff;border-bottom:1px solid #F1F5F9;">
+                      <a href="https://dueblink.com/" target="_blank" style="text-decoration:none;display:inline-block;">
+                        <img src="https://dueblink.com/logo.png" alt="DueBlink Logo" width="130" style="display:block;width:130px;height:auto;border:0;" />
+                      </a>
+                    </td>
+                  </tr>
+
+                  <!-- BODY -->
+                  <tr>
+                    <td style="padding:40px 36px 36px;">
+
+                      <h1 style="margin:0 0 14px;font-size:24px;line-height:1.3;font-weight:800;color:#0F172A;">
+                        Your Pro plan ends on ${endsOn}
+                      </h1>
+
+                      <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#475569;">
+                        Hi ${displayName}, a quick heads-up: your DueBlink Pro plan ends in 3 days.
+                      </p>
+
+                      <p style="margin:0 0 28px;font-size:15px;line-height:1.7;color:#475569;">
+                        After that, automatic reminders to your clients stop and the Blink assistant is turned off. Renew now to keep everything running. Renewing early adds time on top, so you won't lose any days.
+                      </p>
+
+                      <table border="0" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="border-radius:10px;background-color:#245B92;">
+                            <a href="https://dueblink.com/pricing" target="_blank" style="display:inline-block;padding:14px 24px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;border-radius:10px;">
+                              Renew Pro
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                    </td>
+                  </tr>
+
+                  <!-- FOOTER -->
+                  <tr>
+                    <td align="center" style="padding:24px 36px;background:#F8FAFC;border-top:1px solid #F1F5F9;">
+                      <p style="font-size:11px;color:#94A3B8;margin:0;">
+                        © 2026 DueBlink. You're receiving this because you have a DueBlink Pro plan.
+                      </p>
+                    </td>
+                  </tr>
+
+                </table>
+
+              </td>
+            </tr>
+          </table>
+
+        </body>
+        </html>
+      `,
+    });
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (error) {
+    console.error(
+      "Failed to send Pro expiry reminder email:",
+      error
+    );
+
+    return {
+      success: false,
+      error,
+    };
+  }
+}

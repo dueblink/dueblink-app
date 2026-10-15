@@ -32,6 +32,8 @@ export default function PricingPage() {
   // "Renew" here instead of the same pitch a brand-new visitor gets.
   const [wasPro, setWasPro] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // When the current Pro plan ends (shown so Pro users can renew early).
+  const [proEndsAt, setProEndsAt] = useState<Date | null>(null);
 
   const seasonalPricing = getSeasonalPricing();
 
@@ -136,6 +138,7 @@ export default function PricingPage() {
             const effectivelyPro = !!data.isPro && !isExpired;
 
             setIsUserPro(effectivelyPro);
+            setProEndsAt(effectivelyPro ? rawExpiresAt : null);
 
             // wasPro isn't restricted by the rules, so it's safe to write on
             // its own — just never bundled into the same call as isPro.
@@ -178,7 +181,14 @@ export default function PricingPage() {
 
       } else {
         localStorage.removeItem('user_authenticated');
+        // Nobody is signed in: forget this browser's old Pro memory, so a
+        // new visitor sees "Upgrade to Pro", not "Renew Pro".
+        localStorage.removeItem('dueblink_is_pro');
+        localStorage.removeItem('dueblink_pro_active');
+        localStorage.removeItem('dueblink_was_pro');
         setIsUserPro(false);
+        setWasPro(false);
+        setProEndsAt(null);
       }
     });
     return () => unsubscribe();
@@ -817,13 +827,7 @@ return (
               </div>
 
               <button 
-                onClick={() => {
-                  if (isUserPro) {
-                    router.push('/dashboard');
-                  } else {
-                    handleUpgradeClick('pro');
-                  }
-                }} 
+                onClick={() => handleUpgradeClick('pro')} 
                 disabled={isProcessing}
                 className="w-full py-3 sm:py-4 rounded-xl text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center justify-center gap-2 bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95"
                 suppressHydrationWarning={true}
@@ -831,13 +835,21 @@ return (
                 {isProcessing ? (
                   <><Zap className="w-4 h-4 animate-spin" /> Connecting Gateway...</>
                 ) : isUserPro ? (
-                  <><Sparkles className="w-4 h-4" /> You are Pro ✨ (Go to Dashboard)</>
+                  <><Sparkles className="w-4 h-4" /> Renew early ✨</>
                 ) : wasPro ? (
                   <><Sparkles className="w-4 h-4" /> Renew Pro</>
                 ) : (
                   <><Sparkles className="w-4 h-4" /> Upgrade to Pro</>
                 )}
               </button>
+
+              {isUserPro && (
+                <p className="mt-3 text-[11px] font-semibold text-slate-500 text-center" suppressHydrationWarning={true}>
+                  {proEndsAt
+                    ? `Your Pro is active until ${proEndsAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}. Renewing adds time on top, so you lose no days.`
+                    : 'Renewing adds time on top of your current plan, so you lose no days.'}
+                </p>
+              )}
             </motion.div>
 
           </div>

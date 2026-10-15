@@ -966,6 +966,29 @@ export default function DashboardPage() {
           >
             {!isPro && <SeasonalBanner />}
 
+            {/* Pro ends within 3 days: remind them to renew */}
+            {isPro && proExpiresAt && proExpiresAt.getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000 && proExpiresAt.getTime() > Date.now() && (
+              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
+                <div className="space-y-1" suppressHydrationWarning={true}>
+                  <h2 className="text-base sm:text-lg font-black text-amber-900" suppressHydrationWarning={true}>
+                    Your Pro ends on {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-amber-800 font-medium" suppressHydrationWarning={true}>
+                    After that, automatic reminders and Blink stop. Renew now; the new time is added on top, so you lose no days.
+                  </p>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => router.push('/pricing')}
+                  className="w-full sm:w-auto shrink-0 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition cursor-pointer whitespace-nowrap"
+                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                  suppressHydrationWarning={true}
+                >
+                  Renew Pro
+                </motion.button>
+              </div>
+            )}
+
             {!isPro && (
               <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
                 <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
@@ -1584,7 +1607,7 @@ export default function DashboardPage() {
                   </p>
                   {isPro && proExpiresAt && (
                     <p className="text-xs font-bold text-slate-700 pt-1">
-                      Renews {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      Active until {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
                       {billingCycle ? ` · Billed ${billingCycle}` : ''}
                     </p>
                   )}

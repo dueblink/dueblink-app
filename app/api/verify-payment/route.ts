@@ -267,7 +267,20 @@ export async function POST(req: Request) {
     // 7. Calculate Pro expiration date on SERVER
     // ======================================================
 
-    const proExpiresAt = new Date();
+    // Renewing early? Start the new period from the current end date,
+    // so no paid days are lost. Otherwise start from today.
+    const now = new Date();
+    const currentExpiry =
+      userData.proExpiresAt?.toDate
+        ? userData.proExpiresAt.toDate()
+        : userData.proExpiresAt
+          ? new Date(userData.proExpiresAt)
+          : null;
+
+    const proExpiresAt =
+      currentExpiry && !isNaN(currentExpiry.getTime()) && currentExpiry > now
+        ? new Date(currentExpiry.getTime())
+        : new Date(now.getTime());
 
     if (paidBillingCycle === 'yearly') {
       proExpiresAt.setFullYear(

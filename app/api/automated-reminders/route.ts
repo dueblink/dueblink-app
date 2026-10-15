@@ -6,6 +6,7 @@ import { generateEmailReminder } from "@/lib/generateReminder";
 import {
   sendAutomatedReminderEmail,
   sendOwnerPaymentStatusEmail,
+  sendProExpiryReminderEmail,
 } from "@/lib/emailService";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -436,10 +437,67 @@ export async function GET(request: Request) {
       );
     }
 
+    // ------------------------------------------------------------
+    // PRO ENDING SOON: email Pro users whose plan ends within 3 days,
+    // once per plan period. Never let this break the reminder job.
+    // ------------------------------------------------------------
+    let proExpiryEmailsSent = 0;
+
+    try {
+      const now = new Date();
+      const inThreeDays = new Date(now.getTime() + 3 * ONE_DAY_MS);
+
+      const endingSoon = await db
+        .collection("users")
+        .where("proExpiresAt", ">", now)
+        .where("proExpiresAt", "<=", inThreeDays)
+        .get();
+
+      for (const userDoc of endingSoon.docs) {
+        const userData = userDoc.data() || {};
+        if (!userData.isPro) continue;
+
+        const expiry =
+          typeof userData.proExpiresAt?.toDate === "function"
+            ? userData.proExpiresAt.toDate()
+            : new Date(userData.proExpiresAt);
+        if (isNaN(expiry.getTime())) continue;
+
+        // One email per plan period: skip if already sent for this end date.
+        const expiryKey = getIndiaDate(expiry);
+        if (userData.proExpiryReminderFor === expiryKey) continue;
+
+        const owner = await getOwnerInfo(adminAuth, userDoc.id);
+        const email = owner.email || userData.email || userData.emailAddress;
+        if (!email) continue;
+
+        const endsOn = new Intl.DateTimeFormat("en-IN", {
+          timeZone: "Asia/Kolkata",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }).format(expiry);
+
+        const sent = await sendProExpiryReminderEmail(
+          email,
+          owner.name || userData.name || userData.displayName || "there",
+          endsOn
+        );
+
+        if (sent.success) {
+          await userDoc.ref.update({ proExpiryReminderFor: expiryKey });
+          proExpiryEmailsSent++;
+        }
+      }
+    } catch (proReminderError) {
+      console.error("Pro expiry reminder step failed:", proReminderError);
+    }
+
     return NextResponse.json({
       success: true,
       count: results.length,
       results,
+      proExpiryEmailsSent,
     });
   } catch (error: any) {
     console.error("Automated reminders route error:", error);
