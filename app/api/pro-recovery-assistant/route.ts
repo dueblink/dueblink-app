@@ -74,7 +74,15 @@ export async function POST(req: Request) {
       .collection("users")
       .doc(userId);
 
-    const userSnapshot = await userRef.get();
+    // SPEED: these 4 jobs don't depend on each other, so run them at the
+    // same time instead of one after another (saves about 0.5–1 second).
+    const [userSnapshot, rateLimitResult, rawBody, clientSnapshot, authUser] = await Promise.all([
+      userRef.get(),
+      proRecoveryAssistantRateLimit.limit(`pro-recovery-assistant:user:${userId}`),
+      req.json(),
+      adminDb.collection("clients").where("userId", "==", userId).get(),
+      getAdminAuth().getUser(userId).catch(() => null),
+    ]);
 
     if (!userSnapshot.exists) {
       return NextResponse.json(
@@ -121,11 +129,9 @@ export async function POST(req: Request) {
     // ============================================================
 
     // Limit per signed-in user, not per Wi-Fi address, so people on the
-    // same office or café Wi-Fi don't share one limit.
-    const { success } =
-      await proRecoveryAssistantRateLimit.limit(
-        `pro-recovery-assistant:user:${userId}`
-      );
+    // same office or café Wi-Fi don't share one limit. (Checked above,
+    // together with the other lookups.)
+    const { success } = rateLimitResult;
 
     if (!success) {
       return NextResponse.json(
@@ -138,14 +144,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const rawBody = await req.json();
-    
     // Parse the payload safely whether passed raw or inside a prompt wrapper
     const body = typeof rawBody.prompt === 'string' 
       ? JSON.parse(rawBody.prompt) 
       : rawBody;
 
-    console.log("DEBUG - Parsed body:", body); 
 
     let { clientId, history, action, total } = body;
 
@@ -153,11 +156,6 @@ export async function POST(req: Request) {
     // Load clients SERVER-SIDE for the authenticated user.
     // Never trust client/client list supplied by the browser.
     // ============================================================
-    const clientSnapshot = await adminDb
-      .collection("clients")
-      .where("userId", "==", userId)
-      .get();
-
     let clients: any[] = clientSnapshot.docs
       .map((doc) => ({
         id: doc.id,
@@ -457,15 +455,9 @@ HOW EVERY ANSWER MUST LOOK:
 - REMINDER HISTORY: never suggest a reminder that was already sent, and never restart the sequence with a "first" style message.`;
 
     // The freelancer's own name, so emails Blink writes are signed by them.
-    let ownerName = String(userData.name || userData.displayName || "").trim();
-    if (!ownerName) {
-      try {
-        const authUser = await getAdminAuth().getUser(userId);
-        ownerName = String(authUser.displayName || "").trim();
-      } catch {
-        ownerName = "";
-      }
-    }
+    const ownerName = String(
+      userData.name || userData.displayName || authUser?.displayName || ""
+    ).trim();
 
     systemPrompt += `
 

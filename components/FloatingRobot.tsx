@@ -601,7 +601,8 @@ export default function FloatingRobot({
   // already filled in, then records it in the client's reminder
   // history so Blink knows this reminder went out.
   const sendReminder = (channel: 'email' | 'whatsapp', messageText: string) => {
-    if (!messageText) return;
+    // Wait until Blink has finished writing before sending.
+    if (!messageText || uiState === 'processing') return;
 
     const targetClient = clients.find((c: any) => c.id === selectedClientId);
 
@@ -630,7 +631,7 @@ export default function FloatingRobot({
   // Copies just the rewritten reminder, not the whole Blink answer.
   const copyRewriteMessage = async (text: string) => {
     const message = parseRewriteResponse(text).message;
-    if (!message) return;
+    if (!message || uiState === 'processing') return;
 
     await navigator.clipboard.writeText(message);
     setCopied(true);
@@ -640,7 +641,7 @@ export default function FloatingRobot({
   const copyFollowUpEmail = async (text: string) => {
     const followUp = parseFollowUpResponse(text);
 
-    if (!followUp.email) return;
+    if (!followUp.email || uiState === 'processing') return;
 
     await navigator.clipboard.writeText(followUp.email);
     setCopied(true);
@@ -653,7 +654,7 @@ export default function FloatingRobot({
   const copyFollowUpWhatsApp = async (text: string) => {
     const followUp = parseFollowUpResponse(text);
 
-    if (!followUp.whatsapp) return;
+    if (!followUp.whatsapp || uiState === 'processing') return;
 
     await navigator.clipboard.writeText(followUp.whatsapp);
     setCopied(true);
@@ -1065,11 +1066,21 @@ export default function FloatingRobot({
       let fullText = "";
 
       if (reader) {
+        // SPEED: show Blink's answer word by word as it is written,
+        // instead of waiting for the whole answer to finish.
+        // The screen is refreshed at most every 120 ms so it stays smooth.
+        let lastPaint = 0;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
           fullText += chunk;
+
+          const now = Date.now();
+          if (now - lastPaint > 120) {
+            lastPaint = now;
+            setAiResponse(cleanResponseText(fullText) || null);
+          }
         }
       }
 
@@ -1085,7 +1096,7 @@ export default function FloatingRobot({
   };
 
   const handleCopy = async () => {
-    if (!aiResponse) return;
+    if (!aiResponse || uiState === 'processing') return;
     await navigator.clipboard.writeText(aiResponse);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1394,7 +1405,7 @@ export default function FloatingRobot({
                   </div>
                 ) : aiResponse || uiState === 'processing' ? (
                   <div className="py-1 space-y-2.5 text-left" suppressHydrationWarning={true}>
-                    {uiState === 'processing' ? (
+                    {uiState === 'processing' && !aiResponse ? (
                       <div className="flex flex-col items-center justify-center py-6 space-y-3 text-slate-400">
                         <div className="relative w-12 h-12 flex items-center justify-center">
                           <span className="absolute inset-0 rounded-full bg-[#20B8BE]/20 animate-ping" />
@@ -1412,7 +1423,7 @@ export default function FloatingRobot({
                       </div>
                     ) : (
                       <div
-                        key={`${activeActionId}-${(aiResponse || '').length}`}
+                        key={`${activeActionId}`}
                         style={{ animation: 'blinkFadeSlideUp 0.4s ease-out' }}
                         className="space-y-3"
                       >

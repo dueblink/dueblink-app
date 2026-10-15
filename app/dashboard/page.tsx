@@ -778,7 +778,27 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-white" suppressHydrationWarning={true}><Loader2 className="w-8 h-8 animate-spin text-[#1C2E8F]" /></div>;
+  // Premium loading screen: three brand-coloured dots rising and
+  // falling in a smooth wave. No images, no spinner.
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-6" suppressHydrationWarning={true}>
+      <div className="flex items-end gap-2.5 h-8" suppressHydrationWarning={true}>
+        {['#245B92', '#2289A8', '#20B8BE'].map((color, i) => (
+          <motion.span
+            key={color}
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: color, boxShadow: `0 6px 14px -4px ${color}99` }}
+            animate={{ y: [0, -12, 0], scale: [1, 1.15, 1], opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.16 }}
+          />
+        ))}
+      </div>
+
+      <p className="mt-5 text-sm font-semibold text-slate-400" suppressHydrationWarning={true}>
+        Loading your dashboard
+      </p>
+    </div>
+  );
 
   return (
     <motion.div 
