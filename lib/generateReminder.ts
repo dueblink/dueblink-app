@@ -1,7 +1,12 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { formatAmountWithCurrency } from "@/lib/reminderRules";
+import {
+  formatAmountWithCurrency,
+  NATURAL_WRITING_RULES,
+  signOffRule,
+  cleanReminderText,
+} from "@/lib/reminderRules";
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,11 +20,11 @@ export type GenerateEmailReminderInput = {
   invoiceRef?: string;
   tone?: string;
   paymentLink?: string;
-  // Extra details the reminder job sends. Not used by the writing prompt.
+  // Extra details the reminder job sends.
   stage?: string;
   dueDate?: string;
-  senderName?: string;
-  paymentLinkShownAsButton?: boolean;
+  senderName?: string; // the freelancer's name, used to sign the email
+  paymentLinkShownAsButton?: boolean; // the email already shows a "Pay Now" button
   previousReminders?: Array<{
     email_subject?: string;
     email_body?: string;
@@ -140,7 +145,12 @@ Never invent:
 
 If an invoice reference is not provided, do NOT invent one.
 
-If a payment link is provided:
+${input.paymentLink && input.paymentLinkShownAsButton
+  ? `The email already shows a "Pay Now" button with the payment link below your text.
+- Do NOT paste the link itself into the email body.
+- You may say the client can use the "Pay Now" button below.
+`
+  : ""}If a payment link is provided:
 - Use the exact payment link supplied.
 - Do not modify it.
 - Do not shorten it.
@@ -169,6 +179,9 @@ EMAIL OUTPUT RULES
 - Do not claim that an email, reminder, or follow-up was previously sent unless that information was provided.
 - Do not mention that AI generated the email.
 - Do not add WhatsApp or SMS content.
+${signOffRule(input.senderName)}
+
+${NATURAL_WRITING_RULES}
 
 Return only:
 - email_subject
@@ -176,5 +189,9 @@ Return only:
 `,
   });
 
-  return result.object;
+  // Last safety net: never send "[Payment Link]" or "[Your Name]".
+  return {
+    email_subject: cleanReminderText(result.object.email_subject, input.senderName),
+    email_body: cleanReminderText(result.object.email_body, input.senderName),
+  };
 }

@@ -5,7 +5,12 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth } from '@/lib/firebaseAdminAuth';
 import { getAdminDb } from '@/lib/firebaseAdmin';
 import { reminderGenerationRateLimit } from '@/lib/rateLimit';
-import { formatAmountWithCurrency } from '@/lib/reminderRules';
+import {
+  formatAmountWithCurrency,
+  NATURAL_WRITING_RULES,
+  signOffRule,
+  cleanReminderText,
+} from '@/lib/reminderRules';
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -352,6 +357,21 @@ ${reminder.sms_text || ''}
     // One clean amount, e.g. "₹5,000" (never "₹ INR 5,000").
     const amountDueText = formatAmountWithCurrency(body.amount, body.currency);
 
+    // The sender's real name, to sign the reminder. Signed-in users use
+    // their account name; guests have none, so no name line is written.
+    let senderName = String(body.senderName || '').trim();
+    if (!senderName && verifiedUserId) {
+      senderName = String(userData.name || userData.displayName || '').trim();
+      if (!senderName) {
+        try {
+          const authUser = await getAdminAuth().getUser(verifiedUserId);
+          senderName = String(authUser.displayName || '').trim();
+        } catch {
+          senderName = '';
+        }
+      }
+    }
+
     const buildPrompt = (extraNote: string) => `
         You are an expert Payment Recovery Specialist for freelancers.
         Your goal is to recover payments quickly while maintaining great client relationships.
@@ -428,7 +448,9 @@ ${reminder.sms_text || ''}
           number is provided. Never invent one.
 
         - Email Body: Keep under 150 words.
-          Be helpful, clear, and include a placeholder for a payment link.
+          Be helpful and clear. Do not mention a payment link and do not
+          write any link placeholder. Just ask the client to complete the payment.
+        ${signOffRule(senderName)}
 
         - WhatsApp: Short, conversational, friendly.
           Use appropriate emojis for the selected tone.
@@ -437,6 +459,8 @@ ${reminder.sms_text || ''}
 
         - Psychology Note: Explain in one sentence why this specific
           tone and approach is best for this situation.
+
+        ${NATURAL_WRITING_RULES}
 
         Return only the requested structured fields.
       `;
@@ -520,12 +544,14 @@ ${reminder.sms_text || ''}
     const finalReminder = generated as GeneratedReminder;
 
     const result = {
+      // Last safety net: no invented invoice numbers and no
+      // "[Payment Link]" / "[Your Name]" placeholders ever reach a client.
       object: {
         ...finalReminder,
-        email_subject: removeInventedInvoiceNumbers(finalReminder.email_subject),
-        email_body: removeInventedInvoiceNumbers(finalReminder.email_body),
-        whatsapp_message: removeInventedInvoiceNumbers(finalReminder.whatsapp_message),
-        sms_text: removeInventedInvoiceNumbers(finalReminder.sms_text),
+        email_subject: cleanReminderText(removeInventedInvoiceNumbers(finalReminder.email_subject), senderName),
+        email_body: cleanReminderText(removeInventedInvoiceNumbers(finalReminder.email_body), senderName),
+        whatsapp_message: cleanReminderText(removeInventedInvoiceNumbers(finalReminder.whatsapp_message), senderName),
+        sms_text: cleanReminderText(removeInventedInvoiceNumbers(finalReminder.sms_text), senderName),
       },
     };
 

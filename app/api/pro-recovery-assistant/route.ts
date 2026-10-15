@@ -4,6 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { proRecoveryAssistantRateLimit } from "@/lib/rateLimit";
+import { NATURAL_WRITING_RULES, signOffRule } from "@/lib/reminderRules";
 
 // Ensure this Next.js route is always dynamic and never cached on the server side
 export const dynamic = 'force-dynamic';
@@ -455,6 +456,25 @@ HOW EVERY ANSWER MUST LOOK:
 - CURRENCY: every amount already includes the client's own currency symbol (₹, $, € and so on). Copy it exactly. Never assume rupees, never convert currencies, never add different currencies together.
 - REMINDER HISTORY: never suggest a reminder that was already sent, and never restart the sequence with a "first" style message.`;
 
+    // The freelancer's own name, so emails Blink writes are signed by them.
+    let ownerName = String(userData.name || userData.displayName || "").trim();
+    if (!ownerName) {
+      try {
+        const authUser = await getAdminAuth().getUser(userId);
+        ownerName = String(authUser.displayName || "").trim();
+      } catch {
+        ownerName = "";
+      }
+    }
+
+    systemPrompt += `
+
+WHEN YOU WRITE AN EMAIL OR WHATSAPP MESSAGE FOR A CLIENT:
+${signOffRule(ownerName)}
+- WhatsApp messages may end with just the sender's first name${ownerName ? ` ("${ownerName.split(" ")[0]}")` : ""}, or no name at all.
+- If the client has a paymentLink in the data, you may include that exact link once. If not, do not mention any link.
+${NATURAL_WRITING_RULES}`;
+
     let userPrompt = "";
 
     // 1. Handle Dashboard Actions with rigorous live data injection and zero-cache guarantee
@@ -560,6 +580,7 @@ RULES:
   lastAutomatedStage: lastAutomatedStage,
   automatedReminderAlreadySent: reminderAlreadySent,
   escalationStage: escalation.stage,
+  paymentLink: targetClient.paymentLink || '',
 })}`;
 
       } else if (action === "priorities") {
@@ -757,6 +778,7 @@ RULES:
   daysOverdue: targetClient.daysOverdue || 0,
   remindersSent: rewriteEscalation.sentCount,
   escalationStage: rewriteEscalation.stage,
+  paymentLink: targetClient.paymentLink || '',
   previousAutomatedSubjects: previousAutomatedReminders
     .map((r: any) => r?.email_subject)
     .filter(Boolean),
@@ -894,6 +916,7 @@ STRICT RULES:
   remindersSent: singleEscalation.sentCount,
   lastAutomatedStage: client.lastAutomatedReminderStage || 'None',
   escalationStage: singleEscalation.stage,
+  paymentLink: client.paymentLink || '',
 })}
 
 The escalation stage has already been computed: "${singleEscalation.stage}". Write the email subject, email and WhatsApp message for exactly this stage. Use the exact Blink layout.`;
