@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence, MotionConfig, animate, useReducedMotion } from 'framer-motion';
 import { 
-  Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
+  Layers, Users, TrendingUp, Check, Sparkles, Clock, X, Hourglass, CalendarClock,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
   Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight, ChevronLeft, CheckCircle
 } from 'lucide-react';
@@ -58,11 +58,13 @@ export default function LandingPage() {
   // The heading below ("Stop chasing clients. Get paid faster.") answers it.
   const HERO_PROBLEMS = [
     'Invoice overdue again?',
-    'Client stopped replying?',
-    '"I\'ll pay next week" again?',
-    'Tired of awkward follow-ups?',
-    'Chasing payments on WhatsApp?',
+    'Client not replying?',
+    '"Next week" again?',
+    'Awkward follow-ups?',
+    'Chasing on WhatsApp?',
   ];
+  // One icon per line, same order as HERO_PROBLEMS.
+  const HERO_PROBLEM_ICONS = [FileText, Hourglass, CalendarClock, RefreshCw, MessageCircle];
   const [problemIndex, setProblemIndex] = useState(0);
 
   useEffect(() => {
@@ -1097,30 +1099,56 @@ export default function LandingPage() {
       className="flex justify-center"
       suppressHydrationWarning={true}
     >
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full border border-[#20B8BE]/30 bg-[#20B8BE]/5 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[#245B92]"
+      {/* Gradient border: a 1.5px blue-to-teal ring around a white pill.
+          It grows and shrinks smoothly to fit each line. */}
+      <motion.span
+        layout
+        transition={{ layout: { duration: 0.3, ease: "easeOut" } }}
+        className="inline-flex rounded-full p-[1.5px] bg-gradient-to-r from-[#245B92] via-[#2A8FB0] to-[#20B8BE] shadow-[0_6px_20px_-6px_rgba(32,184,190,0.45)]"
+        style={{ borderRadius: 9999 }}
         suppressHydrationWarning={true}
       >
-        <Clock className="w-3.5 h-3.5 text-[#20B8BE] shrink-0" aria-hidden="true" />
-        {/* All phrases share one spot, so the pill keeps the width of the longest */}
-        <span className="inline-grid overflow-hidden" aria-live="polite">
-          {HERO_PROBLEMS.map((text, i) => (
-            <motion.span
-              key={text}
-              initial={false}
-              animate={{
-                opacity: i === problemIndex ? 1 : 0,
-                y: i === problemIndex ? '0%' : '60%',
-              }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-              className="[grid-area:1/1] whitespace-nowrap text-center"
-              aria-hidden={i !== problemIndex}
-            >
-              {text}
-            </motion.span>
-          ))}
-        </span>
-      </span>
+        <motion.span
+          layout="position"
+          className="inline-flex items-center gap-2.5 rounded-full bg-white pl-1 pr-4 py-1"
+          style={{ borderRadius: 9999 }}
+        >
+          {/* Icon bubble: gradient circle with a soft inner shine */}
+          <span className="relative flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#245B92] to-[#20B8BE] shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),0_2px_6px_rgba(36,91,146,0.35)] overflow-hidden">
+            <span className="absolute inset-x-1 top-0.5 h-1/2 rounded-full bg-white/20 blur-[1px]" aria-hidden="true" />
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={problemIndex}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: -30 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: 30 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className="relative flex"
+              >
+                {(() => {
+                  const ProblemIcon = HERO_PROBLEM_ICONS[problemIndex] || FileText;
+                  return <ProblemIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" strokeWidth={2.25} aria-hidden="true" />;
+                })()}
+              </motion.span>
+            </AnimatePresence>
+          </span>
+
+          <span className="relative flex items-center overflow-hidden h-5 sm:h-6" aria-live="polite">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={HERO_PROBLEMS[problemIndex]}
+                initial={{ y: 12, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -12, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className="whitespace-nowrap text-[13px] sm:text-sm font-semibold text-[#0F172A]"
+              >
+                {HERO_PROBLEMS[problemIndex]}
+              </motion.span>
+            </AnimatePresence>
+          </span>
+        </motion.span>
+      </motion.span>
     </motion.div>
     )}
 
