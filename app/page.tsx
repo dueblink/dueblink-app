@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { motion, AnimatePresence, MotionConfig, animate } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig, animate, useReducedMotion } from 'framer-motion';
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
@@ -49,6 +49,9 @@ function formatWithCommas(val: string): string {
 // Used for the stat slides (each slide remounts when it appears) and for the
 // live client numbers, which re-animate when Firestore pushes an update.
 export default function LandingPage() {
+  // True when the visitor's phone or computer asks for less motion
+  // (an accessibility setting). The hero cards then stay still.
+  const reduceMotion = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
     
@@ -947,11 +950,11 @@ export default function LandingPage() {
   variants={{
     visible: { transition: { staggerChildren: 0.12 } }
   }}
-  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4"
+  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 min-h-[calc(100svh-8rem)] flex flex-col justify-center sm:block sm:min-h-0"
   suppressHydrationWarning={true}
 >
   <div
-    className="max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
+    className="w-full max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
     suppressHydrationWarning={true}
   >
 
@@ -1020,7 +1023,7 @@ export default function LandingPage() {
         ) : user ? (
           "Open Dashboard"
         ) : (
-          "Start free"
+          "Generate a free reminder"
         )}
       </motion.button>
 
@@ -1065,6 +1068,64 @@ export default function LandingPage() {
         </div>
       )}
   </motion.div>
+
+    {/* HERO PREVIEW — an email and a WhatsApp message DueBlink writes, staggered and
+        slightly tilted (no movement), so visitors see the product at a glance */}
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="relative max-w-2xl mx-auto w-full pt-2 sm:pt-4 grid grid-cols-1 sm:grid-cols-2 gap-0 sm:gap-6 text-left"
+      suppressHydrationWarning={true}
+    >
+      {/* Email: tilted left, sits a little higher */}
+      <motion.div
+        style={{ rotate: -2 }}
+        animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
+        transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
+        className="relative z-10 mr-10 sm:mr-0 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2"
+        suppressHydrationWarning={true}
+      >
+        <div className="flex items-center justify-between gap-2" suppressHydrationWarning={true}>
+          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#245B92]" suppressHydrationWarning={true}>
+            <Mail className="w-3.5 h-3.5" suppressHydrationWarning={true} /> Email
+          </span>
+          <span className="text-[10px] font-bold text-[#245B92] bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full" suppressHydrationWarning={true}>
+            Ready to send
+          </span>
+        </div>
+        <p className="text-[11px] sm:text-xs font-bold text-[#0F172A]" suppressHydrationWarning={true}>Subject: Payment for the logo design</p>
+        <p className="text-xs sm:text-[13px] text-slate-600 font-medium leading-relaxed" suppressHydrationWarning={true}>
+          {"Hi Priya, just a quick note that the ₹18,000 for the logo design was due today. Could you let me know when you plan to pay?"}
+        </p>
+        <p className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400" suppressHydrationWarning={true}>
+          <Sparkles className="w-3 h-3 text-[#20B8BE]" suppressHydrationWarning={true} /> Written by DueBlink · Due date
+        </p>
+      </motion.div>
+
+      {/* WhatsApp: tilted right, sits lower and overlaps on phones */}
+      <motion.div
+        style={{ rotate: 2 }}
+        animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
+        transition={{ duration: 7, ease: "easeInOut", repeat: Infinity, delay: 1.5 }}
+        className="relative z-20 ml-10 sm:ml-0 -mt-3 sm:mt-10 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2"
+        suppressHydrationWarning={true}
+      >
+        <div className="flex items-center justify-between gap-2" suppressHydrationWarning={true}>
+          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#159A9F]" suppressHydrationWarning={true}>
+            <MessageCircle className="w-3.5 h-3.5" suppressHydrationWarning={true} /> WhatsApp
+          </span>
+          <span className="text-[10px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full" suppressHydrationWarning={true}>
+            Ready to send
+          </span>
+        </div>
+        <p className="text-xs sm:text-[13px] text-slate-700 font-medium leading-relaxed bg-teal-50/50 border border-teal-100/70 rounded-xl rounded-tl-sm px-3 py-2.5" suppressHydrationWarning={true}>
+          {"Hi Rahul, the ₹25,000 for the website is now 5 days overdue. When will you be able to pay?"}
+        </p>
+        <p className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400" suppressHydrationWarning={true}>
+          <Sparkles className="w-3 h-3 text-[#20B8BE]" suppressHydrationWarning={true} /> Written by DueBlink · Day 3 follow-up
+        </p>
+      </motion.div>
+    </motion.div>
 
   </div>
 </motion.section>
