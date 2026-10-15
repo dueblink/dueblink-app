@@ -950,7 +950,7 @@ export default function LandingPage() {
   variants={{
     visible: { transition: { staggerChildren: 0.12 } }
   }}
-  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 min-h-[calc(100svh-8rem)] flex flex-col justify-center sm:block sm:min-h-0"
+  className="relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 min-h-[calc(100svh-8rem)] flex flex-col justify-center"
   suppressHydrationWarning={true}
 >
   <div
@@ -1074,15 +1074,33 @@ export default function LandingPage() {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="relative max-w-2xl mx-auto w-full pt-2 sm:pt-4 grid grid-cols-1 sm:grid-cols-2 gap-0 sm:gap-6 text-left"
+      className="relative max-w-2xl mx-auto w-full pt-2 sm:pt-4 grid grid-cols-1 sm:grid-cols-2 gap-0 sm:gap-6 text-left 2xl:absolute 2xl:inset-0 2xl:block 2xl:max-w-none 2xl:pt-0 2xl:pointer-events-none"
       suppressHydrationWarning={true}
     >
+      {/* Curved dashed arrows from the headline to each card (wide screens only) */}
+      <svg aria-hidden="true" className="hidden 2xl:block absolute pointer-events-none" style={{ left: 'calc(50% - 610px)', top: 'calc(44% - 92px)' }} width="150" height="88" viewBox="0 0 150 88" fill="none">
+        <defs>
+          <marker id="hero-arrow-left" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#20B8BE" />
+          </marker>
+        </defs>
+        <path d="M142 6 C 110 10, 72 26, 58 76" stroke="#20B8BE" strokeWidth="2" strokeDasharray="5 6" strokeLinecap="round" markerEnd="url(#hero-arrow-left)" />
+      </svg>
+      <svg aria-hidden="true" className="hidden 2xl:block absolute pointer-events-none" style={{ left: 'calc(50% + 395px)', top: 'calc(54% - 140px)' }} width="160" height="134" viewBox="0 0 160 134" fill="none">
+        <defs>
+          <marker id="hero-arrow-right" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#20B8BE" />
+          </marker>
+        </defs>
+        <path d="M8 6 C 70 12, 118 50, 122 120" stroke="#20B8BE" strokeWidth="2" strokeDasharray="5 6" strokeLinecap="round" markerEnd="url(#hero-arrow-right)" />
+      </svg>
+
       {/* Email: tilted left, sits a little higher */}
       <motion.div
         style={{ rotate: -2 }}
         animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
         transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
-        className="relative z-10 mr-10 sm:mr-0 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2"
+        className="relative z-10 mr-10 sm:mr-0 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2 2xl:absolute 2xl:w-[260px] 2xl:left-[calc(50%-670px)] 2xl:top-[44%]"
         suppressHydrationWarning={true}
       >
         <div className="flex items-center justify-between gap-2" suppressHydrationWarning={true}>
@@ -1107,7 +1125,7 @@ export default function LandingPage() {
         style={{ rotate: 2 }}
         animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
         transition={{ duration: 7, ease: "easeInOut", repeat: Infinity, delay: 1.5 }}
-        className="relative z-20 ml-10 sm:ml-0 -mt-3 sm:mt-10 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2"
+        className="relative z-20 ml-10 sm:ml-0 -mt-3 sm:mt-10 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2 2xl:absolute 2xl:w-[260px] 2xl:right-[calc(50%-670px)] 2xl:top-[54%] 2xl:mt-0"
         suppressHydrationWarning={true}
       >
         <div className="flex items-center justify-between gap-2" suppressHydrationWarning={true}>
