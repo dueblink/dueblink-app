@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo';
 import InvoiceDueDateCalculatorClient from './InvoiceDueDateCalculatorClient';
 import { FAQS } from './faqs';
 
@@ -13,28 +13,11 @@ import { FAQS } from './faqs';
 // searches Google for a clever tool name they've never heard of. "DueBlink"
 // is attached at the end for brand recognition once they're already
 // looking at the result.
-export const metadata: Metadata = {
-  title: 'Invoice Due Date Calculator (Free) | DueBlink',
-  description:
-    'Calculate exactly when an invoice is due based on Net 7, 15, 30, 45, 60, or 90 day payment terms. Instant results, no sign-up required.',
-  alternates: {
-    canonical: 'https://www.dueblink.com/tools/invoice-due-date-calculator',
-  },
-  openGraph: {
-    title: 'Invoice Due Date Calculator (Free) | DueBlink',
-    description:
-      'Calculate exactly when an invoice is due based on your payment terms. Instant, free, no sign-up required.',
-    url: 'https://www.dueblink.com/tools/invoice-due-date-calculator',
-    siteName: 'DueBlink',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary',
-    title: 'Invoice Due Date Calculator (Free) | DueBlink',
-    description:
-      'Calculate exactly when an invoice is due based on your payment terms. Instant, free, no sign-up required.',
-  },
-};
+export const metadata = pageMetadata({
+  title: "Invoice Due Date Calculator (Free) | DueBlink",
+  description: "Calculate exactly when an invoice is due based on Net 7, 15, 30, 45, 60, or 90 day payment terms. Instant results, no sign-up required.",
+  path: '/tools/invoice-due-date-calculator',
+});
 
 // Lets Google show the questions and answers directly in search results.
 const faqStructuredData = {

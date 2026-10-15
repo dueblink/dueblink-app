@@ -11,38 +11,57 @@ const inter = Inter({
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
-export const metadata: Metadata = {
-  title: "DueBlink – AI Payment Reminder & Recovery Software",
+const SITE_URL = "https://www.dueblink.com";
 
-  description:
-    "Get paid faster with DueBlink. Generate professional AI payment reminders for email, WhatsApp and SMS, follow up with overdue clients, and recover unpaid invoices.",
+const TITLE = "DueBlink – AI Payment Reminders for Freelancers & Small Businesses";
+const DESCRIPTION =
+  "Get paid on time. DueBlink writes polite payment reminders for email and WhatsApp and follows up automatically when clients go quiet, for freelancers, agencies and small businesses.";
+
+export const metadata: Metadata = {
+  // Lets every page use short paths like "/pricing" for its links and images.
+  metadataBase: new URL(SITE_URL),
+
+  title: TITLE,
+  description: DESCRIPTION,
 
   keywords: [
     "payment reminder",
-    "AI payment reminders",
+    "payment reminder message",
     "invoice payment reminder",
     "overdue payment reminder",
-    "payment recovery software",
-    "invoice follow up",
     "WhatsApp payment reminder",
+    "payment reminder email",
+    "how to ask client for payment",
     "freelancer payment reminders",
-    "client payment recovery",
+    "small business payment reminders",
+    "late payment follow up",
     "DueBlink",
   ],
 
   openGraph: {
-    title: "DueBlink – AI Payment Reminder & Recovery Software",
+    title: TITLE,
     description:
-      "Generate professional AI payment reminders for email, WhatsApp and SMS and get paid faster.",
+      "Polite payment reminders for email and WhatsApp that follow up for you, step by step. Free to start.",
+    url: SITE_URL,
     type: "website",
     siteName: "DueBlink",
+    locale: "en_IN",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "DueBlink – Stop chasing clients. Get paid faster.",
+      },
+    ],
   },
 
   twitter: {
     card: "summary_large_image",
-    title: "DueBlink – AI Payment Reminder & Recovery Software",
+    title: TITLE,
     description:
-      "Generate professional AI payment reminders and recover overdue payments faster.",
+      "Polite payment reminders for email and WhatsApp that follow up for you, step by step.",
+    images: ["/og-image.png"],
   },
 };
 
