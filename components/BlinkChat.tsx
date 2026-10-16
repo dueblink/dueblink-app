@@ -348,34 +348,36 @@ export default function BlinkChat({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      {/* Input */}
+      {/* Input: one clean rounded box with the send button inside */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           ask(input);
         }}
-        className="flex items-center gap-1.5 p-2.5 border-t border-slate-100 bg-white flex-shrink-0"
+        className="p-2.5 border-t border-slate-100 bg-white flex-shrink-0"
       >
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          maxLength={MAX_QUESTION}
-          disabled={status === 'limit'}
-          placeholder="Type your question…"
-          aria-label="Type your question for Blink"
-          className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-xl text-base sm:text-[13px] bg-white focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 disabled:opacity-60"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || status === 'typing' || status === 'limit'}
-          aria-label="Send question"
-          className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-        >
-          <ArrowUp size={16} />
-        </button>
+        <div className="blink-chat-input flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 pl-4 pr-1 py-1 transition-colors focus-within:border-[#20B8BE] focus-within:bg-white">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            maxLength={MAX_QUESTION}
+            disabled={status === 'limit'}
+            placeholder="Type your question…"
+            aria-label="Type your question for Blink"
+            className="flex-1 min-w-0 py-1.5 bg-transparent border-0 outline-none text-base sm:text-[13px] text-slate-800 placeholder:text-slate-500 disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || status === 'typing' || status === 'limit'}
+            aria-label="Send question"
+            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white transition-opacity disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+            style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+          >
+            <ArrowUp size={15} />
+          </button>
+        </div>
       </form>
     </motion.div>
   );

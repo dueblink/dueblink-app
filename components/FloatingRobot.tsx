@@ -1654,6 +1654,10 @@ export default function FloatingRobot({
           outline: 2px solid #245B92;
           outline-offset: 2px;
         }
+        /* The chat box shows focus with its own teal border instead. */
+        .blink-widget-root .blink-chat-input input:focus-visible {
+          outline: none;
+        }
         .blink-widget-root .overflow-y-auto {
           -webkit-overflow-scrolling: touch;
           scroll-behavior: smooth;
