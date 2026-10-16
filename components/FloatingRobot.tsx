@@ -6,6 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { formatAmountWithCurrency } from '@/lib/reminderRules';
 
 // Landing page sections Blink reacts to, in the order they appear on the page.
 // Same order as the sections on the landing page (app/page.tsx).
@@ -34,6 +35,7 @@ interface FloatingRobotProps {
     id?: string;
     name: string;
     amount: string | number;
+    currency?: string;
     daysOverdue: number;
   } | null;
   isPro?: boolean;
@@ -966,7 +968,7 @@ export default function FloatingRobot({
       }
 
       const hasActiveClient = freshClients.some(
-        (c: any) => c.status !== 'Paid'
+        (c: any) => (c.status !== 'Paid' && c.status !== 'Written off')
       );
 
       if (!hasActiveClient && actionId !== 'welcome_pro') {
@@ -1016,9 +1018,9 @@ export default function FloatingRobot({
       // its id to Blink, so the screen and Blink talk about the same client.
       const isFollowUpAction = actionId === 'recommend' || actionId === 'rewrite';
       const followUpTarget =
-        targetClient && targetClient.status !== 'Paid'
+        targetClient && (targetClient.status !== 'Paid' && targetClient.status !== 'Written off')
           ? targetClient
-          : freshClients.find((c: any) => c.status !== 'Paid');
+          : freshClients.find((c: any) => (c.status !== 'Paid' && c.status !== 'Written off'));
       const followUpClientId =
         clientId || (isFollowUpAction ? followUpTarget?.id : undefined);
 
@@ -1237,7 +1239,7 @@ export default function FloatingRobot({
             </div>
             <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 p-3 rounded-xl border border-slate-100 flex items-center justify-between" suppressHydrationWarning={true}>
               <div>
-                <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>₹{Number(recommendation.amount).toLocaleString()}</p>
+                <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>{formatAmountWithCurrency(recommendation.amount, recommendation.currency)}</p>
                 <p className="text-[9px] font-bold text-[#20B8BE] uppercase tracking-wide mt-0.5" suppressHydrationWarning={true}>{recommendation.daysOverdue} Days Overdue</p>
               </div>
               <div className="w-6 h-6 rounded-full bg-white shadow-sm flex items-center justify-center text-[#245B92]">
@@ -2442,7 +2444,7 @@ export default function FloatingRobot({
                   </p>
                 </div>
 
-                {clients.filter((client: any) => client.status !== 'Paid').length === 0 ? (
+                {clients.filter((client: any) => (client.status !== 'Paid' && client.status !== 'Written off')).length === 0 ? (
                   <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
                     <p className="text-[11px] font-bold text-emerald-700">All caught up! 🎉</p>
                     <p className="text-[10px] text-emerald-600 mt-1">
@@ -2450,7 +2452,7 @@ export default function FloatingRobot({
                     </p>
                   </div>
                 ) : (
-                  clients.filter((client: any) => client.status !== 'Paid').map((client: any, index: number) => (
+                  clients.filter((client: any) => (client.status !== 'Paid' && client.status !== 'Written off')).map((client: any, index: number) => (
                   <motion.button
                     key={client.id}
                     initial={{ opacity: 0, y: 8 }}
@@ -2473,7 +2475,7 @@ export default function FloatingRobot({
                         {client.name}
                       </p>
                       <p className="text-[9px] text-slate-400 truncate">
-                        {client.company || 'No company'} · ₹{Number(client.amount || 0).toLocaleString()}
+                        {client.company || 'No company'} · {formatAmountWithCurrency(client.amount, client.currency)}
                       </p>
                     </div>
 

@@ -4,10 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check, MessageCircle, MessageSquare } from 'lucide-react';
+import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check, MessageCircle, MessageSquare, Gavel, PhoneCall, Ban, Undo2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
-import { formatAmountWithCurrency, normalizeLanguage } from '@/lib/reminderRules';
+import { formatAmountWithCurrency, normalizeLanguage, finalReminderNote, msmeApplies, isIndianCurrency, formatTotalsByCurrency, guessDefaultCurrency, getCurrencySymbol } from '@/lib/reminderRules';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
@@ -136,6 +136,10 @@ export default function DashboardPage() {
   const [firstDueDate, setFirstDueDate] = useState('');
   const [firstSaving, setFirstSaving] = useState(false);
   const [firstError, setFirstError] = useState('');
+  // Currency for the first invoice: rupees in India, local currency elsewhere
+  // (set after load, so server and browser match). Can be changed in Edit.
+  const [firstCurrency, setFirstCurrency] = useState('INR');
+  useEffect(() => { setFirstCurrency(guessDefaultCurrency()); }, []);
   const [isRobotProcessing, setIsRobotProcessing] = useState(false);
 
 
@@ -533,6 +537,38 @@ export default function DashboardPage() {
   // history, so the stage moves on (first -> follow-up -> final).
   // Works for free users too (no AI needed).
   // ============================================================
+  // "What to do next" card for stalled clients: which one is open.
+  const [stalledOpenId, setStalledOpenId] = useState<string | null>(null);
+
+  // Written off: the user has given up on this payment. The client leaves
+  // the Today list and the totals; "Undo" puts it back to pending.
+  const markWrittenOff = async (c: any) => {
+    const ok = window.confirm(`Mark ${c.name || 'this client'} as written off? It leaves your Today list and totals. You can undo this from the client list.`);
+    if (!ok) return;
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        status: 'Written off',
+        writtenOffAt: new Date().toISOString(),
+        automatedReminders: false,
+        automationStatus: 'off',
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      setErrorMessage('Could not update the client. Please try again.');
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
+
+  const undoWrittenOff = async (c: any) => {
+    try {
+      await updateDoc(doc(db, 'clients', c.id), { status: 'Pending', writtenOffAt: null });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      setErrorMessage('Could not update the client. Please try again.');
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
+
   // The "You can pay here" line, in the client's language.
   const tapLinkLine = (c: any) => {
     if (!c.paymentLink) return '';
@@ -545,8 +581,12 @@ export default function DashboardPage() {
     return `\n\n${label[normalizeLanguage(c.language)]} ${c.paymentLink}`;
   };
 
-  const buildTapMessage = (c: any, days: number) => {
-    const stage = getTodayStage(c, days).label;
+  const buildTapMessage = (c: any, days: number, forceStage?: string) => {
+    const stage = forceStage || getTodayStage(c, days).label;
+    // Firm final reminder extras (set per client in Add/Edit Client).
+    const invoice = String(c.invoiceNumber || c.invoiceRef || '').trim();
+    const lateFee = String(c.lateFee || '').trim();
+    const msme = msmeApplies(c);
     const language = normalizeLanguage(c.language);
     const firstName = String(c.name || '').trim().split(' ')[0];
     const amount = formatAmountWithCurrency(c.amount, c.currency);
@@ -572,9 +612,11 @@ export default function DashboardPage() {
         };
       }
       if (stage === 'Final reminder') {
+        const fee = lateFee ? ` Agreement ke hisaab se ${lateFee} late fee lagegi.` : '';
+        const msmeLine = msme ? ' Udyam (MSME) registered supplier hone ke naate, MSMED Act, 2006 ke tahat late payment par interest lagta hai.' : '';
         return {
           subject: `Final reminder: ${amount} ka payment overdue`,
-          text: `${hi}, ${amount} ka payment ${late}, aur pichhle reminders ke baad bhi abhi tak nahi mila hai. Please ${deadline} tak payment clear kar dijiye. Koi problem ho toh bata dijiye, saath mein solve kar lenge.${link}${sign}`,
+          text: `${hi}, ${amount}${invoice ? ` (invoice ${invoice})` : ''} ka payment ${late}, aur pichhle reminders ke baad bhi abhi tak nahi mila hai. Yeh final reminder hai. Please ${deadline} tak payment clear kar dijiye. Tab tak payment nahi aaya toh formal recovery shuru karni padegi, jismein legal notice bhi ho sakta hai.${fee}${msmeLine} Invoice mein koi problem ho toh reply karke bata dijiye.${link}${sign}`,
         };
       }
       if (stage === 'Follow-up') {
@@ -601,9 +643,11 @@ export default function DashboardPage() {
         };
       }
       if (stage === 'Final reminder') {
+        const fee = lateFee ? ` तय शर्तों के अनुसार ${lateFee} लेट फ़ीस लागू होगी।` : '';
+        const msmeLine = msme ? ' Udyam (MSME) पंजीकृत सप्लायर होने के नाते, MSMED Act, 2006 के तहत देर से भुगतान पर ब्याज लगता है।' : '';
         return {
           subject: `अंतिम रिमाइंडर: ${amount} का भुगतान बकाया`,
-          text: `${hi}, ${amount} का भुगतान ${late}, और पिछले रिमाइंडर के बाद भी अभी तक नहीं मिला है। कृपया ${deadline} तक भुगतान कर दीजिए। कोई समस्या हो तो बता दीजिए, मिलकर हल निकाल लेंगे।${link}${sign}`,
+          text: `${hi}, ${amount}${invoice ? ` (इनवॉइस ${invoice})` : ''} का भुगतान ${late}, और पिछले रिमाइंडर के बाद भी अभी तक नहीं मिला है। यह अंतिम रिमाइंडर है। कृपया ${deadline} तक भुगतान कर दीजिए। तब तक भुगतान नहीं हुआ, तो औपचारिक वसूली की कार्रवाई शुरू करनी पड़ेगी, जिसमें कानूनी नोटिस भी शामिल हो सकता है।${fee}${msmeLine} इनवॉइस में कोई समस्या हो तो कृपया जवाब देकर बताइए।${link}${sign}`,
         };
       }
       if (stage === 'Follow-up') {
@@ -630,9 +674,11 @@ export default function DashboardPage() {
         };
       }
       if (stage === 'Final reminder') {
+        const fee = lateFee ? ` ठरल्याप्रमाणे ${lateFee} लेट फी लागू होईल.` : '';
+        const msmeLine = msme ? ' Udyam (MSME) नोंदणीकृत पुरवठादार म्हणून, MSMED Act, 2006 नुसार उशिरा पेमेंटवर व्याज लागू होते.' : '';
         return {
           subject: `अंतिम रिमाइंडर: ${amount} चे पेमेंट थकित`,
-          text: `${hi}, ${amount} चे पेमेंट ${late}, आणि आधीच्या रिमाइंडरनंतरही अजून मिळालेले नाही. कृपया ${deadline} पर्यंत पेमेंट करा. काही अडचण असल्यास कळवा, आपण मिळून मार्ग काढू.${link}${sign}`,
+          text: `${hi}, ${amount}${invoice ? ` (इनव्हॉइस ${invoice})` : ''} चे पेमेंट ${late}, आणि आधीच्या रिमाइंडरनंतरही अजून मिळालेले नाही. हे अंतिम रिमाइंडर आहे. कृपया ${deadline} पर्यंत पेमेंट करा. तोपर्यंत पेमेंट न झाल्यास औपचारिक वसुलीची कारवाई सुरू करावी लागेल, ज्यात कायदेशीर नोटीसही असू शकते.${fee}${msmeLine} इनव्हॉइसमध्ये काही अडचण असल्यास कृपया उत्तर देऊन कळवा.${link}${sign}`,
         };
       }
       if (stage === 'Follow-up') {
@@ -659,9 +705,11 @@ export default function DashboardPage() {
       };
     }
     if (stage === 'Final reminder') {
+      const fee = lateFee ? ` As agreed, a late fee of ${lateFee} applies.` : '';
+      const msmeLine = msme ? ' As a Udyam (MSME) registered supplier, delayed payments carry interest under the MSMED Act, 2006.' : '';
       return {
         subject: `Final reminder: payment of ${amount} overdue`,
-        text: `Hi ${name}, the payment of ${amount} is ${late}, and I haven't received it despite my earlier reminders. Please clear it by ${deadline}. If there's an issue, just let me know so we can sort it out.${link}${sign}`,
+        text: `Hi ${name}, this is my final reminder about the payment of ${amount}${invoice ? ` for invoice ${invoice}` : ''}, which is ${late}. Please clear it by ${deadline}. If it isn't paid by then, I'll have to move to formal recovery, which may include a legal notice.${fee}${msmeLine} If there's an issue with the invoice, just reply and let me know.${link}${sign}`,
       };
     }
     if (stage === 'Follow-up') {
@@ -687,8 +735,8 @@ export default function DashboardPage() {
 
   // Pro users: Blink AI writes a fresh message for this client and stage.
   // Free users (or if the AI fails): the ready-made template above.
-  const getAiTapMessage = async (c: any, days: number, channel: 'whatsapp' | 'sms' | 'email') => {
-    const stage = getTodayStage(c, days).label;
+  const getAiTapMessage = async (c: any, days: number, channel: 'whatsapp' | 'sms' | 'email', forceStage?: string) => {
+    const stage = forceStage || getTodayStage(c, days).label;
     const stageGuide: Record<string, { tone: string; note: string }> = {
       'First reminder': { tone: 'gentle', note: 'This is the FIRST reminder. Friendly, assume they forgot.' },
       'Follow-up': { tone: 'professional', note: 'This is a FOLLOW-UP. One reminder was already sent. Be direct and ask for a payment date.' },
@@ -722,7 +770,7 @@ export default function DashboardPage() {
         invoiceRef: c.invoiceNumber || c.invoiceRef || '',
         tone: guide.tone,
         language: normalizeLanguage(c.language),
-        variationInstruction: `${guide.note} The payment is ${days <= 0 ? 'due today' : `${days} days overdue`}.`,
+        variationInstruction: `${guide.note} The payment is ${days <= 0 ? 'due today' : `${days} days overdue`}.${stage === 'Final reminder' ? finalReminderNote(c) : ''}`,
         previousReminders,
       }),
     });
@@ -733,14 +781,16 @@ export default function DashboardPage() {
 
     if (channel === 'email') {
       if (!data.email_body) throw new Error('Empty email');
-      return { subject: data.email_subject || buildTapMessage(c, days).subject, text: `${data.email_body}${link}` };
+      return { subject: data.email_subject || buildTapMessage(c, days, forceStage).subject, text: `${data.email_body}${link}` };
     }
     const text = channel === 'sms' ? data.sms_text : data.whatsapp_message;
     if (!text) throw new Error('Empty message');
     return { subject: '', text: `${text}${link}` };
   };
 
-  const sendTapReminder = async (c: any, channel: 'whatsapp' | 'sms' | 'email') => {
+  // forceStage: 'Final reminder' sends the formal final notice (from the
+  // "What to do next" card), whatever stage the client is at.
+  const sendTapReminder = async (c: any, channel: 'whatsapp' | 'sms' | 'email', forceStage?: string) => {
     if (tapWriting) return;
 
     const days = getDaysOverdue(c.dueDate);
@@ -751,13 +801,13 @@ export default function DashboardPage() {
     const whatsappTab = channel === 'whatsapp' ? window.open('', '_blank') : null;
     if (whatsappTab) whatsappTab.opener = null;
 
-    let message = buildTapMessage(c, days);
+    let message = buildTapMessage(c, days, forceStage);
     let usedAi = false;
 
     if (isPro) {
-      setTapWriting(`${c.id}-${channel}`);
+      setTapWriting(`${c.id}-${channel}${forceStage ? '-final' : ''}`);
       try {
-        message = await getAiTapMessage(c, days, channel);
+        message = await getAiTapMessage(c, days, channel, forceStage);
         usedAi = true;
       } catch {
         // Keep the ready-made template so the user can still send.
@@ -785,7 +835,9 @@ export default function DashboardPage() {
           type: 'manual',
           channel,
           sentAt: new Date().toISOString(),
-          label: channel === 'whatsapp' ? 'Manual WhatsApp sent' : channel === 'sms' ? 'Manual SMS sent' : 'Manual email sent',
+          label: forceStage === 'Final reminder'
+            ? `Formal final notice sent (${channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'email'})`
+            : channel === 'whatsapp' ? 'Manual WhatsApp sent' : channel === 'sms' ? 'Manual SMS sent' : 'Manual email sent',
           message: text,
           ...(channel === 'email' ? { email_subject: subject, email_body: text } : {}),
           writtenBy: usedAi ? 'ai' : 'template',
@@ -867,6 +919,7 @@ export default function DashboardPage() {
         dueDate: firstDueDate,
         invoiceNumber: '',
         paymentLink: '',
+        currency: firstCurrency,
         automatedReminders: false,
         automationStatus: 'off',
         status: 'Pending',
@@ -1101,7 +1154,7 @@ export default function DashboardPage() {
         externalAction={robotAction}
         externalActionClientId={robotActionClientId}
         onProcessingChange={setIsRobotProcessing}
-        recommendation={recommendation ? { id: recommendation.id, name: recommendation.name, amount: recommendation.amount, daysOverdue: getRecommendationDaysOverdue(recommendation) } : null} 
+        recommendation={recommendation ? { id: recommendation.id, name: recommendation.name, amount: recommendation.amount, currency: recommendation.currency, daysOverdue: getRecommendationDaysOverdue(recommendation) } : null} 
         onOpenAddClient={() => { setClientToEdit(null); setIsModalOpen(true); }}
       />
 
@@ -1400,6 +1453,117 @@ export default function DashboardPage() {
 
                           <p className="text-sm text-slate-700 font-medium" suppressHydrationWarning={true}>{stage.advice}</p>
 
+                          {/* STALLED — reminders are being ignored: what to do next */}
+                          {stage.label === 'Stalled' && (
+                            <div className="rounded-xl border border-orange-200 bg-white" suppressHydrationWarning={true}>
+                              <button
+                                type="button"
+                                onClick={() => setStalledOpenId(stalledOpenId === c.id ? null : c.id)}
+                                aria-expanded={stalledOpenId === c.id}
+                                className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-bold text-orange-700 cursor-pointer"
+                                suppressHydrationWarning={true}
+                              >
+                                What to do next
+                                <ChevronDown size={16} className={`transition-transform ${stalledOpenId === c.id ? 'rotate-180' : ''}`} />
+                              </button>
+
+                              <AnimatePresence initial={false}>
+                                {stalledOpenId === c.id && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.18 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <ol className="px-4 pb-4 space-y-3 text-xs text-slate-600 font-medium list-decimal list-inside" suppressHydrationWarning={true}>
+                                      <li>
+                                        <span className="font-bold text-slate-800">Try another way to reach them.</span>{' '}
+                                        A call often works when messages don&apos;t. The buttons above send a message offering to split the payment.
+                                        {getClientPhone(c) && (
+                                          <a
+                                            href={`tel:+${getClientPhone(c)}`}
+                                            className="mt-2 flex w-full sm:w-auto sm:inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition"
+                                          >
+                                            <PhoneCall size={14} /> Call {String(c.name || '').trim().split(' ')[0] || 'client'}
+                                          </a>
+                                        )}
+                                      </li>
+                                      <li>
+                                        <span className="font-bold text-slate-800">Ask for their accounts team.</span>{' '}
+                                        The person you work with may not be the one who pays invoices.
+                                      </li>
+                                      <li>
+                                        <span className="font-bold text-slate-800">Pause any ongoing work</span> until the payment is sorted.
+                                      </li>
+                                      <li>
+                                        <span className="font-bold text-slate-800">Send the formal final notice.</span>{' '}
+                                        Amount, deadline in 3 days, and the next step (formal recovery).
+                                        {(getClientPhone(c) || c.email) ? (
+                                          <div className="mt-2 grid grid-cols-2 sm:flex gap-2">
+                                            {getClientPhone(c) && (
+                                              <motion.button
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={() => sendTapReminder(c, 'whatsapp', 'Final reminder')}
+                                                disabled={tapWriting !== null}
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F172A] hover:opacity-90 transition cursor-pointer"
+                                              >
+                                                {tapWriting === `${c.id}-whatsapp-final` ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />}
+                                                {tapWriting === `${c.id}-whatsapp-final` ? 'Writing…' : 'On WhatsApp'}
+                                              </motion.button>
+                                            )}
+                                            {c.email && (
+                                              <motion.button
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={() => sendTapReminder(c, 'email', 'Final reminder')}
+                                                disabled={tapWriting !== null}
+                                                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F172A] hover:opacity-90 transition cursor-pointer"
+                                              >
+                                                {tapWriting === `${c.id}-email-final` ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />}
+                                                {tapWriting === `${c.id}-email-final` ? 'Writing…' : 'By email'}
+                                              </motion.button>
+                                            )}
+                                          </div>
+                                        ) : null}
+                                        <span className="block mt-1.5 text-[11px] text-slate-400">
+                                          Late fee and MSME lines are added only if you set them in Edit client.
+                                        </span>
+                                      </li>
+                                      <li>
+                                        <span className="font-bold text-slate-800">Formal options.</span>{' '}
+                                        {!isIndianCurrency(c.currency)
+                                          ? "A legal notice through a lawyer, a small-claims court, or a collection agency in the client's country."
+                                          : msmeApplies(c)
+                                            ? 'A legal notice through a lawyer, or a complaint on MSME Samadhaan (samadhaan.msme.gov.in).'
+                                            : 'A legal notice through a lawyer, then a recovery case in civil court if needed.'}
+                                        {/* Not Udyam registered: tell them it's free, for future invoices */}
+                                        {isIndianCurrency(c.currency) && !msmeApplies(c) && (
+                                          <span className="block mt-1 text-[11px] text-slate-500">
+                                            Tip: Udyam (MSME) registration is free and online for freelancers too (udyamregistration.gov.in). It usually protects only work done after you register, not this invoice.
+                                          </span>
+                                        )}
+                                        <span className="block mt-1 text-[11px] text-slate-400">
+                                          Check with a lawyer or CA before taking formal steps. Not legal advice.
+                                        </span>
+                                      </li>
+                                      <li>
+                                        <span className="font-bold text-slate-800">Or let it go.</span>{' '}
+                                        Mark it as written off so it stops showing here.
+                                        <button
+                                          type="button"
+                                          onClick={() => markWrittenOff(c)}
+                                          className="mt-2 flex w-full sm:w-auto sm:inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 border border-slate-200 hover:bg-slate-50 transition cursor-pointer"
+                                        >
+                                          <Ban size={14} /> Mark as written off
+                                        </button>
+                                      </li>
+                                    </ol>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          )}
+
                           {/* Tap to send: a ready message, opened on the user's own phone */}
                           {(getClientPhone(c) || c.email) ? (
                             <div className="grid grid-cols-3 gap-2" suppressHydrationWarning={true}>
@@ -1509,11 +1673,11 @@ export default function DashboardPage() {
                     />
                   </div>
                   <div className="space-y-1.5" suppressHydrationWarning={true}>
-                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Amount (₹)</label>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Amount ({getCurrencySymbol(firstCurrency).trim()})</label>
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={firstAmount ? Number(firstAmount).toLocaleString('en-IN') : ''}
+                      value={firstAmount ? Number(firstAmount).toLocaleString(firstCurrency === 'INR' ? 'en-IN' : 'en-US') : ''}
                       onChange={(e) => setFirstAmount(e.target.value.replace(/[^0-9]/g, ''))}
                       placeholder="25,000"
                       className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-900"
@@ -1557,18 +1721,18 @@ export default function DashboardPage() {
             <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Layers size={14} suppressHydrationWarning={true}/> Total Outstanding</div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>₹{totalOutstanding.toLocaleString('en-IN')}</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{formatTotalsByCurrency(clients.filter((c) => c.status === 'Pending'))}</p>
                 <p className="text-xs font-medium text-slate-500">Outstanding across {pendingCount} {pendingCount === 1 ? 'invoice' : 'invoices'}.</p>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><AlertTriangle size={14} suppressHydrationWarning={true}/> Overdue</div>
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>₹{totalOverdue.toLocaleString('en-IN')}</p>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{formatTotalsByCurrency(overdueClients)}</p>
                 <p className="text-xs font-medium text-slate-500">{overdueCount === 0 ? 'Nothing overdue right now.' : `${overdueCount} overdue ${overdueCount === 1 ? 'invoice' : 'invoices'}.`}</p>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
                 <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><TrendingUp size={14} suppressHydrationWarning={true}/> Recovered this month</div>
-                <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8] mb-1" suppressHydrationWarning={true}>₹{recoveredThisMonth.toLocaleString('en-IN')}</p>
-                <p className="text-xs font-medium text-slate-500">{paidCount === 0 ? 'No payments recovered yet.' : `₹${totalRecovered.toLocaleString('en-IN')} recovered in total.`}</p>
+                <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8] mb-1" suppressHydrationWarning={true}>{formatTotalsByCurrency(paidThisMonth)}</p>
+                <p className="text-xs font-medium text-slate-500">{paidCount === 0 ? 'No payments recovered yet.' : `${formatTotalsByCurrency(clients.filter((c) => c.status === 'Paid'))} recovered in total.`}</p>
               </motion.div>
             </section>
             )}
@@ -1677,7 +1841,8 @@ export default function DashboardPage() {
                     // aren't working — flag it visibly instead of burying
                     // that signal inside the AI panel.
                     const reminderCount = Array.isArray(c.reminderHistory) ? c.reminderHistory.length : 0;
-                    const isStalled = c.status !== 'Paid' && (
+                    const isWrittenOff = c.status === 'Written off';
+                    const isStalled = c.status === 'Pending' && (
                       reminderCount >= 3 || (reminderCount === 2 && daysOverdue >= 21)
                     );
 
@@ -1701,11 +1866,13 @@ export default function DashboardPage() {
                               <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
                                 c.status === 'Paid' 
                                   ? 'bg-emerald-50 text-emerald-600' 
-                                  : isOverdue 
-                                    ? 'bg-rose-50 text-rose-600' 
-                                    : 'bg-amber-50 text-amber-600'
+                                  : isWrittenOff
+                                    ? 'bg-slate-100 text-slate-500'
+                                    : isOverdue 
+                                      ? 'bg-rose-50 text-rose-600' 
+                                      : 'bg-amber-50 text-amber-600'
                               }`} suppressHydrationWarning={true}>
-                                {c.status === 'Paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Pending'}
+                                {c.status === 'Paid' ? 'Paid' : isWrittenOff ? 'Written off' : isOverdue ? 'Overdue' : 'Pending'}
                               </span>
 
                               {isStalled && (
@@ -1721,7 +1888,7 @@ export default function DashboardPage() {
                                 </motion.span>
                               )}
 
-                              {c.automatedReminders === true && c.status !== 'Paid' && (
+                              {c.automatedReminders === true && c.status === 'Pending' && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E8F8F8] text-[#159A9F]">
                                   <span className="h-1.5 w-1.5 rounded-full bg-[#20B8BE]" />
                                   Auto Reminder ON
@@ -1770,6 +1937,16 @@ export default function DashboardPage() {
                               >
                                 <CheckCircle2 size={14} suppressHydrationWarning={true} /> Mark Paid
                               </motion.button>
+                            ) : isWrittenOff ? (
+                              <motion.button
+                                whileTap={{ scale: 0.96 }}
+                                onClick={(e) => { e.stopPropagation(); undoWrittenOff(c); }}
+                                className="flex-1 sm:flex-none text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                title="Move back to pending"
+                                suppressHydrationWarning={true}
+                              >
+                                <Undo2 size={14} suppressHydrationWarning={true} /> Undo write-off
+                              </motion.button>
                             ) : (
                               <span className="text-[11px] font-bold text-[#2BB6A8] bg-[#2BB6A8]/10 px-4 py-2.5 rounded-xl flex items-center gap-2" suppressHydrationWarning={true}>
                                 <CheckCircle2 size={14} suppressHydrationWarning={true} /> Paid
@@ -1812,13 +1989,13 @@ export default function DashboardPage() {
                             >
                               <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-slate-700 bg-white p-4 rounded-xl border border-slate-200 shadow-3xs" suppressHydrationWarning={true}>
                                 <span suppressHydrationWarning={true}>
-                                  Amount Due: <strong className="text-slate-900 font-black text-sm ml-1" suppressHydrationWarning={true}>₹{Number(c.amount || 0).toLocaleString()}</strong>
+                                  Amount Due: <strong className="text-slate-900 font-black text-sm ml-1" suppressHydrationWarning={true}>{formatAmountWithCurrency(c.amount, c.currency)}</strong>
                                 </span>
                                 <span suppressHydrationWarning={true}>
                                   Due Date: <strong className="text-slate-900 ml-1" suppressHydrationWarning={true}>{c.dueDate || 'N/A'}</strong>
                                 </span>
                                 <span suppressHydrationWarning={true}>
-                                  Status: <strong className={c.status === 'Paid' ? 'text-emerald-600' : isOverdue ? 'text-rose-600' : 'text-amber-600'} suppressHydrationWarning={true}>{c.status === 'Paid' ? 'Paid' : isOverdue ? `Overdue by ${daysOverdue} days` : 'Pending'}</strong>
+                                  Status: <strong className={c.status === 'Paid' ? 'text-emerald-600' : isWrittenOff ? 'text-slate-500' : isOverdue ? 'text-rose-600' : 'text-amber-600'} suppressHydrationWarning={true}>{c.status === 'Paid' ? 'Paid' : isWrittenOff ? 'Written off' : isOverdue ? `Overdue by ${daysOverdue} days` : 'Pending'}</strong>
                                 </span>
                                 {c.invoiceNumber && (
                                   <span suppressHydrationWarning={true}>

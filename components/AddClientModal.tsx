@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2, CheckCircle2, Sparkles, Loader2, ArrowRight, Languages } from 'lucide-react';
+import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2, CheckCircle2, Sparkles, Loader2, ArrowRight, Languages, Gavel } from 'lucide-react';
 import { addDoc, collection, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { REMINDER_LANGUAGES, normalizeLanguage } from '@/lib/reminderRules';
+import { REMINDER_LANGUAGES, normalizeLanguage, CLIENT_CURRENCIES, normalizeCurrencyCode, guessDefaultCurrency, getCurrencySymbol } from '@/lib/reminderRules';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -41,8 +41,12 @@ export default function AddClientModal({
     dueDate: '',
     invoiceNumber: '',
     paymentLink: '',
-    language: 'english'
+    language: 'english',
+    currency: 'INR',
+    lateFee: ''
   });
+  // Final reminder extra: the freelancer is Udyam (MSME) registered.
+  const [msmeRegistered, setMsmeRegistered] = useState(false);
 
   const [errors, setErrors] = useState({
     name: '',
@@ -73,12 +77,16 @@ export default function AddClientModal({
         dueDate: clientToEdit.dueDate || '',
         invoiceNumber: clientToEdit.invoiceNumber || '',
         paymentLink: clientToEdit.paymentLink || '',
-        language: normalizeLanguage(clientToEdit.language)
+        language: normalizeLanguage(clientToEdit.language),
+        currency: normalizeCurrencyCode(clientToEdit.currency),
+        lateFee: clientToEdit.lateFee || ''
       });
       setAutomatedReminders(clientToEdit.automatedReminders || false);
+      setMsmeRegistered(clientToEdit.msmeRegistered === true);
     } else {
-      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '', language: 'english' });
+      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '', language: 'english', currency: guessDefaultCurrency(), lateFee: '' });
       setAutomatedReminders(false);
+      setMsmeRegistered(false);
     }
     setErrors({ name: '', email: '', amount: '', dueDate: '' });
     setShowProNotice(false);
@@ -182,6 +190,10 @@ export default function AddClientModal({
           invoiceNumber: formData.invoiceNumber,
           paymentLink: formData.paymentLink.trim(),
           language: normalizeLanguage(formData.language),
+          currency: normalizeCurrencyCode(formData.currency),
+          lateFee: formData.lateFee.trim(),
+          // MSME line only applies to Indian (rupee) clients.
+          msmeRegistered: msmeRegistered && normalizeCurrencyCode(formData.currency) === 'INR',
           automatedReminders: isPro && automatedReminders,
           automationStatus: isPro && automatedReminders ? 'active' : 'off'
         });
@@ -212,6 +224,10 @@ export default function AddClientModal({
         invoiceNumber: formData.invoiceNumber,
         paymentLink: formData.paymentLink.trim(),
         language: normalizeLanguage(formData.language),
+        currency: normalizeCurrencyCode(formData.currency),
+        lateFee: formData.lateFee.trim(),
+        // MSME line only applies to Indian (rupee) clients.
+        msmeRegistered: msmeRegistered && normalizeCurrencyCode(formData.currency) === 'INR',
         automatedReminders: isPro && automatedReminders,
         automationStatus: isPro && automatedReminders ? 'active' : 'off',
         status: 'Pending',
@@ -241,8 +257,11 @@ export default function AddClientModal({
       dueDate: '',
       invoiceNumber: '',
       paymentLink: '',
-      language: 'english'
+      language: 'english',
+      currency: 'INR',
+      lateFee: ''
     });
+    setMsmeRegistered(false);
     setErrors({ name: '', email: '', amount: '', dueDate: '' });
     setSuccessStep(false);
     setIsFirstClient(false);
@@ -475,18 +494,36 @@ export default function AddClientModal({
                     )}
                   </AnimatePresence>
                   </label>
-                  <div className="relative flex items-center" suppressHydrationWarning={true}>
-                    <IndianRupee className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                  <div className="flex items-center gap-2" suppressHydrationWarning={true}>
+                  {/* Currency of this invoice */}
+                  <select
+                    aria-label="Currency"
+                    value={formData.currency}
+                    onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value }))}
+                    className="shrink-0 w-[5.5rem] px-2 py-2.5 sm:py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 bg-white focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition cursor-pointer"
+                    suppressHydrationWarning={true}
+                  >
+                    {CLIENT_CURRENCIES.map((cur) => (
+                      <option key={cur.code} value={cur.code}>{cur.label}</option>
+                    ))}
+                  </select>
+                  <div className="relative flex items-center flex-1 min-w-0" suppressHydrationWarning={true}>
+                    {formData.currency === 'INR' ? (
+                      <IndianRupee className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
+                    ) : (
+                      <span className="absolute left-2.5 sm:left-3 text-slate-400 text-xs font-bold" suppressHydrationWarning={true}>{getCurrencySymbol(formData.currency).trim()}</span>
+                    )}
                     <input 
                       ref={amountInputRef}
                       type="text" 
                       className={`w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#245B92]/25 transition ${errors.amount ? 'border-red-400 bg-red-50/20' : 'border-slate-200 focus:border-[#245B92]'}`} 
                       placeholder="25,000" 
-                      value={formData.amount ? Number(formData.amount).toLocaleString('en-IN') : ''} 
+                      value={formData.amount ? Number(formData.amount).toLocaleString(formData.currency === 'INR' ? 'en-IN' : 'en-US') : ''} 
                       onChange={(e) => handleChange('amount', e.target.value)}
                       onKeyDown={(e) => handleKeyDown(e, dueDateInputRef)}
                       suppressHydrationWarning={true}
                     />
+                  </div>
                   </div>
                   <AnimatePresence>
                   {errors.amount && (
@@ -651,6 +688,69 @@ export default function AddClientModal({
                 <p className="text-[10px] text-slate-400 pl-1">
                   Reminders to this client (AI, automatic and tap-to-send) are written in this language.
                 </p>
+              </motion.div>
+
+              {/* Final reminder extras */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: 0.23 }}
+                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4 space-y-3"
+                suppressHydrationWarning={true}
+              >
+                <div>
+                  <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Gavel size={14} className="text-slate-400" /> Final reminder extras <span className="text-slate-400 font-normal text-xs">(Optional)</span>
+                  </p>
+                  <p className="text-[11px] text-slate-500 font-medium mt-1 leading-relaxed">
+                    Added only to the last, firm reminder.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>
+                    Late fee <span className="text-slate-400 font-normal lowercase">(only if the client agreed to it)</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2.5 sm:px-4 border border-slate-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition"
+                    placeholder={formData.currency === 'INR' ? 'e.g. 2% per month, or ₹500' : `e.g. 2% per month, or ${getCurrencySymbol(formData.currency).trim()}50`}
+                    value={formData.lateFee}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lateFee: e.target.value }))}
+                    suppressHydrationWarning={true}
+                  />
+                </div>
+
+                {/* MSME rules only apply to Indian (rupee) clients */}
+                {formData.currency === 'INR' && (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800">I&apos;m Udyam (MSME) registered</p>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                        Adds a line about the interest the MSMED Act allows on late payments. Leave it off if you're not registered.
+                      </p>
+                    </div>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.94 }}
+                      onClick={() => setMsmeRegistered(prev => !prev)}
+                      className={`relative shrink-0 w-12 h-7 rounded-full transition-colors duration-200 ${
+                        msmeRegistered ? 'bg-[#20B8BE]' : 'bg-slate-300'
+                      }`}
+                      aria-label="Toggle Udyam (MSME) registered"
+                      aria-pressed={msmeRegistered}
+                    >
+                      <motion.span
+                        layout
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        className="absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm"
+                        style={{ left: msmeRegistered ? '26px' : '4px' }}
+                      />
+                    </motion.button>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-slate-400">Not legal advice.</p>
               </motion.div>
 
               {/* Automated Email Reminders */}

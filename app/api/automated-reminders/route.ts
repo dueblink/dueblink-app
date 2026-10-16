@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebaseAdmin";
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { createPaymentActionToken } from "@/lib/paymentActionToken";
 import { generateEmailReminder } from "@/lib/generateReminder";
+import { finalReminderNote } from "@/lib/reminderRules";
 import {
   sendAutomatedReminderEmail,
   sendOwnerPaymentStatusEmail,
@@ -197,6 +198,9 @@ export async function GET(request: Request) {
           tone: data.tone || "professional",
           // The client's reminder language (old clients: English).
           language: data.language || "english",
+          // Firm final reminder extras (set in Add/Edit Client).
+          lateFee: data.lateFee || "",
+          msmeRegistered: data.msmeRegistered === true,
           // The add-client form saves "invoiceNumber"; older records may use "invoiceRef".
           invoiceRef: data.invoiceRef || data.invoiceNumber || "",
           reminderStage,
@@ -317,7 +321,7 @@ export async function GET(request: Request) {
                 }.`
               : client.reminderStage === "follow-up"
               ? `Write a fresh follow-up for a payment that is ${client.daysOverdue} days overdue. Do not sound repetitive.`
-              : `Write a final but professional follow-up for a payment that is ${client.daysOverdue} days overdue. Remain respectful and clear.`,
+              : `Write a final but professional follow-up for a payment that is ${client.daysOverdue} days overdue. Remain respectful and clear.${finalReminderNote(client)}`,
           // Earlier emails to this client, so the new one is different.
           previousReminders: client.reminderHistory
             .filter((r: any) => r && r.email_body)

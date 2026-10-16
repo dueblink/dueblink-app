@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { proRecoveryAssistantRateLimit } from "@/lib/rateLimit";
-import { NATURAL_WRITING_RULES, signOffRule, clientMessageLanguageRule } from "@/lib/reminderRules";
+import { NATURAL_WRITING_RULES, signOffRule, clientMessageLanguageRule, finalReminderNote } from "@/lib/reminderRules";
 
 // Ensure this Next.js route is always dynamic and never cached on the server side
 export const dynamic = 'force-dynamic';
@@ -357,6 +357,8 @@ export async function POST(req: Request) {
         liveStatus:
           c.status === "Paid"
             ? "Paid"
+            : c.status === "Written off"
+            ? "Written off"
             : isOverdue
             ? "Overdue"
             : "Pending",
@@ -375,8 +377,9 @@ export async function POST(req: Request) {
     });
 
     // Separate active recovery cases from paid clients.
+    // Written-off clients are no longer chased, like paid ones.
     const activeClients = liveClients.filter(
-      (c: any) => c.status !== "Paid"
+      (c: any) => c.status !== "Paid" && c.status !== "Written off"
     );
 
     const paidClients = liveClients.filter(
@@ -561,6 +564,7 @@ RULES:
 - Status is ${targetStatus}. Never call an overdue invoice "pending".
 - The email and WhatsApp messages must not repeat each other word for word.
 - WHATSAPP FOLLOW-UP is the last section. Stop after it.
+${escalation.stage === 'final' ? finalReminderNote(targetClient) : ''}
 ${clientMessageLanguageRule(targetClient.language)}`;
 
         userPrompt = `Write the Generate Follow-up for this client: ${JSON.stringify({
@@ -762,6 +766,7 @@ RULES:
 - Write it in fresh words, not a copy of an earlier reminder.
 - Never call an overdue invoice "pending".
 - Blink Recommendation is the last section. Stop after it.
+${rewriteEscalation.stage === 'final' ? finalReminderNote(targetClient) : ''}
 ${clientMessageLanguageRule(targetClient.language)}`;
 
         userPrompt = `Rewrite the reminder for this client: ${JSON.stringify({
@@ -830,6 +835,13 @@ RULES:
     } 
     // 2. Handle Individual Client Reminders using live object data
     else if (client) {
+      if (client.status === 'Written off') {
+        return new NextResponse(
+          "🤖 Blink\n📌 Status Update\n\n━━━━━━━━━━━━━━━━━━━━━━\n💡 Quick Summary\nThis client is marked as written off.\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 Next Best Action\nTo chase this payment again, tap \"Undo write-off\" in your client list.",
+          { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+        );
+      }
+
       if (client.status === 'Paid') {
         return new NextResponse(
           "🤖 Blink\n📌 Status Update\n\n━━━━━━━━━━━━━━━━━━━━━━\n💡 Quick Summary\nClient is Paid.\n\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Important Information\n• Status: Paid\n• Action Required: None\n\n━━━━━━━━━━━━━━━━━━━━━━\n✨ Blink Recommendation\nThis client has already paid. No follow-up needed.\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 Next Best Action\nSelect an active pending or overdue client.",
@@ -899,6 +911,9 @@ STRICT RULES:
 - Never pretend no reminder was sent when Reminders Sent is more than 0. Never restart the sequence with a "first" style message.
 - Never call an overdue invoice "pending."
 - Copy the Important Information values exactly as given.
+${singleEscalation.stage === 'final'
+  ? finalReminderNote(liveClients.find((c: any) => String(c.id) === String(client.id)) || client)
+  : ''}
 ${clientMessageLanguageRule(
   (liveClients.find((c: any) => String(c.id) === String(client.id)) || client).language
 )}`;

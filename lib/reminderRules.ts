@@ -192,3 +192,112 @@ ${KEEP_EXACT}
 Everything else stays in English: all headings, the "Subject:" label, the copied
 information lines, summaries, recommendations and next actions for the owner.`;
 }
+
+// ============================================================
+// CLIENT CURRENCY
+// ============================================================
+// Saved on each client as a code ("INR", "USD"...). Old clients have
+// no currency (or "₹"), and are treated as rupees.
+
+export const CLIENT_CURRENCIES = [
+  { code: 'INR', label: '₹ INR' },
+  { code: 'USD', label: '$ USD' },
+  { code: 'EUR', label: '€ EUR' },
+  { code: 'GBP', label: '£ GBP' },
+  { code: 'AUD', label: 'A$ AUD' },
+  { code: 'CAD', label: 'C$ CAD' },
+  { code: 'SGD', label: 'S$ SGD' },
+  { code: 'AED', label: 'AED' },
+] as const;
+
+const SYMBOL_TO_CODE: Record<string, string> = {
+  '₹': 'INR', '$': 'USD', '€': 'EUR', '£': 'GBP',
+  'A$': 'AUD', 'C$': 'CAD', 'S$': 'SGD', 'AED': 'AED',
+};
+
+// "₹", "INR", "₹ INR" or nothing -> "INR"; "$" -> "USD".
+export function normalizeCurrencyCode(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'INR';
+  const code = raw.toUpperCase().match(/[A-Z]{3}/)?.[0];
+  if (code) return code;
+  return SYMBOL_TO_CODE[raw] || 'INR';
+}
+
+// Indian client (rupees): MSME rules and MSME Samadhaan apply.
+export function isIndianCurrency(value: unknown): boolean {
+  return normalizeCurrencyCode(value) === 'INR';
+}
+
+// A sensible default for a new client: rupees in India, dollars elsewhere.
+// Runs in the browser only.
+export function guessDefaultCurrency(): string {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    if (zone === 'Asia/Kolkata' || zone === 'Asia/Calcutta') return 'INR';
+    if (zone.startsWith('Europe/London')) return 'GBP';
+    if (zone === 'Asia/Dubai') return 'AED';
+    if (zone === 'Asia/Singapore') return 'SGD';
+    if (zone.startsWith('Australia/')) return 'AUD';
+    if (zone.startsWith('Europe/')) return 'EUR';
+    return 'USD';
+  } catch {
+    return 'INR';
+  }
+}
+
+// Adds up amounts per currency, so rupees and dollars are never mixed:
+// "₹25,000" or "₹25,000 + $500".
+export function formatTotalsByCurrency(clients: Array<{ amount?: unknown; currency?: unknown }>): string {
+  const totals: Record<string, number> = {};
+  for (const c of clients) {
+    const code = normalizeCurrencyCode(c.currency);
+    totals[code] = (totals[code] || 0) + (Number(String(c.amount ?? '').replace(/,/g, '')) || 0);
+  }
+  const codes = Object.keys(totals);
+  if (codes.length === 0) return formatAmountWithCurrency(0, 'INR');
+  // Rupees first, then the other currencies.
+  codes.sort((a, b) => (a === 'INR' ? -1 : b === 'INR' ? 1 : a.localeCompare(b)));
+  return codes.map((code) => formatAmountWithCurrency(totals[code], code)).join(' + ');
+}
+
+// ============================================================
+// FIRM FINAL REMINDER
+// ============================================================
+// The last reminder before formal steps. Same for every client, plus:
+// - a late fee line, only if the freelancer says one was agreed;
+// - the MSMED Act interest line, only for Indian (rupee) clients when
+//   the freelancer is Udyam (MSME) registered.
+
+// The deadline: 3 days from today (India time), e.g. "19 October".
+export function finalDeadlineText(locale = 'en-IN'): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long',
+  }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+}
+
+export function msmeApplies(client: { currency?: unknown; msmeRegistered?: unknown }): boolean {
+  return client.msmeRegistered === true && isIndianCurrency(client.currency);
+}
+
+// Extra instructions for the AI when it writes the FINAL reminder.
+export function finalReminderNote(client: {
+  invoiceNumber?: unknown;
+  invoiceRef?: unknown;
+  lateFee?: unknown;
+  currency?: unknown;
+  msmeRegistered?: unknown;
+}): string {
+  const invoice = String(client.invoiceNumber || client.invoiceRef || '').trim();
+  const lateFee = String(client.lateFee || '').trim();
+
+  return `
+FIRM FINAL REMINDER (this is the last reminder before formal steps):
+- State the amount, ${invoice ? `the invoice number (${invoice}), ` : ''}and how many days overdue it is.
+- Give a clear deadline: ${finalDeadlineText()}.
+- Say the next step plainly: if it is not paid by then, the matter moves to formal recovery, which may include a legal notice.
+- Invite them to reply if there is a problem with the invoice.
+${lateFee ? `- Mention the late fee that was agreed: ${lateFee}. Do not invent any other fee.` : '- Do NOT mention any late fee or extra charge.'}
+${msmeApplies(client) ? '- Add one calm line: as a Udyam (MSME) registered supplier, under the MSMED Act, 2006, delayed payments carry compound interest at three times the RBI bank rate.' : '- Do NOT mention the MSMED Act or MSME interest.'}
+- Firm and calm. No insults, no shaming, no threats other than the formal step above, no apologizing.`;
+}
