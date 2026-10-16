@@ -4,8 +4,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2, Wallet, CalendarCheck, Flag, Hourglass, Target, Scissors, Smile, ShieldCheck, Languages, AlertTriangle, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import BlinkChat from '@/components/BlinkChat';
+import type { LucideIcon } from 'lucide-react';
 import { formatAmountWithCurrency, formatTotalsByCurrency, normalizeLanguage, isIndianCurrency } from '@/lib/reminderRules';
 
 // Landing page sections Blink reacts to, in the order they appear on the page.
@@ -775,6 +777,109 @@ export default function FloatingRobot({
     };
   }, [pathname, isPro, clickedSectionText]);
 
+  // Public pages: small "Ask me" pop-ups at the right moments.
+  // Moments: interested (20 s + some scrolling), reaches Pricing,
+  // reaches FAQ, or (computer) mouse heads to close the tab.
+  // Rules: at most 2 per visit, 1 minute apart, none after ✕ or after
+  // the chat is opened, each hides after 10 s. A new visit starts fresh,
+  // unless the visitor chatted in the last 2 days.
+  const NUDGE_MESSAGES: Record<string, { lead: string; ask: string }> = {
+    interest: { lead: '👋 Questions?', ask: 'Ask me anything' },
+    pricing: { lead: '💬 Not sure which plan fits you?', ask: 'Ask me' },
+    faq: { lead: "🙋 Didn't find your answer?", ask: 'Ask me' },
+    exit: { lead: 'Before you go 👋', ask: 'Any question about getting paid?' },
+  };
+  const [chatNudge, setChatNudge] = useState<string | null>(null);
+  const showChatNudge = chatNudge !== null;
+  const setShowChatNudge = (show: boolean) => { if (!show) setChatNudge(null); };
+  const nudgeStateRef = useRef({ shown: 0, lastAt: 0, stopped: false, used: new Set<string>() });
+
+  useEffect(() => {
+    if (pathname === '/dashboard') return;
+    const state = nudgeStateRef.current;
+
+    // Chatted in the last 2 days, or said no (✕) this visit: stay quiet.
+    try {
+      const lastChat = Number(localStorage.getItem('blink_chat_opened_at') || 0);
+      if (Date.now() - lastChat < 2 * 24 * 60 * 60 * 1000) state.stopped = true;
+      if (sessionStorage.getItem('blink_nudge_dismissed')) state.stopped = true;
+      state.shown = Math.max(state.shown, Number(sessionStorage.getItem('blink_nudge_count') || 0));
+    } catch {
+      // Storage blocked: the per-page limits below still apply.
+    }
+
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    const trigger = (moment: string) => {
+      const now = Date.now();
+      if (state.stopped || state.shown >= 2 || state.used.has(moment)) return;
+      if (now - state.lastAt < 60 * 1000) return;
+      state.used.add(moment);
+      state.shown += 1;
+      state.lastAt = now;
+      try { sessionStorage.setItem('blink_nudge_count', String(state.shown)); } catch {}
+      setChatNudge(moment);
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => setChatNudge(null), 10000);
+    };
+
+    // 1. Interested: 20 seconds on the page and scrolled a little.
+    let timeOk = false;
+    let scrolled = false;
+    const onScroll = () => {
+      if (window.scrollY > window.innerHeight * 0.5) {
+        scrolled = true;
+        if (timeOk) trigger('interest');
+      }
+    };
+    const timeTimer = setTimeout(() => { timeOk = true; if (scrolled) trigger('interest'); }, 20000);
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    // 2 + 3. Reaches the Pricing or FAQ section.
+    const observer = typeof IntersectionObserver !== 'undefined'
+      ? new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) trigger(entry.target.id === 'faq' ? 'faq' : 'pricing');
+          });
+        }, { threshold: 0.35 })
+      : null;
+    ['pricing', 'faq'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && observer) observer.observe(el);
+    });
+
+    // 4. Computer only: mouse leaves through the top (going to close the tab).
+    const onMouseOut = (e: MouseEvent) => {
+      if (!e.relatedTarget && e.clientY <= 0 && window.matchMedia?.('(pointer: fine)').matches) {
+        trigger('exit');
+      }
+    };
+    document.addEventListener('mouseout', onMouseOut);
+
+    return () => {
+      clearTimeout(timeTimer);
+      if (hideTimer) clearTimeout(hideTimer);
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('mouseout', onMouseOut);
+      observer?.disconnect();
+    };
+  }, [pathname]);
+
+  // ✕ on a pop-up: no more pop-ups this visit.
+  const dismissChatNudge = () => {
+    setChatNudge(null);
+    nudgeStateRef.current.stopped = true;
+    try { sessionStorage.setItem('blink_nudge_dismissed', '1'); } catch {}
+  };
+
+  // Chat opened: no more pop-ups this visit, and none for 2 days.
+  useEffect(() => {
+    if (isExpanded && pathname !== '/dashboard') {
+      setChatNudge(null);
+      nudgeStateRef.current.stopped = true;
+      try { localStorage.setItem('blink_chat_opened_at', String(Date.now())); } catch {}
+    }
+  }, [isExpanded, pathname]);
+
   // Show Blink's "Hi, I'm Blink" greeting bubble automatically the very
   // first time a Pro user ever lands on the dashboard — persisted in
   // localStorage so it only shows once, not once per session/tab.
@@ -972,14 +1077,10 @@ export default function FloatingRobot({
       return;
     }
 
-    if (isExpanded) {
-      setIsExpanded(false);
-      return;
-    }
-
-    const messages = getCurrentMessages();
-    setClickedSectionText(messages[LANDING_SECTION_IDS[currentSectionIndex]] || messages['hero']);
-    setShowMessageBubble((prev) => !prev);
+    // Landing and other public pages: the robot opens the Blink chat.
+    setShowMessageBubble(false);
+    setShowChatNudge(false);
+    setIsExpanded(!isExpanded);
   };
 
   const getActiveMessage = () => {
@@ -1294,10 +1395,10 @@ export default function FloatingRobot({
 
   // Asks Blink to change one message (WhatsApp, email or rewritten email).
   // Only that message changes; the rest of the screen stays.
-  const TONE_EDITS = [
-    { label: 'Shorter', instruction: 'Make it shorter. Keep only what matters.' },
-    { label: 'Softer', instruction: 'Make the tone softer and friendlier, but still ask for the payment.' },
-    { label: 'Firmer', instruction: 'Make the tone firmer and more direct, but stay polite.' },
+  const TONE_EDITS: { label: string; instruction: string; icon?: LucideIcon }[] = [
+    { label: 'Shorter', instruction: 'Make it shorter. Keep only what matters.', icon: Scissors },
+    { label: 'Softer', instruction: 'Make the tone softer and friendlier, but still ask for the payment.', icon: Smile },
+    { label: 'Firmer', instruction: 'Make the tone firmer and more direct, but stay polite.', icon: ShieldCheck },
   ];
   const LANGUAGE_EDITS: Record<string, { label: string; instruction: string }> = {
     english: { label: 'In English', instruction: 'Write it in clear, simple English.' },
@@ -1311,7 +1412,7 @@ export default function FloatingRobot({
   //   not the one already chosen for this client.
   // - International client: no Indian languages; only "In English"
   //   if this client's language isn't English already.
-  const quickEditsFor = (clientId: string | null) => {
+  const quickEditsFor = (clientId: string | null): { label: string; instruction: string; icon?: LucideIcon }[] => {
     const client = clients.find((c: any) => c.id === clientId);
     const current = normalizeLanguage(client?.language);
     const indian = isIndianCurrency(client?.currency);
@@ -1397,40 +1498,14 @@ export default function FloatingRobot({
               type="button"
               disabled={busy || !currentText}
               onClick={() => editBlinkMessage(key, channel, currentText, edit.instruction)}
-              className="px-2.5 py-1 rounded-full border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:border-[#20B8BE] hover:text-[#245B92] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-200 bg-white text-[10px] font-bold text-slate-600 hover:border-[#20B8BE] hover:text-[#245B92] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              {(() => { const Icon: LucideIcon = edit.icon ?? Languages; return <Icon size={11} className="text-[#20B8BE]" aria-hidden="true" />; })()}
               {edit.label}
             </button>
           ))}
         </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            editBlinkMessage(key, channel, currentText, editNote);
-          }}
-          className="flex items-center gap-1.5"
-        >
-          <input
-            type="text"
-            value={editNote}
-            onChange={(e) => setEditNote(e.target.value)}
-            maxLength={300}
-            disabled={busy || !currentText}
-            placeholder="Tell Blink what to change…"
-            aria-label="Tell Blink what to change in this message"
-            className="flex-1 min-w-0 px-3 py-2 border border-slate-200 rounded-xl text-base sm:text-xs bg-white focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 disabled:opacity-60"
-          />
-          <button
-            type="submit"
-            disabled={busy || !editNote.trim() || !currentText}
-            aria-label="Change the message"
-            className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-          >
-            {editingThis ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-          </button>
-        </form>
 
         {editingThis && (
           <p className="text-[10px] font-semibold text-slate-500" role="status">Blink is changing the message…</p>
@@ -1493,6 +1568,18 @@ export default function FloatingRobot({
     rose: { box: 'bg-rose-50/70 border-rose-100', label: 'text-rose-700', value: 'text-rose-700', unit: 'text-rose-700' },
   };
 
+  const TILE_ICONS: Record<string, LucideIcon> = {
+    Amount: Wallet,
+    'Overdue amount': Wallet,
+    Overdue: Clock,
+    Status: CalendarCheck,
+    'Due today': CalendarCheck,
+    Stage: Flag,
+    Tone: MessageSquare,
+    'Chase first': Target,
+    'Longest wait': Hourglass,
+  };
+
   const renderStatTiles = (
     tiles: { label: string; value: string; unit?: string; tone: TileTone; wide?: boolean }[]
   ) => (
@@ -1501,7 +1588,10 @@ export default function FloatingRobot({
         const st = TILE_STYLES[t.tone];
         return (
           <div key={t.label} className={`rounded-xl border px-2.5 py-2 min-w-0 ${st.box} ${t.wide ? 'col-span-2' : ''}`}>
-            <p className={`text-[9px] font-bold uppercase tracking-wider truncate ${st.label}`}>{t.label}</p>
+            <p className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider truncate ${st.label}`}>
+              {(() => { const Icon = TILE_ICONS[t.label]; return Icon ? <Icon size={10} className="shrink-0" aria-hidden="true" /> : null; })()}
+              <span className="truncate">{t.label}</span>
+            </p>
             <p className={`${!t.wide && t.value.length > 7 ? 'text-[11px] sm:text-xs' : 'text-[13px] sm:text-sm'} font-black mt-0.5 leading-tight break-words ${st.value}`}>
               {t.value}
               {t.unit && <span className={`text-[10px] font-semibold ml-1 ${st.unit}`}>{t.unit}</span>}
@@ -1572,7 +1662,7 @@ export default function FloatingRobot({
 
       {/* 1. SCROLL GUIDANCE MESSAGE BUBBLE */}
       <AnimatePresence>
-        {!isExpanded && showMessageBubble && (isPro || pathname !== '/dashboard') && (
+        {!isExpanded && showMessageBubble && isPro && pathname === '/dashboard' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 14 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1618,6 +1708,16 @@ export default function FloatingRobot({
                 suppressHydrationWarning={true}
               >
                 {isLoggedIn ? "Open Dashboard" : "Generate a free reminder"} <ArrowRight size={12} />
+              </button>
+            )}
+
+            {pathname !== '/dashboard' && (
+              <button
+                onClick={() => { setShowMessageBubble(false); setIsExpanded(true); }}
+                className="w-full py-2 px-3 rounded-xl border border-[#245B92]/20 bg-white text-[#245B92] font-bold text-[11px] hover:bg-[#245B92]/5 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                suppressHydrationWarning={true}
+              >
+                <MessageCircle size={12} /> Ask Blink anything
               </button>
             )}
           </motion.div>
@@ -1685,6 +1785,35 @@ export default function FloatingRobot({
 
       {/* 3. EXPANDED PANEL WITH STRUCTURED FORMAT & REACTIVE EMPTY STATES */}
       <AnimatePresence>
+        {isExpanded && pathname !== '/dashboard' && (
+          <BlinkChat onClose={() => setIsExpanded(false)} />
+        )}
+        {!isExpanded && showChatNudge && pathname !== '/dashboard' && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            className="flex items-center gap-1 max-w-[270px] bg-white border border-slate-200 shadow-xl rounded-2xl pl-3 pr-1 py-1"
+          >
+            <button
+              type="button"
+              onClick={() => { setShowChatNudge(false); setIsExpanded(true); }}
+              className="text-[12px] font-semibold text-slate-700 py-1.5 cursor-pointer text-left"
+            >
+              {(NUDGE_MESSAGES[chatNudge || 'interest'] || NUDGE_MESSAGES.interest).lead}{' '}
+              <span className="text-[#245B92] font-bold">{(NUDGE_MESSAGES[chatNudge || 'interest'] || NUDGE_MESSAGES.interest).ask}</span>
+            </button>
+            <button
+              type="button"
+              onClick={dismissChatNudge}
+              className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100 cursor-pointer"
+              aria-label="Hide"
+            >
+              <X size={12} />
+            </button>
+          </motion.div>
+        )}
         {isExpanded && pathname === '/dashboard' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.9, y: 14 }}
@@ -2064,7 +2193,7 @@ export default function FloatingRobot({
                                     );
                                   })()}
 
-                                  <div className="grid grid-cols-2 gap-2">
+                                  <div className={`grid gap-2 ${returnTo ? 'grid-cols-3' : 'grid-cols-2'}`}>
                                     <button
                                       onClick={async () => {
                                         try { await navigator.clipboard.writeText(message || ''); } catch { return; }
@@ -2083,6 +2212,14 @@ export default function FloatingRobot({
                                     >
                                       <RefreshCw size={13} className="text-[#20B8BE]" /> Rewrite
                                     </button>
+                                    {returnTo && (
+                                    <button
+                                      onClick={goBack}
+                                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <ArrowLeft size={13} /> List
+                                    </button>
+                                    )}
                                   </div>
                                 </div>
 
@@ -2247,8 +2384,8 @@ export default function FloatingRobot({
 
                                             {/* Outstanding */}
                                             <div className="col-span-2 rounded-xl bg-blue-50/70 border border-blue-100 px-2.5 py-2">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#245B92]">
-                                                Outstanding
+                                              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#245B92]">
+                                                <Wallet size={10} aria-hidden="true" /> Outstanding
                                               </p>
                                               <p className="text-[13px] sm:text-sm font-black text-[#245B92] mt-0.5 break-words">
                                                 {outstanding}
@@ -2257,8 +2394,8 @@ export default function FloatingRobot({
 
                                             {/* Pending */}
                                             <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                                Pending
+                                              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                                <Users size={10} aria-hidden="true" /> Pending
                                               </p>
                                               <p className="text-[13px] sm:text-sm font-black text-slate-800 mt-0.5">
                                                 {pending}
@@ -2270,8 +2407,8 @@ export default function FloatingRobot({
 
                                             {/* Overdue */}
                                             <div className="rounded-xl bg-amber-50/70 border border-amber-100 px-2.5 py-2">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                                                Overdue
+                                              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                                                <AlertTriangle size={10} aria-hidden="true" /> Overdue
                                               </p>
                                               <p className="text-[13px] sm:text-sm font-black text-amber-700 mt-0.5">
                                                 {overdue}
@@ -2283,8 +2420,8 @@ export default function FloatingRobot({
 
                                             {/* Paid */}
                                             <div className="rounded-xl bg-emerald-50/70 border border-emerald-100 px-2.5 py-2">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                                                Paid
+                                              <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                                                <CheckCircle2 size={10} aria-hidden="true" /> Paid
                                               </p>
                                               <p className="text-[13px] sm:text-sm font-black text-emerald-700 mt-0.5">
                                                 {paid}
@@ -2423,13 +2560,13 @@ export default function FloatingRobot({
                                     </div>
                                   )}
 
-                                  {/* Actions */}
-                                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                                  {/* Actions: one main button, then Copy · Rewrite again · Back */}
+                                  <div className="space-y-2">
                                     <motion.button
                                       whileTap={{ scale: 0.98 }}
                                       onClick={() => sendReminder('email', rewriteText)}
                                       disabled={markingSent || isWriting || !rewriteText || editingKey !== null}
-                                      className={`py-2.5 rounded-xl font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      className={`w-full py-2.5 rounded-xl font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                                         sentHere
                                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                           : 'bg-gradient-to-r from-emerald-700 to-teal-700 text-white shadow-sm hover:opacity-90'
@@ -2437,6 +2574,7 @@ export default function FloatingRobot({
                                     >
                                       {sentHere ? <><CheckCircle2 size={13} /> Sent</> : isWriting ? <><Loader2 size={13} className="animate-spin" /> Writing…</> : <><Mail size={13} /> Send email</>}
                                     </motion.button>
+                                    <div className={`grid gap-2 ${returnTo ? 'grid-cols-3' : 'grid-cols-2'}`}>
                                     <button
                                       onClick={async () => {
                                         try { await navigator.clipboard.writeText(rewriteText || ''); } catch { return; }
@@ -2444,10 +2582,26 @@ export default function FloatingRobot({
                                         setTimeout(() => setCopiedWhich(null), 1800);
                                       }}
                                       disabled={isWriting || !rewriteText}
-                                      className="px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       {copiedWhich === 'rewrite' ? <><Check size={13} className="text-emerald-500" /> Copied</> : <><Copy size={13} /> Copy</>}
                                     </button>
+                                    <button
+                                      onClick={() => handleActionClick('rewrite', 'Rewrite Reminder', selectedClientId || undefined)}
+                                      disabled={isWriting}
+                                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <RefreshCw size={13} className="text-[#20B8BE]" /> Again
+                                    </button>
+                                    {returnTo && (
+                                    <button
+                                      onClick={goBack}
+                                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <ArrowLeft size={13} /> List
+                                    </button>
+                                    )}
+                                    </div>
                                   </div>
 
                                 </div>
@@ -2664,113 +2818,35 @@ export default function FloatingRobot({
                     )}
                   
 
-                {activeActionId === 'recommend' && uiState !== 'processing' && (
-                  <div className="flex gap-1.5 pt-1">
+                {/* Summary, Priorities, Overdue: Copy/Export · Refresh */}
+                {uiState !== 'processing' && ['summarize', 'priorities', 'overdue'].includes(activeActionId || '') && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {activeActionId === 'summarize' ? (
+                      <button onClick={handleExport} className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        {copiedWhich === 'exported' ? <><Check size={13} className="text-emerald-700" /> Saved</> : <><Download size={13} /> Export</>}
+                      </button>
+                    ) : (
+                      <button onClick={handleCopy} className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        {copied ? <><Check size={13} className="text-emerald-700" /> Copied</> : <><Copy size={13} /> Copy</>}
+                      </button>
+                    )}
                     <button
-                      onClick={() =>
-                        handleActionClick(
-                          'recommend',
-                          'Generate Follow-up',
-                          selectedClientId || undefined
-                        )
-                      }
-                      className="flex-1 py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1 cursor-pointer"
+                      onClick={() => handleActionClick(activeActionId || 'summarize', activeActionName || 'Blink')}
+                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[10px] sm:text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <RefreshCw size={12} className="text-[#20B8BE]" />
-                      Regenerate
-                    </button>
-                    <button
-                      onClick={goBack}
-                      className="flex-1 py-2 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <ArrowLeft size={12} />
-                      {returnTo ? 'Back to list' : 'Back'}
+                      <RefreshCw size={13} className="text-[#20B8BE]" /> Refresh
                     </button>
                   </div>
                 )}
 
-                {uiState !== 'processing' && activeActionId !== 'recommend' && (
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  {activeActionId === 'summarize' && (
-                    <>
-                      <button onClick={handleExport} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                      {copiedWhich === 'exported' ? <Check size={11} className="text-emerald-700" /> : <Download size={11} />}
-                      {copiedWhich === 'exported' ? 'Downloaded' : 'Export Summary'}
-                      </button>
-                      <button onClick={() => handleActionClick('summarize', 'Outstanding Summary', selectedClientId || undefined)} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer">
-                      <RefreshCw size={11} className="text-[#20B8BE]" /> Analyze Again
-                      </button>
-                    </>
-                  )}
-
-                  {activeActionId === 'priorities' && (
-                    <>
-                      <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2">
-                      {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy list'}
-                      </button>
-                    </>
-                  )}
-
-                  {activeActionId === 'rewrite' && (
-                    <>
-                      <button
-                        onClick={() =>
-                          handleActionClick(
-                            'rewrite',
-                            'Rewrite Reminder',
-                            selectedClientId || undefined
-                          )
-                        }
-                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <RefreshCw size={12} className="text-[#20B8BE]" />
-                        Rewrite Again
-                      </button>
-
-                      <button
-                        onClick={goBack}
-                        className="py-2 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <ArrowLeft size={12} />
-                        {returnTo ? 'Back to list' : 'Back'}
-                      </button>
-                    </>
-                  )}
-
-                  {activeActionId === 'overdue' && (
-                    <>
-                      <button
-                        onClick={handleCopy}
-                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        {copied ? <Check size={12} /> : <Copy size={12} />}
-                        {copied ? 'Copied!' : 'Copy List'}
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          handleActionClick(
-                            'overdue',
-                            'Find Overdue Clients',
-                            undefined
-                          )
-                        }
-                        className="py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[10px] sm:text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <RefreshCw size={12} className="text-[#20B8BE]" />
-                        Refresh
-                      </button>
-                    </>
-                  )}
-                  </div>
-                )}
-
+                {true && (
                 <button 
                   onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); setAllClientsPaid(false); setReturnTo(null); }}
                   className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[10px] sm:text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
                 >
                   <ArrowLeft size={12} /> Back to Quick Actions
                 </button>
+                )}
               </div>
             ) : clientPickerAction ? (
               <div className="space-y-2.5" suppressHydrationWarning={true}>
