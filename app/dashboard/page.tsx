@@ -9,6 +9,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { formatAmountWithCurrency, normalizeLanguage, finalReminderNote, msmeApplies, isIndianCurrency, formatTotalsByCurrency, guessDefaultCurrency, getCurrencySymbol } from '@/lib/reminderRules';
 import { auth, db } from '@/lib/firebase';
+import { track, trackOnce } from '@/lib/track';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
 import AddClientModal from '@/components/AddClientModal';
@@ -171,6 +172,15 @@ export default function DashboardPage() {
         router.push('/login');
       } else {
         setUser(currentUser);
+
+        // Google Analytics: a brand-new account (created in the last
+        // 30 minutes) reaching the dashboard counts as one sign-up.
+        const createdAt = Date.parse(currentUser.metadata?.creationTime || '');
+        if (Number.isFinite(createdAt) && Date.now() - createdAt < 30 * 60 * 1000) {
+          trackOnce(`signup_${currentUser.uid}`, 'sign_up', {
+            method: currentUser.providerData?.[0]?.providerId === 'google.com' ? 'google' : 'email',
+          });
+        }
         
         if (localStorage.getItem('dueblink_pro_active') === 'true') {
           setIsPro(true);
@@ -817,6 +827,11 @@ export default function DashboardPage() {
     }
 
     const { subject, text } = message;
+    track('send_reminder', {
+      channel,
+      written_by: usedAi ? 'ai' : 'template',
+      final_notice: forceStage === 'Final reminder',
+    });
 
     if (channel === 'whatsapp') {
       const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
@@ -926,6 +941,7 @@ export default function DashboardPage() {
         createdAt: serverTimestamp(),
         reminderHistory: [],
       });
+      track('add_client', { from: 'first_invoice_form' });
       setFirstName('');
       setFirstAmount('');
       setFirstDueDate('');

@@ -14,6 +14,7 @@ import {
   EARLY_OFFER,
 } from '@/lib/seasonalPricing';
 import { loadRazorpay } from '@/lib/loadRazorpay';
+import { track } from '@/lib/track';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -217,6 +218,11 @@ export default function PricingPage() {
     }
   };
 
+  // Google Analytics: someone opened the pricing page.
+  useEffect(() => {
+    track('view_pricing');
+  }, []);
+
   const handleUpgradeClick = async (plan: 'free' | 'pro') => {
   if (plan === 'free') {
     if (user) {
@@ -234,6 +240,7 @@ export default function PricingPage() {
   }
 
   setIsProcessing(true);
+  track('begin_checkout', { billing_cycle: billingCycle, region: isIndia ? 'india' : 'international' });
 
   if (!isIndia) {
     try {
@@ -411,6 +418,14 @@ export default function PricingPage() {
           // ==================================================
           // 5. Payment verified successfully
           // ==================================================
+
+          // Google Analytics: a real, verified payment.
+          track('purchase', {
+            transaction_id: response.razorpay_payment_id,
+            value: Number(orderData.amount) / 100,
+            currency: orderData.currency,
+            billing_cycle: billingCycle,
+          });
 
           // Keep existing Pro state behavior
 

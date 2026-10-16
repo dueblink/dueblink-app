@@ -6,6 +6,7 @@ import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2,
 import { addDoc, collection, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { track } from '@/lib/track';
 import { REMINDER_LANGUAGES, normalizeLanguage, CLIENT_CURRENCIES, normalizeCurrencyCode, guessDefaultCurrency, getCurrencySymbol } from '@/lib/reminderRules';
 
 interface AddClientModalProps {
@@ -237,6 +238,7 @@ export default function AddClientModal({
 
       window.dispatchEvent(new Event('clients-updated'));
       if (onClientSaved) onClientSaved();
+      track('add_client', { from: 'add_client_form' });
 
       setLoading(false);
       setSuccessStep(true);

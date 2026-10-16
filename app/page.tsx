@@ -18,6 +18,7 @@ import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
 import { getSeasonalEvent } from '@/lib/seasonalEvents';
 import { REMINDER_LANGUAGES } from '@/lib/reminderRules';
+import { track } from '@/lib/track';
 
 // --- SCROLL REVEAL ---
 // Wraps any block of content and, as it scrolls into view, fades and
@@ -77,6 +78,13 @@ export default function LandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduceMotion]);
   const router = useRouter();
+
+  // Every "Create account" button: logs the click for Google Analytics,
+  // then opens sign-up. "from" says which button it was.
+  const goToSignUp = (from: string) => {
+    track('start_free_click', { from });
+    router.push('/create-account');
+  };
   const pathname = usePathname();
     
   // Auth & Pro State
@@ -715,6 +723,7 @@ export default function LandingPage() {
       }
 
       setResult(data);
+      track('generate_reminder', { tone, language, signed_in: Boolean(user) });
       setShowSuccessAnimation(true);
 
       setTimeout(() => {
@@ -766,7 +775,7 @@ export default function LandingPage() {
     }
   };
 
-  const handleCopy = (text: string) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  const handleCopy = (text: string) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); track('copy_reminder', { channel: activeTab }); };
 
   // Opens the user's own email app, WhatsApp or SMS app with the
   // generated reminder already filled in. They pick who to send it to.
@@ -945,7 +954,7 @@ export default function LandingPage() {
 
             <div className="flex items-center gap-4" suppressHydrationWarning={true}>
               {pathname === '/login' ? (
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => goToSignUp('header')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
               ) : !mounted ? (
                 <div className="h-9 w-32" suppressHydrationWarning={true} />
               ) : user ? (
@@ -977,7 +986,7 @@ export default function LandingPage() {
               ) : (
                 <>
                   <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/login')} className={`text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/login' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-600 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>Login</motion.button>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/create-account')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => goToSignUp('header')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
                 </>
               )}
             </div>
@@ -1061,7 +1070,7 @@ export default function LandingPage() {
                   Login
                 </button>
                 <button 
-                  onClick={() => { router.push('/create-account'); setMobileMenuOpen(false); }}
+                  onClick={() => { goToSignUp('mobile_menu'); setMobileMenuOpen(false); }}
                   className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition"
                   style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
               >
@@ -1400,7 +1409,7 @@ export default function LandingPage() {
             </button>
             {!user && (
               <button 
-                onClick={() => router.push('/create-account')}
+                onClick={() => goToSignUp('generator_limit')}
                 className="w-full py-3 bg-slate-800 text-slate-200 font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer border border-slate-700"
               >
                 Create Free Account
@@ -2933,7 +2942,7 @@ export default function LandingPage() {
         <div className="flex flex-col gap-3" suppressHydrationWarning={true}>
           <p className="text-xs font-black text-[#0F172A]" suppressHydrationWarning={true}>Account</p>
           <a href="/login" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Login</a>
-          <a href="/create-account" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Create account</a>
+          <a href="/create-account" onClick={() => track('start_free_click', { from: 'footer' })} className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Create account</a>
           <a href="/dashboard" className="text-xs font-medium text-slate-500 hover:text-[#245B92] transition-colors w-fit" suppressHydrationWarning={true}>Dashboard</a>
         </div>
 
@@ -2992,7 +3001,7 @@ export default function LandingPage() {
           </button>
           {!user && (
           <button 
-            onClick={() => { setIsModalOpen(false); router.push('/create-account'); }} 
+            onClick={() => { setIsModalOpen(false); goToSignUp('limit_popup'); }} 
            className="w-full py-3 bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition hover:bg-slate-200 cursor-pointer" 
            suppressHydrationWarning={true}
           >
