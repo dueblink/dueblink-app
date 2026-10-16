@@ -785,6 +785,47 @@ ${clientMessageLanguageRule(targetClient.language)}`;
     .filter(Boolean),
 })}`;
 
+      } else if (action === "edit_message") {
+        // "Shorter", "In Hindi", or the owner's own note ("he paid ₹5,000
+        // already"): rewrite ONLY the message on screen, with the client's
+        // real numbers. Plain text back, no headings.
+        const targetClient = client;
+        const original = String(body.editMessage || '').slice(0, 3000).trim();
+        const instruction = String(body.editInstruction || '').slice(0, 300).trim();
+        const channel = body.editChannel === 'email' ? 'email' : 'whatsapp';
+
+        if (!targetClient || !original || !instruction) {
+          return NextResponse.json({ error: "Missing message or instruction" }, { status: 400 });
+        }
+
+        systemPrompt += `
+
+THIS REQUEST IS DIFFERENT: there is no layout and there are no headings.
+You are editing one ${channel === 'email' ? 'email' : 'WhatsApp message'} that the owner will send to their client.
+- Change it as the owner asks. Keep everything else as it was.
+- Use only these facts: the client's details below, the current message, and facts the owner states in their request (for example a part payment they received). Never invent anything else: no new amounts, dates, fees, invoice numbers or legal threats.
+- If the owner mentions a part payment, work out the remaining amount correctly and use the same currency symbol.
+- If the request asks for a language, write the whole message in that language (Hindi in Devanagari, Hinglish in English letters). Keep names, amounts, dates and links exactly as they are.
+- ${channel === 'email'
+  ? 'Return the email exactly like this: first line "Subject: ..." then a blank line, then the email body.'
+  : 'Return only the WhatsApp message text. Keep it short.'}
+- Return ONLY the edited message. No explanation, no quotes, no headings.`;
+
+        userPrompt = `Client details: ${JSON.stringify({
+  client: targetClient.name,
+  amountDue: targetClient.amountDue,
+  dueDate: targetClient.dueDate || 'N/A',
+  paymentTiming: getPaymentTiming(targetClient.dueDate),
+  paymentLink: targetClient.paymentLink || '',
+})}
+
+Current message:
+<<<
+${original}
+>>>
+
+The owner's request: ${instruction}`;
+
       } else if (action === "overdue") {
         // Built from live data in code (no AI): instant and always exact.
         const overdueClients = activeClients
