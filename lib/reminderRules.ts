@@ -112,3 +112,83 @@ export function cleanReminderText(text: string, senderName?: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
+// ============================================================
+// REMINDER LANGUAGES
+// ============================================================
+// A client's language is saved on the client ("language" field).
+// Old clients without one are treated as English.
+
+export const REMINDER_LANGUAGES = [
+  { id: 'english', label: 'English' },
+  { id: 'hinglish', label: 'Hinglish' },
+  { id: 'hindi', label: 'हिंदी (Hindi)' },
+  { id: 'marathi', label: 'मराठी (Marathi)' },
+] as const;
+
+export type ReminderLanguage = (typeof REMINDER_LANGUAGES)[number]['id'];
+
+export function normalizeLanguage(value: unknown): ReminderLanguage {
+  const id = String(value || '').trim().toLowerCase();
+  return (REMINDER_LANGUAGES.some((l) => l.id === id) ? id : 'english') as ReminderLanguage;
+}
+
+// How each language should sound (shared by the rules below).
+function languageStyle(language: ReminderLanguage): string {
+  if (language === 'hinglish') {
+    return `Hinglish: everyday Hindi written in English (Roman) letters, mixed
+naturally with common English words, the way people text on WhatsApp in India.
+Example style: "Hi Rahul, ₹25,000 ka payment ab 5 din se overdue hai. Kab tak bhej payenge? Please ek date bata dijiye."
+Never use Devanagari script. Be polite and respectful (use "aap").`;
+  }
+
+  if (language === 'hindi') {
+    return `Hindi, in Devanagari script. Use simple, everyday, respectful Hindi
+(use "आप"), not heavy formal or Sanskrit words. Common words like "payment",
+"invoice", "reminder" may stay in English if that sounds more natural.`;
+  }
+
+  if (language === 'marathi') {
+    return `Marathi, in Devanagari script. Use simple, everyday, respectful Marathi
+(use "तुम्ही"), not heavy formal words. Common words like "payment", "invoice",
+"reminder" may stay in English if that sounds more natural.`;
+  }
+
+  return 'clear, simple English.';
+}
+
+const KEEP_EXACT =
+  'Keep the client name, amounts (e.g. "₹25,000"), dates, invoice numbers and links exactly as given.';
+
+// The language instruction added to every AI reminder prompt
+// (landing generator, tap-to-send and automatic emails).
+export function languageRule(value: unknown): string {
+  const language = normalizeLanguage(value);
+
+  if (language === 'english') {
+    return `
+LANGUAGE: Write everything in clear, simple English.`;
+  }
+
+  return `
+LANGUAGE: Write the email subject, the email, the WhatsApp message and the SMS in
+${languageStyle(language)}
+${KEEP_EXACT} Any note meant for the freelancer (not the client), such as the
+psychology note, stays in English.`;
+}
+
+// For Blink: only the messages to the client change language. Blink's
+// own headings, summaries and advice to the freelancer stay in English.
+export function clientMessageLanguageRule(value: unknown): string {
+  const language = normalizeLanguage(value);
+
+  if (language === 'english') return '';
+
+  return `
+CLIENT LANGUAGE: This client reads reminders in ${language[0].toUpperCase()}${language.slice(1)}.
+Write ONLY the email subject, the email body and the WhatsApp message in
+${languageStyle(language)}
+${KEEP_EXACT}
+Everything else stays in English: all headings, the "Subject:" label, the copied
+information lines, summaries, recommendations and next actions for the owner.`;
+}

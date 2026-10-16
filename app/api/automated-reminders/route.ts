@@ -195,6 +195,8 @@ export async function GET(request: Request) {
           automationStatus: data.automationStatus,
           userId: data.userId,
           tone: data.tone || "professional",
+          // The client's reminder language (old clients: English).
+          language: data.language || "english",
           // The add-client form saves "invoiceNumber"; older records may use "invoiceRef".
           invoiceRef: data.invoiceRef || data.invoiceNumber || "",
           reminderStage,
@@ -305,6 +307,8 @@ export async function GET(request: Request) {
           stage: client.reminderStage,
           dueDate: client.dueDate,
           senderName: owner.name,
+          // Writes the email in the client's language.
+          language: client.language,
           // Original stage instructions, with the real number of days late.
           variationInstruction:
             client.reminderStage === "first"

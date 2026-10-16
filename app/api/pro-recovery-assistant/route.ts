@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { proRecoveryAssistantRateLimit } from "@/lib/rateLimit";
-import { NATURAL_WRITING_RULES, signOffRule } from "@/lib/reminderRules";
+import { NATURAL_WRITING_RULES, signOffRule, clientMessageLanguageRule } from "@/lib/reminderRules";
 
 // Ensure this Next.js route is always dynamic and never cached on the server side
 export const dynamic = 'force-dynamic';
@@ -560,7 +560,8 @@ RULES:
   - "stalled": do not ask for the full amount again. Offer a payment plan or part payment, ask what is blocking payment, suggest a short call.
 - Status is ${targetStatus}. Never call an overdue invoice "pending".
 - The email and WhatsApp messages must not repeat each other word for word.
-- WHATSAPP FOLLOW-UP is the last section. Stop after it.`;
+- WHATSAPP FOLLOW-UP is the last section. Stop after it.
+${clientMessageLanguageRule(targetClient.language)}`;
 
         userPrompt = `Write the Generate Follow-up for this client: ${JSON.stringify({
   client: targetClient.name,
@@ -760,7 +761,8 @@ RULES:
   - "stalled": offer a payment plan or part payment and ask what is blocking payment. Do not demand the full amount again.
 - Write it in fresh words, not a copy of an earlier reminder.
 - Never call an overdue invoice "pending".
-- Blink Recommendation is the last section. Stop after it.`;
+- Blink Recommendation is the last section. Stop after it.
+${clientMessageLanguageRule(targetClient.language)}`;
 
         userPrompt = `Rewrite the reminder for this client: ${JSON.stringify({
   client: targetClient.name,
@@ -896,7 +898,10 @@ STRICT RULES:
 - Keep the headings and the "Subject:" label exactly as shown.
 - Never pretend no reminder was sent when Reminders Sent is more than 0. Never restart the sequence with a "first" style message.
 - Never call an overdue invoice "pending."
-- Copy the Important Information values exactly as given.`;
+- Copy the Important Information values exactly as given.
+${clientMessageLanguageRule(
+  (liveClients.find((c: any) => String(c.id) === String(client.id)) || client).language
+)}`;
 
       userPrompt = `Write the follow-up for this live client: ${JSON.stringify({
   client: client.name,

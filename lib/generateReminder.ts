@@ -6,6 +6,7 @@ import {
   NATURAL_WRITING_RULES,
   signOffRule,
   cleanReminderText,
+  languageRule,
 } from "@/lib/reminderRules";
 
 const openai = createOpenAI({
@@ -30,6 +31,7 @@ export type GenerateEmailReminderInput = {
     email_body?: string;
   }>;
   variationInstruction?: string;
+  language?: string; // the client's reminder language (english, hinglish, hindi, marathi)
 };
 
 export async function generateEmailReminder(
@@ -182,6 +184,8 @@ EMAIL OUTPUT RULES
 ${signOffRule(input.senderName)}
 
 ${NATURAL_WRITING_RULES}
+
+${languageRule(input.language)}
 
 Return only:
 - email_subject

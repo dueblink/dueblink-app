@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check, MessageCircle, MessageSquare } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
-import { formatAmountWithCurrency } from '@/lib/reminderRules';
+import { formatAmountWithCurrency, normalizeLanguage } from '@/lib/reminderRules';
 import { auth, db } from '@/lib/firebase';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
@@ -533,18 +533,124 @@ export default function DashboardPage() {
   // history, so the stage moves on (first -> follow-up -> final).
   // Works for free users too (no AI needed).
   // ============================================================
+  // The "You can pay here" line, in the client's language.
+  const tapLinkLine = (c: any) => {
+    if (!c.paymentLink) return '';
+    const label: Record<string, string> = {
+      english: 'You can pay here:',
+      hinglish: 'Yahan pay kar sakte hain:',
+      hindi: 'यहाँ भुगतान कर सकते हैं:',
+      marathi: 'येथे पेमेंट करू शकता:',
+    };
+    return `\n\n${label[normalizeLanguage(c.language)]} ${c.paymentLink}`;
+  };
+
   const buildTapMessage = (c: any, days: number) => {
     const stage = getTodayStage(c, days).label;
-    const name = String(c.name || '').trim().split(' ')[0] || 'there';
+    const language = normalizeLanguage(c.language);
+    const firstName = String(c.name || '').trim().split(' ')[0];
     const amount = formatAmountWithCurrency(c.amount, c.currency);
-    const late = days <= 0 ? 'due today' : `now ${days} ${days === 1 ? 'day' : 'days'} overdue`;
     const ownerName = String(user?.displayName || '').trim();
-    const sign = ownerName ? `\n\nThanks,\n${ownerName}` : '\n\nThanks!';
-    const link = c.paymentLink ? `\n\nYou can pay here: ${c.paymentLink}` : '';
+    const link = tapLinkLine(c);
 
-    const deadline = new Intl.DateTimeFormat('en-IN', {
+    // Deadline 3 days from today, written for the client's language
+    // (Marathi with normal 0-9 digits, to match the amount).
+    const dateLocale = language === 'hindi' ? 'hi-IN' : language === 'marathi' ? 'mr-IN-u-nu-latn' : 'en-IN';
+    const deadline = new Intl.DateTimeFormat(dateLocale, {
       timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long',
     }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+
+    // ---------- Hinglish ----------
+    if (language === 'hinglish') {
+      const hi = firstName ? `Hi ${firstName}` : 'Hi';
+      const late = days <= 0 ? 'aaj due hai' : `ab ${days} din se overdue hai`;
+      const sign = ownerName ? `\n\nThanks,\n${ownerName}` : '\n\nThanks!';
+      if (stage === 'Stalled') {
+        return {
+          subject: 'Pending payment ke baare mein baat karein?',
+          text: `${hi}, ${amount} ke pending payment ke baare mein check karna tha. Agar ek saath dena mushkil ho, toh do hisson mein bhi de sakte hain. Is hafte ek chhoti si call kar lein?${link}${sign}`,
+        };
+      }
+      if (stage === 'Final reminder') {
+        return {
+          subject: `Final reminder: ${amount} ka payment overdue`,
+          text: `${hi}, ${amount} ka payment ${late}, aur pichhle reminders ke baad bhi abhi tak nahi mila hai. Please ${deadline} tak payment clear kar dijiye. Koi problem ho toh bata dijiye, saath mein solve kar lenge.${link}${sign}`,
+        };
+      }
+      if (stage === 'Follow-up') {
+        return {
+          subject: `Follow-up: ${amount} ka payment`,
+          text: `${hi}, ${amount} ka payment ${late}. Kab tak bhej payenge? Please ek date bata dijiye.${link}${sign}`,
+        };
+      }
+      return {
+        subject: days <= 0 ? `${amount} ka payment aaj due hai` : `Reminder: ${amount} ka payment`,
+        text: `${hi}, umeed hai sab badhiya hai! Bas ek chhota sa reminder: ${amount} ka payment ${late}. Ho jaaye toh please bata dijiye.${link}${sign}`,
+      };
+    }
+
+    // ---------- Hindi ----------
+    if (language === 'hindi') {
+      const hi = firstName ? `नमस्ते ${firstName} जी` : 'नमस्ते';
+      const late = days <= 0 ? 'आज देय है' : `अब ${days} दिन से बकाया है`;
+      const sign = ownerName ? `\n\nधन्यवाद,\n${ownerName}` : '\n\nधन्यवाद!';
+      if (stage === 'Stalled') {
+        return {
+          subject: 'बकाया भुगतान के बारे में बात करें?',
+          text: `${hi}, ${amount} के बकाया भुगतान के बारे में पूछना था। अगर एक साथ देना मुश्किल हो, तो दो हिस्सों में भी दे सकते हैं। क्या इस हफ़्ते एक छोटी सी कॉल कर सकते हैं?${link}${sign}`,
+        };
+      }
+      if (stage === 'Final reminder') {
+        return {
+          subject: `अंतिम रिमाइंडर: ${amount} का भुगतान बकाया`,
+          text: `${hi}, ${amount} का भुगतान ${late}, और पिछले रिमाइंडर के बाद भी अभी तक नहीं मिला है। कृपया ${deadline} तक भुगतान कर दीजिए। कोई समस्या हो तो बता दीजिए, मिलकर हल निकाल लेंगे।${link}${sign}`,
+        };
+      }
+      if (stage === 'Follow-up') {
+        return {
+          subject: `फ़ॉलो-अप: ${amount} का भुगतान`,
+          text: `${hi}, ${amount} का भुगतान ${late}। कृपया बता दीजिए कि भुगतान कब तक हो जाएगा?${link}${sign}`,
+        };
+      }
+      return {
+        subject: days <= 0 ? `${amount} का भुगतान आज देय है` : `रिमाइंडर: ${amount} का भुगतान`,
+        text: `${hi}, आशा है आप ठीक हैं! बस एक छोटा सा रिमाइंडर: ${amount} का भुगतान ${late}। भुगतान हो जाए तो कृपया बता दीजिए।${link}${sign}`,
+      };
+    }
+
+    // ---------- Marathi ----------
+    if (language === 'marathi') {
+      const hi = firstName ? `नमस्कार ${firstName}` : 'नमस्कार';
+      const late = days <= 0 ? 'आज देय आहे' : `आता ${days} ${days === 1 ? 'दिवसापासून' : 'दिवसांपासून'} थकित आहे`;
+      const sign = ownerName ? `\n\nधन्यवाद,\n${ownerName}` : '\n\nधन्यवाद!';
+      if (stage === 'Stalled') {
+        return {
+          subject: 'थकित पेमेंटबद्दल बोलूया का?',
+          text: `${hi}, ${amount} च्या थकित पेमेंटबद्दल विचारायचे होते. एकदम पूर्ण रक्कम देणे अवघड असेल, तर दोन भागांतही देऊ शकता. या आठवड्यात एक छोटा कॉल करूया का?${link}${sign}`,
+        };
+      }
+      if (stage === 'Final reminder') {
+        return {
+          subject: `अंतिम रिमाइंडर: ${amount} चे पेमेंट थकित`,
+          text: `${hi}, ${amount} चे पेमेंट ${late}, आणि आधीच्या रिमाइंडरनंतरही अजून मिळालेले नाही. कृपया ${deadline} पर्यंत पेमेंट करा. काही अडचण असल्यास कळवा, आपण मिळून मार्ग काढू.${link}${sign}`,
+        };
+      }
+      if (stage === 'Follow-up') {
+        return {
+          subject: `फॉलो-अप: ${amount} चे पेमेंट`,
+          text: `${hi}, ${amount} चे पेमेंट ${late}. कृपया पेमेंट कधीपर्यंत होईल ते कळवाल का?${link}${sign}`,
+        };
+      }
+      return {
+        subject: days <= 0 ? `${amount} चे पेमेंट आज देय आहे` : `रिमाइंडर: ${amount} चे पेमेंट`,
+        text: `${hi}, आशा आहे तुम्ही बरे आहात! फक्त एक छोटेसे रिमाइंडर: ${amount} चे पेमेंट ${late}. पेमेंट झाल्यावर कृपया कळवा.${link}${sign}`,
+      };
+    }
+
+    // ---------- English ----------
+    const name = firstName || 'there';
+    const late = days <= 0 ? 'due today' : `now ${days} ${days === 1 ? 'day' : 'days'} overdue`;
+    const sign = ownerName ? `\n\nThanks,\n${ownerName}` : '\n\nThanks!';
 
     if (stage === 'Stalled') {
       return {
@@ -615,6 +721,7 @@ export default function DashboardPage() {
         daysOverdue: Math.max(0, days),
         invoiceRef: c.invoiceNumber || c.invoiceRef || '',
         tone: guide.tone,
+        language: normalizeLanguage(c.language),
         variationInstruction: `${guide.note} The payment is ${days <= 0 ? 'due today' : `${days} days overdue`}.`,
         previousReminders,
       }),
@@ -622,7 +729,7 @@ export default function DashboardPage() {
     if (!response.ok) throw new Error('AI message failed');
 
     const data = await response.json();
-    const link = c.paymentLink ? `\n\nYou can pay here: ${c.paymentLink}` : '';
+    const link = tapLinkLine(c);
 
     if (channel === 'email') {
       if (!data.email_body) throw new Error('Empty email');

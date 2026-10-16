@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2, CheckCircle2, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, Link2, CheckCircle2, Sparkles, Loader2, ArrowRight, Languages } from 'lucide-react';
 import { addDoc, collection, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
+import { REMINDER_LANGUAGES, normalizeLanguage } from '@/lib/reminderRules';
 
 interface AddClientModalProps {
   isOpen: boolean;
@@ -39,7 +40,8 @@ export default function AddClientModal({
     amount: '',
     dueDate: '',
     invoiceNumber: '',
-    paymentLink: ''
+    paymentLink: '',
+    language: 'english'
   });
 
   const [errors, setErrors] = useState({
@@ -70,11 +72,12 @@ export default function AddClientModal({
         amount: clientToEdit.amount || '',
         dueDate: clientToEdit.dueDate || '',
         invoiceNumber: clientToEdit.invoiceNumber || '',
-        paymentLink: clientToEdit.paymentLink || ''
+        paymentLink: clientToEdit.paymentLink || '',
+        language: normalizeLanguage(clientToEdit.language)
       });
       setAutomatedReminders(clientToEdit.automatedReminders || false);
     } else {
-      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '' });
+      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '', language: 'english' });
       setAutomatedReminders(false);
     }
     setErrors({ name: '', email: '', amount: '', dueDate: '' });
@@ -178,6 +181,7 @@ export default function AddClientModal({
           dueDate: formData.dueDate,
           invoiceNumber: formData.invoiceNumber,
           paymentLink: formData.paymentLink.trim(),
+          language: normalizeLanguage(formData.language),
           automatedReminders: isPro && automatedReminders,
           automationStatus: isPro && automatedReminders ? 'active' : 'off'
         });
@@ -207,6 +211,7 @@ export default function AddClientModal({
         dueDate: formData.dueDate,
         invoiceNumber: formData.invoiceNumber,
         paymentLink: formData.paymentLink.trim(),
+        language: normalizeLanguage(formData.language),
         automatedReminders: isPro && automatedReminders,
         automationStatus: isPro && automatedReminders ? 'active' : 'off',
         status: 'Pending',
@@ -235,7 +240,8 @@ export default function AddClientModal({
       amount: '',
       dueDate: '',
       invoiceNumber: '',
-      paymentLink: ''
+      paymentLink: '',
+      language: 'english'
     });
     setErrors({ name: '', email: '', amount: '', dueDate: '' });
     setSuccessStep(false);
@@ -607,6 +613,43 @@ export default function AddClientModal({
 
                 <p className="text-[10px] text-slate-400 pl-1">
                   Add a payment link if you want clients to pay directly from the reminder email.
+                </p>
+              </motion.div>
+
+              {/* Reminder Language */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: 0.22 }}
+                className="space-y-1.5"
+                suppressHydrationWarning={true}
+              >
+                <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5" suppressHydrationWarning={true}>
+                  <Languages size={13} className="text-slate-400" /> Reminder Language
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5" role="radiogroup" aria-label="Reminder language">
+                  {REMINDER_LANGUAGES.map((lang) => {
+                    const active = formData.language === lang.id;
+                    return (
+                      <button
+                        key={lang.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setFormData(prev => ({ ...prev, language: lang.id }))}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-colors ${
+                          active
+                            ? 'border-[#245B92] bg-[#245B92]/5 text-[#245B92]'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {lang.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-400 pl-1">
+                  Reminders to this client (AI, automatic and tap-to-send) are written in this language.
                 </p>
               </motion.div>
 

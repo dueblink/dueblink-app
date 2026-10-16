@@ -17,6 +17,7 @@ import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
 import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
 import { getSeasonalEvent } from '@/lib/seasonalEvents';
+import { REMINDER_LANGUAGES } from '@/lib/reminderRules';
 
 // --- SCROLL REVEAL ---
 // Wraps any block of content and, as it scrolls into view, fades and
@@ -239,6 +240,7 @@ export default function LandingPage() {
   const [invoiceRef, setInvoiceRef] = useState('');
   const [daysOverdue, setDaysOverdue] = useState('7');
   const [tone, setTone] = useState('professional');
+  const [language, setLanguage] = useState<string>('english');
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -700,6 +702,7 @@ export default function LandingPage() {
           invoiceRef: invoiceRef.trim(), // only what the user typed; never a made-up number 
           daysOverdue, 
           tone,
+          language,
           previousReminders,
           variationInstruction,
           guestId,
@@ -1574,6 +1577,24 @@ export default function LandingPage() {
                     />
                   )}
                   {t}
+                </button>
+              ))}
+                </div>
+              </div>
+              <div suppressHydrationWarning={true}>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Language</label>
+                <div className="relative grid grid-cols-4 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
+              {REMINDER_LANGUAGES.map((l) => (
+                <button key={l.id} type="button" onClick={() => setLanguage(l.id)} aria-pressed={language === l.id} className={`relative z-10 h-full cursor-pointer transition-colors duration-150 ${language === l.id ? 'text-white' : 'text-slate-500'}`} suppressHydrationWarning={true}>
+                  {language === l.id && (
+                    <motion.div
+                      layoutId="landing-language-pill"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      className="absolute inset-0 -z-10 bg-[#0F172A]"
+                    />
+                  )}
+                  {/* Short label so all four fit on a phone: "हिंदी (Hindi)" -> "हिंदी" */}
+                  {l.label.split(' (')[0]}
                 </button>
               ))}
                 </div>

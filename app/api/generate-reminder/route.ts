@@ -10,6 +10,7 @@ import {
   NATURAL_WRITING_RULES,
   signOffRule,
   cleanReminderText,
+  languageRule,
 } from '@/lib/reminderRules';
 
 const openai = createOpenAI({
@@ -82,7 +83,8 @@ type GeneratedReminder = {
 function normalizeForComparison(text: string): string[] {
   return (text || '')
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
+    // Keeps letters of every language (Hindi and Marathi too), not only a-z.
+    .replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ')
     .split(/\s+/)
     .filter(Boolean);
 }
@@ -461,6 +463,8 @@ ${reminder.sms_text || ''}
           tone and approach is best for this situation.
 
         ${NATURAL_WRITING_RULES}
+
+        ${languageRule(body.language)}
 
         Return only the requested structured fields.
       `;
