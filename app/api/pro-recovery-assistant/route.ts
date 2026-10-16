@@ -280,6 +280,20 @@ export async function POST(req: Request) {
       return Math.max(0, diffDays);
     };
 
+    // When the payment is due, in plain words the AI must copy exactly,
+    // so a payment due today is never called "upcoming" or "due soon".
+    const getPaymentTiming = (dueDate: string | undefined): string => {
+      if (!dueDate) return "due date not set";
+      const [year, month, day] = String(dueDate).substring(0, 10).split("-").map(Number);
+      if (!year || !month || !day) return "due date not set";
+      const diff = Math.round(
+        (todayUtc - Date.UTC(year, month - 1, day)) / (1000 * 60 * 60 * 24)
+      );
+      if (diff === 0) return "due today";
+      if (diff < 0) return `not due yet: due in ${-diff} ${diff === -1 ? "day" : "days"}`;
+      return `${diff} ${diff === 1 ? "day" : "days"} overdue`;
+    };
+
     // ============================================================
     // ESCALATION LADDER — computed in code, not guessed by the AI.
     // Looks at how many reminders (automated + manual) this client
@@ -322,7 +336,7 @@ export async function POST(req: Request) {
           sentCount,
           suggestedChannel: lastChannel === 'whatsapp' ? 'email' : 'whatsapp',
           tone: 'firm-with-deadline',
-          reason: `${sentCount} reminders sent, still unpaid. State a clear deadline and a real consequence (late fee, service pause).`,
+          reason: `${sentCount} reminders sent, still unpaid. State a clear deadline and the next step (formal recovery).`,
         };
       }
 
@@ -354,6 +368,7 @@ export async function POST(req: Request) {
         // Live payment state
         daysOverdue,
         isOverdue,
+        paymentTiming: getPaymentTiming(c.dueDate),
         liveStatus:
           c.status === "Paid"
             ? "Paid"
@@ -438,6 +453,80 @@ export async function POST(req: Request) {
       }
     }
 
+
+    // ============================================================
+    // INSTANT ANSWERS (no AI)
+    // ============================================================
+    // Welcome, Today's Priorities, Outstanding Summary and Find Overdue
+    // only show live numbers and a next step, so they are built here in
+    // code: they open instantly and can never get an amount or a date
+    // wrong. The AI is used only where words must be written: Generate
+    // Follow-up, Rewrite Reminder and single-client reminders.
+    const instantResponse = (text: string) =>
+      new NextResponse(text, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
+      });
+
+    const hasPhone = (c: any) => String(c.whatsapp || c.phone || '').replace(/\D/g, '').length >= 10;
+    const hasEmail = (c: any) => Boolean(String(c.email || '').trim());
+
+    // "WhatsApp" or "email", only if the client can be reached there.
+    const channelName = (c: any, preferred: string): string => {
+      if (preferred === 'whatsapp' && hasPhone(c)) return 'WhatsApp';
+      if (preferred === 'email' && hasEmail(c)) return 'email';
+      if (hasPhone(c)) return 'WhatsApp';
+      if (hasEmail(c)) return 'email';
+      return 'WhatsApp or email';
+    };
+
+    // One short next step for the owner, from the client's real stage.
+    const adviceFor = (c: any): string => {
+      const esc = getEscalationStage(c);
+      const timing = getPaymentTiming(c.dueDate);
+      if (esc.stage === 'first') {
+        if (timing.startsWith('not due yet')) return `Not due yet (${timing.replace('not due yet: ', '')}). No reminder needed today.`;
+        return `Send a friendly first reminder on ${channelName(c, esc.suggestedChannel)} today.`;
+      }
+      if (esc.stage === 'second') return `Follow up on ${channelName(c, esc.suggestedChannel)} and ask for a payment date.`;
+      if (esc.stage === 'final') return `Send the firm final reminder on ${channelName(c, esc.suggestedChannel)} with a 3-day deadline.`;
+      return hasPhone(c)
+        ? 'Reminders are being ignored. Call them and offer to split the payment.'
+        : 'Reminders are being ignored. Offer to split the payment and ask what is blocking it.';
+    };
+
+    // "12" when overdue, otherwise "0" (the screen shows "due today" / "not due yet").
+    const timingShort = (c: any): string => {
+      const timing = getPaymentTiming(c.dueDate);
+      if (timing === 'due today') return 'due today';
+      if (timing.startsWith('not due yet')) return 'not due yet';
+      return String(c.daysOverdue || 0);
+    };
+
+    const STAGE_RANK: Record<string, number> = { stalled: 4, final: 3, second: 2, first: 1 };
+
+    // Most urgent first: overdue before not-yet-due, then further along the
+    // reminder ladder, then most days overdue, then biggest amount.
+    const byUrgency = (a: any, b: any) => {
+      if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+      const stageDiff = (STAGE_RANK[getEscalationStage(b).stage] || 0) - (STAGE_RANK[getEscalationStage(a).stage] || 0);
+      if (stageDiff !== 0) return stageDiff;
+      const dayDiff = Number(b.daysOverdue || 0) - Number(a.daysOverdue || 0);
+      if (dayDiff !== 0) return dayDiff;
+      return Number(b.amount || 0) - Number(a.amount || 0);
+    };
+
+    const focusSentence = (c: any): string => {
+      if (!c) return 'Nothing to chase right now.';
+      const timing = getPaymentTiming(c.dueDate);
+      if (timing.startsWith('not due yet')) {
+        return `Nothing is overdue. Next payment: ${c.name} (${c.amountDue}), ${timing.replace('not due yet: ', '')}.`;
+      }
+      return `Start with ${c.name} (${c.amountDue}, ${timing}): ${adviceFor(c).charAt(0).toLowerCase()}${adviceFor(c).slice(1)}`;
+    };
+
     // Base rules for every Blink answer. Each action below adds its own
     // short layout. The screen (FloatingRobot.tsx) turns these headings
     // into cards, so headings must stay exactly as written.
@@ -468,38 +557,21 @@ WHEN YOU WRITE AN EMAIL OR WHATSAPP MESSAGE FOR A CLIENT:
 ${signOffRule(ownerName)}
 - WhatsApp messages may end with just the sender's first name${ownerName ? ` ("${ownerName.split(" ")[0]}")` : ""}, or no name at all.
 - If the client has a paymentLink in the data, you may include that exact link once. If not, do not mention any link.
+- Describe when the payment is due exactly as "paymentTiming" says. If it says "due today", write that it is due today: never "due soon", "upcoming" or "coming up".
 ${NATURAL_WRITING_RULES}`;
 
     let userPrompt = "";
+    // Lines written by code and sent first (instantly), before the AI's
+    // words. The AI never copies numbers, so they can't come out wrong.
+    let answerPrefix = "";
 
     // 1. Handle Dashboard Actions with rigorous live data injection and zero-cache guarantee
     if (action) {
       if (action === "welcome_pro") {
-        systemPrompt += `
-Follow this exact layout for Welcome:
-🤖 Blink
-📌 Welcome Pro
-
-━━━━━━━━━━━━━━━━━━━━━━
-💡 Quick Summary
-Your Pro recovery workspace is fully active with zero limits.
-
-━━━━━━━━━━━━━━━━━━━━━━
-📌 Important Information
-• Status: Pro Active
-• Features: Unlimited AI Reminders & Assistant
-• Command Center: Ready
-
-━━━━━━━━━━━━━━━━━━━━━━
-✨ Blink Recommendation
-Start by analyzing your active live client portfolio or generating your first priority follow-up.
-
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 Next Best Action
-Choose a quick action below to begin recovering payments.`;
-
-        userPrompt = "Provide a short, welcoming overview for the Pro user using the exact Blink layout.";
-
+        // Fixed text: no AI needed, so it opens instantly.
+        return instantResponse(
+          "🤖 Blink\n📌 Welcome Pro\n\n━━━━━━━━━━━━━━━━━━━━━━\n💡 Quick Summary\nYour Pro recovery workspace is fully active.\n\n━━━━━━━━━━━━━━━━━━━━━━\n📌 Important Information\n• Status: Pro Active\n• Features: Unlimited AI Reminders & Assistant\n• Command Center: Ready\n\n━━━━━━━━━━━━━━━━━━━━━━\n✨ Blink Recommendation\nStart with Today's Priorities to see who to chase first.\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 Next Best Action\nChoose a quick action below to begin recovering payments."
+        );
       } else if (action === "recommend") {
         const targetClient =
           client
@@ -535,17 +607,11 @@ Choose a quick action below to begin recovering payments.`;
         const recommendStageText = `${escalation.stage} (reminder #${escalation.sentCount + 1})`;
 
         systemPrompt += `
-Follow this exact layout for Generate Follow-up:
-
-RECOVERY SNAPSHOT
-Client: ${targetClient.name}
-Amount Due: ${recommendAmount}
-Due Date: ${targetClient.dueDate || 'N/A'}
-Days Overdue: ${targetClient.daysOverdue || 0}
-Stage: ${recommendStageText}
+The client's details are already shown on screen above your answer.
+Start your answer with the BLINK RECOMMENDATION heading and follow this exact layout for Generate Follow-up:
 
 BLINK RECOMMENDATION
-[One short sentence: lead with ${escalation.suggestedChannel} and why.]
+[One short sentence: lead with ${channelName(targetClient, escalation.suggestedChannel)} and why.]
 
 EMAIL FOLLOW-UP
 Subject: [short subject that fits the "${escalation.stage}" stage]
@@ -555,7 +621,7 @@ WHATSAPP FOLLOW-UP
 [the WhatsApp message, written for the "${escalation.stage}" stage]
 
 RULES:
-- Copy the RECOVERY SNAPSHOT lines exactly as shown.
+- Do not repeat the client's details as a list. Start with BLINK RECOMMENDATION.
 - Tone for this stage: ${escalation.tone}.
   - "first": friendly, no pressure.
   - "second": direct, ask for a payment date.
@@ -567,12 +633,24 @@ RULES:
 ${escalation.stage === 'final' ? finalReminderNote(targetClient) : ''}
 ${clientMessageLanguageRule(targetClient.language)}`;
 
+        answerPrefix = [
+          "RECOVERY SNAPSHOT",
+          `Client: ${targetClient.name}`,
+          `Amount Due: ${recommendAmount}`,
+          `Due Date: ${targetClient.dueDate || 'N/A'}`,
+          `Days Overdue: ${timingShort(targetClient)}`,
+          `Stage: ${recommendStageText}`,
+          "",
+          "",
+        ].join("\n");
+
         userPrompt = `Write the Generate Follow-up for this client: ${JSON.stringify({
   client: targetClient.name,
   amountDue: recommendAmount,
   dueDate: targetClient.dueDate || 'N/A',
   status: targetStatus,
   daysOverdue: targetClient.daysOverdue || 0,
+  paymentTiming: targetClient.paymentTiming || getPaymentTiming(targetClient.dueDate),
   remindersSent: escalation.sentCount,
   lastAutomatedStage: lastAutomatedStage,
   automatedReminderAlreadySent: reminderAlreadySent,
@@ -581,125 +659,43 @@ ${clientMessageLanguageRule(targetClient.language)}`;
 })}`;
 
       } else if (action === "priorities") {
-        systemPrompt += `
-Follow this exact layout for Today's Priorities. Show at most 3 clients, most urgent first. Only show clients that exist in the data.
-
-PRIORITY 1
-Client: [name]
-Amount Due: [amountDue, copied exactly]
-Days Overdue: [daysOverdue]
-Recommended Action: [one short sentence that fits this client's stage]
-
-PRIORITY 2
-(same 4 lines)
-
-PRIORITY 3
-(same 4 lines)
-
-TODAY'S FOCUS
-[One sentence: the client to handle first, and why.]
-
-RULES:
-- If an automated reminder was already sent at a stage, do not recommend that same reminder again.
-- A "stalled" client gets a call or payment plan, not another reminder.
-- TODAY'S FOCUS is the last section. Stop after it.`;
-
+        // Built from live data in code (no AI): instant and always exact.
         const priorityClients = [...activeClients]
-          .filter((c: any) => c.status !== 'Paid')
-          .sort((a: any, b: any) => {
-            // 1. Overdue clients first
-            if (a.isOverdue !== b.isOverdue) {
-              return a.isOverdue ? -1 : 1;
-            }
+          .sort(byUrgency)
+          .slice(0, 3);
 
-            // 2. Clients further into recovery need attention sooner
-            const recoveryStage = (client: any) => {
-              const stage = String(client.lastAutomatedReminderStage || '').toLowerCase();
+        const blocks = priorityClients.map((c: any, i: number) =>
+          [
+            `PRIORITY ${i + 1}`,
+            `Client: ${c.name}`,
+            `Client ID: ${c.id}`,
+            `Amount Due: ${c.amountDue}`,
+            `Days Overdue: ${timingShort(c)}`,
+            `Recommended Action: ${adviceFor(c)}`,
+          ].join("\n")
+        );
 
-              if (stage.includes('final')) return 4;
-              if (stage.includes('follow')) return 3;
-              if (stage.includes('first')) return 2;
-              if (stage) return 1;
-
-              return 0;
-            };
-
-            const stageDifference =
-              recoveryStage(b) - recoveryStage(a);
-
-            if (stageDifference !== 0) {
-              return stageDifference;
-            }
-
-            // 3. Highest overdue duration
-            return (
-              Number(b.daysOverdue || 0) -
-              Number(a.daysOverdue || 0)
-            );
-          })
-          .slice(0, 5);
-
-        // Only the fields Blink needs, not the full client records.
-        const priorityData = priorityClients.slice(0, 3).map((c: any) => {
-          const esc = getEscalationStage(c);
-          return {
-            client: c.name,
-            amountDue: c.amountDue,
-            daysOverdue: c.daysOverdue || 0,
-            status: c.liveStatus,
-            stage: esc.stage,
-            remindersSent: esc.sentCount,
-            lastAutomatedStage: c.lastAutomatedReminderStage || 'None',
-          };
-        });
-
-        userPrompt = `Today's most urgent unpaid clients, already sorted (most urgent first): ${JSON.stringify(priorityData)}`;
-
+        const first = priorityClients[0];
+        return instantResponse(
+          `${blocks.join("\n\n")}\n\nTODAY'S FOCUS\n${focusSentence(first)}`
+        );
       } else if (action === "summarize" || action === "summarize_outstanding") {
-        const pendingCount = activeClients.filter((c: any) => c.status !== 'Paid')?.length || 0;
+        // Built from live data in code (no AI): instant and always exact.
         const overdueCount = activeClients.filter((c: any) => c.isOverdue === true).length;
-        // Totals kept per currency, never mixed (e.g. "₹45,000 + $1,200").
-        const outstandingTotalText = formatTotalsByCurrency(activeClients);
+        const first = [...activeClients].sort(byUrgency)[0];
 
-        const automatedReminderClients = activeClients.filter(
-          (c: any) =>
-            c.automatedReminders === true &&
-            c.lastAutomatedReminderStage
+        return instantResponse(
+          [
+            "Important Information",
+            `• Outstanding Amount: ${formatTotalsByCurrency(activeClients)}`,
+            `• Pending Clients: ${activeClients.length}`,
+            `• Overdue Clients: ${overdueCount}`,
+            `• Paid Clients: ${paidClients.length}`,
+            "",
+            "Blink Insight",
+            focusSentence(first),
+          ].join("\n")
         );
-
-        const manuallyActionableClients = activeClients.filter(
-          (c: any) =>
-            c.isOverdue === true &&
-            !c.lastAutomatedReminderStage
-        );
-
-        const summaryClients = activeClients.map((c: any) => ({
-          client: c.name,
-          amountDue: c.amountDue,
-          daysOverdue: c.daysOverdue || 0,
-          status: c.liveStatus,
-          stage: getEscalationStage(c).stage,
-        }));
-
-        systemPrompt += `
-Follow this exact layout for Outstanding Summary:
-
-Important Information
-• Outstanding Amount: ${outstandingTotalText}
-• Pending Clients: ${pendingCount}
-• Overdue Clients: ${overdueCount}
-• Paid Clients: ${paidClients.length}
-
-Blink Insight
-[One sentence: the ONE client to chase first and why, using the data.]
-
-RULES:
-- Copy the four Important Information lines exactly as shown.
-- Blink Insight is the last section. Stop after it.`;
-
-        userPrompt = `Unpaid clients: ${JSON.stringify(summaryClients)}
-Clients already getting automated reminders: ${automatedReminderClients.length}. Overdue clients with no automated reminder yet: ${manuallyActionableClients.length}.`;
-
       } else if (action === "rewrite") {
         const targetClient =
           client
@@ -741,13 +737,8 @@ Clients already getting automated reminders: ${automatedReminderClients.length}.
         const rewriteAmount = formatMoney(targetClient.amount, targetClient.currency);
 
         systemPrompt += `
-Follow this exact layout for Rewrite Reminder:
-
-Important Information
-• Client: ${targetClient.name}
-• Amount Due: ${rewriteAmount}
-• Days Overdue: ${targetClient.daysOverdue || 0}
-• Tone: ${rewriteToneLabel}
+The client's details are already shown on screen above your answer.
+Start your answer with the REWRITTEN REMINDER heading and follow this exact layout for Rewrite Reminder:
 
 REWRITTEN REMINDER
 Subject: [short subject that fits the "${rewriteEscalation.stage}" stage]
@@ -757,7 +748,7 @@ Blink Recommendation
 [One short sentence: why this tone fits right now.]
 
 RULES:
-- Copy the four Important Information lines exactly as shown.
+- Do not repeat the client's details as a list. Start with REWRITTEN REMINDER.
 - Stage: ${rewriteEscalation.stage}. ${rewriteEscalation.reason}
   - "first": friendly, no pressure.
   - "second": direct, ask for a payment date.
@@ -769,12 +760,23 @@ RULES:
 ${rewriteEscalation.stage === 'final' ? finalReminderNote(targetClient) : ''}
 ${clientMessageLanguageRule(targetClient.language)}`;
 
+        answerPrefix = [
+          "Important Information",
+          `• Client: ${targetClient.name}`,
+          `• Amount Due: ${rewriteAmount}`,
+          `• Days Overdue: ${timingShort(targetClient)}`,
+          `• Tone: ${rewriteToneLabel}`,
+          "",
+          "",
+        ].join("\n");
+
         userPrompt = `Rewrite the reminder for this client: ${JSON.stringify({
   client: targetClient.name,
   amountDue: rewriteAmount,
   dueDate: targetClient.dueDate || 'N/A',
   status: targetClient.liveStatus || targetClient.status || 'Pending',
   daysOverdue: targetClient.daysOverdue || 0,
+  paymentTiming: targetClient.paymentTiming || getPaymentTiming(targetClient.dueDate),
   remindersSent: rewriteEscalation.sentCount,
   escalationStage: rewriteEscalation.stage,
   paymentLink: targetClient.paymentLink || '',
@@ -784,53 +786,43 @@ ${clientMessageLanguageRule(targetClient.language)}`;
 })}`;
 
       } else if (action === "overdue") {
-        const overdueList = activeClients
+        // Built from live data in code (no AI): instant and always exact.
+        const overdueClients = activeClients
           .filter((c: any) => c.isOverdue === true)
-          .map((c: any) => {
-            const esc = getEscalationStage(c);
-            return {
-              name: c.name,
-              amountDue: formatMoney(c.amount, c.currency),
-              dueDate: c.dueDate || 'N/A',
-              status: c.liveStatus || 'Overdue',
-              daysOverdue: c.daysOverdue || 0,
-              // Pre-written in code — the AI copies this verbatim, it does
-              // not compute or interpret a stage itself.
-              recoveryStageText: `${esc.stage} (reminder #${esc.sentCount + 1})`,
-              recommendedActionHint: esc.reason,
-              stage: esc.stage,
-            };
-          })
-          // Most days overdue first, so PRIORITY 1 is the most urgent.
-          .sort((a: any, b: any) => Number(b.daysOverdue) - Number(a.daysOverdue));
+          // Same order as Today's Priorities, so both screens agree.
+          .sort(byUrgency);
 
-        systemPrompt += `
-Follow this exact layout for Find Overdue Clients:
+        if (overdueClients.length === 0) {
+          return instantResponse(
+            "Quick Summary\nNo overdue payments right now.\n\nImportant Information\nNo clients are overdue.\n\nNext Best Action\nNothing is late. Check Today's Priorities to see what is due next."
+          );
+        }
 
-Quick Summary
-${overdueList.length} client${overdueList.length === 1 ? " has an overdue payment" : "s have overdue payments"}.
+        const blocks = overdueClients.map((c: any, i: number) => {
+          const esc = getEscalationStage(c);
+          return [
+            `PRIORITY ${i + 1}`,
+            `Client: ${c.name}`,
+            `Client ID: ${c.id}`,
+            `Amount Due: ${c.amountDue}`,
+            `Days Overdue: ${c.daysOverdue || 0}`,
+            `Recovery Stage: ${esc.stage} (reminder #${esc.sentCount + 1})`,
+            `Recommended Action: ${adviceFor(c)}`,
+          ].join("\n");
+        });
 
-Important Information
-PRIORITY 1
-Client: [name]
-Amount Due: [amountDue, copied exactly]
-Days Overdue: [daysOverdue]
-Recovery Stage: [recoveryStageText, copied exactly]
-Recommended Action: [one short sentence based on recommendedActionHint]
-
-PRIORITY 2
-(same 5 lines, and so on)
-
-Next Best Action
-[One sentence: the client to handle first, and why.]
-
-RULES:
-- Include EVERY overdue client in the data, one PRIORITY block each, in the order given. Never merge or skip clients.
-- Copy "Quick Summary" exactly as shown.
-- A "stalled" client gets a call or payment plan, not another reminder. A "final" client gets a clear deadline.
-- Next Best Action is the last section. Stop after it.`;
-
-        userPrompt = `Overdue clients, most urgent first: ${JSON.stringify(overdueList)}`;
+        return instantResponse(
+          [
+            "Quick Summary",
+            `${overdueClients.length} client${overdueClients.length === 1 ? " has an overdue payment" : "s have overdue payments"}.`,
+            "",
+            "Important Information",
+            blocks.join("\n\n"),
+            "",
+            "Next Best Action",
+            focusSentence(overdueClients[0]),
+          ].join("\n")
+        );
       }
     } 
     // 2. Handle Individual Client Reminders using live object data
@@ -925,6 +917,7 @@ ${clientMessageLanguageRule(
   dueDate: client.dueDate || 'N/A',
   status: singleStatus,
   daysOverdue: client.daysOverdue || 0,
+  paymentTiming: getPaymentTiming(client.dueDate),
   remindersSent: singleEscalation.sentCount,
   lastAutomatedStage: client.lastAutomatedReminderStage || 'None',
   escalationStage: singleEscalation.stage,
@@ -946,6 +939,34 @@ The escalation stage has already been computed: "${singleEscalation.stage}". Wri
       prompt: userPrompt,
       temperature: 0.2,
     });
+
+    // Code-written lines first (instant), then the AI's words as they arrive.
+    if (answerPrefix) {
+      const encoder = new TextEncoder();
+      const prefix = answerPrefix;
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(encoder.encode(prefix));
+          try {
+            for await (const part of result.textStream) {
+              controller.enqueue(encoder.encode(part));
+            }
+          } catch (streamError) {
+            console.error("Blink stream error:", streamError);
+          }
+          controller.close();
+        },
+      });
+
+      return new NextResponse(stream, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      });
+    }
 
     // Return plain text stream response directly with explicit no-cache headers for live synchronization
     return result.toTextStreamResponse({

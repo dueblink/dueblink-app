@@ -6,7 +6,7 @@ import { auth, db } from '@/lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatAmountWithCurrency } from '@/lib/reminderRules';
+import { formatAmountWithCurrency, formatTotalsByCurrency } from '@/lib/reminderRules';
 
 // Landing page sections Blink reacts to, in the order they appear on the page.
 // Same order as the sections on the landing page (app/page.tsx).
@@ -45,6 +45,9 @@ interface FloatingRobotProps {
   // specific client row) open the assistant for THAT client instead of
   // silently falling back to the globally recommended one.
   externalActionClientId?: string | null;
+  // Changes on every dashboard button press, so pressing "Write reminder"
+  // again for the same client runs Blink again.
+  externalActionNonce?: number;
   onOpenAddClient?: () => void;
   // Reports whether FloatingRobot is actively processing an action, so a
   // parent-side button (e.g. "View Recovery Summary") can show a real
@@ -59,6 +62,7 @@ export default function FloatingRobot({
   isPro = false,
   externalAction = null,
   externalActionClientId = null,
+  externalActionNonce = 0,
   onOpenAddClient,
   onProcessingChange
 }: FloatingRobotProps) {
@@ -88,12 +92,37 @@ export default function FloatingRobot({
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [activeActionName, setActiveActionName] = useState<string | null>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
+
+  // ONE Blink answer at a time. Every new request gets a number; an older
+  // answer that is still arriving is stopped and can never write into the
+  // panel again. This is what stopped the screen jumping between two
+  // answers, or showing plain text after you pressed Back.
+  const blinkRequestIdRef = useRef(0);
+  const blinkAbortRef = useRef<AbortController | null>(null);
+  const blinkRunningRef = useRef<{ actionId: string; clientId: string } | null>(null);
+
+  const stopBlinkRequest = () => {
+    blinkRequestIdRef.current += 1;
+    blinkAbortRef.current?.abort();
+    blinkAbortRef.current = null;
+    blinkRunningRef.current = null;
+  };
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientPickerAction, setClientPickerAction] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  // Which Copy button was pressed, so only that one says "Copied".
+  const [copiedWhich, setCopiedWhich] = useState<string | null>(null);
+  // Generate Follow-up: which message is shown (one at a time, less clutter).
+  const [followUpTab, setFollowUpTab] = useState<'whatsapp' | 'email' | null>(null);
+  // Opened a client from Priorities / Overdue: Back returns to that list.
+  const [returnTo, setReturnTo] = useState<{ actionId: string; name: string; response: string } | null>(null);
+  // Search box in the client picker (shown when there are many clients).
+  const [pickerSearch, setPickerSearch] = useState('');
+  // Loading screen: which step text is showing.
+  const [loadingStep, setLoadingStep] = useState(0);
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [showMessageBubble, setShowMessageBubble] = useState(false);
@@ -342,6 +371,7 @@ export default function FloatingRobot({
       return {
         number: match[1],
         client: getValue('Client'),
+        clientId: getValue('Client ID'),
         company: getValue('Company'),
         amount: getValue('Amount Due'),
         dueDate: getValue('Due Date'),
@@ -449,6 +479,7 @@ export default function FloatingRobot({
       return {
         number,
         client: getValue(block, 'Client'),
+        clientId: getValue(block, 'Client ID'),
         company: getValue(block, 'Company'),
         amount: getValue(block, 'Amount Due'),
         daysOverdue: getValue(block, 'Days Overdue'),
@@ -755,6 +786,27 @@ export default function FloatingRobot({
     return () => clearTimeout(greetTimer);
   }, [pathname, isPro, isLoggedIn]);
 
+  // Loading text moves on every 1.3 s while Blink works.
+  useEffect(() => {
+    if (uiState !== 'processing') return;
+    setLoadingStep(0);
+    const timer = setInterval(() => setLoadingStep((n) => n + 1), 1300);
+    return () => clearInterval(timer);
+  }, [uiState, activeActionId]);
+
+  // New answer: pick the message tab again.
+  useEffect(() => {
+    setFollowUpTab(null);
+    setCopiedWhich(null);
+  }, [activeActionId, selectedClientId]);
+
+  useEffect(() => {
+    if (activeActionId === null && blinkRunningRef.current) {
+      stopBlinkRequest();
+      setUiState('idle');
+    }
+  }, [activeActionId]);
+
   useEffect(() => {
     if (externalAction && pathname === '/dashboard') {
       setIsExpanded(true);
@@ -767,7 +819,7 @@ export default function FloatingRobot({
         handleActionClick('welcome_pro', 'Welcome to Pro');
       }
     }
-  }, [externalAction, externalActionClientId, pathname]);
+  }, [externalAction, externalActionClientId, externalActionNonce, pathname]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -946,7 +998,17 @@ export default function FloatingRobot({
       router.push('/pricing');
       return;
     }
-    if (uiState === 'processing') return;
+    // Same request already running (double tap): ignore it.
+    const running = blinkRunningRef.current;
+    if (running && running.actionId === actionId && running.clientId === (clientId || '')) return;
+
+    // A different request: stop the old one first.
+    stopBlinkRequest();
+    const requestId = blinkRequestIdRef.current;
+    const controller = new AbortController();
+    blinkAbortRef.current = controller;
+    blinkRunningRef.current = { actionId, clientId: clientId || '' };
+    const isCurrent = () => blinkRequestIdRef.current === requestId;
 
     setActiveActionName(actionTitle);
     setActiveActionId(actionId);
@@ -1034,7 +1096,10 @@ export default function FloatingRobot({
         throw new Error("Authentication required");
       }
 
+      if (!isCurrent()) return;
+
       const response = await fetch('/api/pro-recovery-assistant', {
+        signal: controller.signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1075,6 +1140,11 @@ export default function FloatingRobot({
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          // A newer request started, or Back was pressed: stop here.
+          if (!isCurrent()) {
+            reader.cancel().catch(() => {});
+            return;
+          }
           const chunk = decoder.decode(value, { stream: true });
           fullText += chunk;
 
@@ -1086,14 +1156,22 @@ export default function FloatingRobot({
         }
       }
 
+      if (!isCurrent()) return;
+
       setAiResponse(
         cleanResponseText(fullText) ||
         "Analysis complete. No urgent actions needed right now."
       );
     } catch {
+      // A stopped (old) request is not an error: show nothing for it.
+      if (!isCurrent()) return;
       setAiResponse("Unable to fetch portfolio analysis right now. Please check your connection and try again.");
     } finally {
-      setUiState('idle');
+      if (isCurrent()) {
+        blinkRunningRef.current = null;
+        blinkAbortRef.current = null;
+        setUiState('idle');
+      }
     }
   };
 
@@ -1138,6 +1216,88 @@ export default function FloatingRobot({
 
   const activeClients = clients;
 
+  // Back: from a client opened out of a list, return to that list
+  // straight away (no reload). Otherwise go to the actions menu.
+  const goBack = () => {
+    if (returnTo && (activeActionId === 'recommend' || activeActionId === 'rewrite')) {
+      stopBlinkRequest();
+      setUiState('idle');
+      setActiveActionId(returnTo.actionId);
+      setActiveActionName(returnTo.name);
+      setAiResponse(returnTo.response);
+      setSelectedClientId(null);
+      setReturnTo(null);
+      return;
+    }
+    setAiResponse(null);
+    setActiveActionName(null);
+    setActiveActionId(null);
+    setSelectedClientId(null);
+    setClientPickerAction(null);
+    setAllClientsPaid(false);
+    setReturnTo(null);
+  };
+
+  // Unpaid clients, most urgent first (most days late, then biggest amount).
+  const urgentClients = () =>
+    clients
+      .filter((c: any) => c.status === 'Pending')
+      .map((c: any) => ({ c, late: daysLateFor(c.dueDate) ?? -9999 }))
+      .sort((a: any, b: any) => b.late - a.late || Number(b.c.amount || 0) - Number(a.c.amount || 0))
+      .map((x: any) => x.c);
+
+  const timingLabel = (c: any): string => {
+    const late = daysLateFor(c.dueDate);
+    if (late === null) return 'no due date';
+    if (late === 0) return 'due today';
+    if (late < 0) return `due in ${-late} ${-late === 1 ? 'day' : 'days'}`;
+    return `${late} ${late === 1 ? 'day' : 'days'} overdue`;
+  };
+
+  // ============================================================
+  // STAT TILES — the coloured cards from Outstanding Summary, used
+  // at the top of every Blink command so all 5 look the same.
+  // ============================================================
+  type TileTone = 'blue' | 'slate' | 'amber' | 'emerald' | 'rose';
+  const TILE_STYLES: Record<TileTone, { box: string; label: string; value: string; unit: string }> = {
+    blue: { box: 'bg-blue-50/70 border-blue-100', label: 'text-[#245B92]', value: 'text-[#245B92]', unit: 'text-[#245B92]/70' },
+    slate: { box: 'bg-slate-50 border-slate-100', label: 'text-slate-500', value: 'text-slate-800', unit: 'text-slate-400' },
+    amber: { box: 'bg-amber-50/70 border-amber-100', label: 'text-amber-700', value: 'text-amber-700', unit: 'text-amber-600' },
+    emerald: { box: 'bg-emerald-50/70 border-emerald-100', label: 'text-emerald-700', value: 'text-emerald-700', unit: 'text-emerald-600' },
+    rose: { box: 'bg-rose-50/70 border-rose-100', label: 'text-rose-700', value: 'text-rose-700', unit: 'text-rose-600' },
+  };
+
+  const renderStatTiles = (
+    tiles: { label: string; value: string; unit?: string; tone: TileTone; wide?: boolean }[]
+  ) => (
+    <div className="grid grid-cols-2 gap-1.5">
+      {tiles.map((t) => {
+        const st = TILE_STYLES[t.tone];
+        return (
+          <div key={t.label} className={`rounded-xl border px-3 py-2.5 ${st.box} ${t.wide ? 'col-span-2' : ''}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${st.label}`}>{t.label}</p>
+            <p className={`text-base font-black mt-0.5 break-words ${st.value}`}>
+              {t.value}
+              {t.unit && <span className={`text-[11px] font-semibold ml-1 ${st.unit}`}>{t.unit}</span>}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Days late from the due date, in India time (negative = not due yet).
+  const daysLateFor = (dueDate: string | undefined): number | null => {
+    if (!dueDate) return null;
+    const [y, m, d] = String(dueDate).substring(0, 10).split('-').map(Number);
+    if (!y || !m || !d) return null;
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const [ty, tm, td] = today.split('-').map(Number);
+    return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 86400000);
+  };
+
+  const plural = (n: number, word: string) => `${n === 1 ? word : `${word}s`}`;
+
   return (
     <div 
       className={`blink-widget-root fixed z-[900] flex flex-col items-end gap-3 transition-all duration-200 ease-in-out ${positioningClass}`}
@@ -1147,6 +1307,20 @@ export default function FloatingRobot({
         @keyframes blinkFadeSlideUp {
           from { opacity: 0; transform: translateY(14px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes blinkShimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: 200px 0; }
+        }
+        .blink-skeleton {
+          background: linear-gradient(90deg, #f1f5f9 0px, #e2e8f0 60px, #f1f5f9 120px);
+          background-size: 400px 100%;
+          animation: blinkShimmer 1.2s linear infinite;
+          border-radius: 6px;
+        }
+        @keyframes blinkDot {
+          0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+          40% { transform: translateY(-5px); opacity: 1; }
         }
         .blink-widget-root .overflow-y-auto {
           -webkit-overflow-scrolling: touch;
@@ -1288,13 +1462,9 @@ export default function FloatingRobot({
                       onClick={() => { 
                         if (clientPickerAction) {
                           setClientPickerAction(null);
+                          setPickerSearch('');
                         } else {
-                          setAiResponse(null); 
-                          setActiveActionName(null); 
-                          setActiveActionId(null); 
-                          setSelectedClientId(null); 
-                          setClientPickerAction(null); 
-                          setAllClientsPaid(false);
+                          goBack();
                         }
                       }} 
                       className="w-7 h-7 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner hover:bg-white/30 transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
@@ -1324,7 +1494,7 @@ export default function FloatingRobot({
                 whileHover={{ rotate: 90, scale: 1.08 }}
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); setAllClientsPaid(false); }} 
+                onClick={() => { setIsExpanded(false); setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); setAllClientsPaid(false); setReturnTo(null); }} 
                 className="text-white/70 hover:text-white bg-white/15 hover:bg-white/25 p-1.5 rounded-full transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-white"
                 aria-label="Close panel"
                 suppressHydrationWarning={true}
@@ -1408,21 +1578,60 @@ export default function FloatingRobot({
                 ) : aiResponse || uiState === 'processing' ? (
                   <div className="py-1 space-y-2.5 text-left" suppressHydrationWarning={true}>
                     {uiState === 'processing' && !aiResponse ? (
-                      <div className="flex flex-col items-center justify-center py-6 space-y-3 text-slate-400">
-                        <div className="relative w-12 h-12 flex items-center justify-center">
-                          <span className="absolute inset-0 rounded-full bg-[#20B8BE]/20 animate-ping" />
-                          <span className="absolute inset-0 rounded-full bg-gradient-to-br from-[#245B92]/10 to-[#20B8BE]/10" />
-                          <Brain size={20} className="relative text-[#20B8BE] animate-pulse" />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-[11px] font-bold tracking-wide text-slate-500">Blink is analyzing</p>
-                          <span className="flex gap-0.5">
-                            <span className="w-1 h-1 rounded-full bg-[#20B8BE] animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <span className="w-1 h-1 rounded-full bg-[#20B8BE] animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <span className="w-1 h-1 rounded-full bg-[#20B8BE] animate-bounce" style={{ animationDelay: '300ms' }} />
-                          </span>
-                        </div>
-                      </div>
+                      (() => {
+                        // What Blink is doing, step by step, for this command.
+                        const LOADING_STEPS: Record<string, string[]> = {
+                          recommend: ['Checking reminder history', 'Choosing the right tone', 'Writing your message'],
+                          rewrite: ['Reading the last reminder', 'Rewriting in fresh words'],
+                          priorities: ['Sorting your clients'],
+                          summarize: ['Adding up your payments'],
+                          overdue: ['Finding late payments'],
+                          welcome_pro: ['Getting things ready'],
+                        };
+                        const steps = LOADING_STEPS[activeActionId || ''] || ['Working on it'];
+                        const stepText = steps[Math.min(loadingStep, steps.length - 1)];
+
+                        return (
+                          <div className="py-2 space-y-3" role="status" aria-live="polite">
+                            <div className="flex items-center gap-2 px-1">
+                              <span className="flex items-end gap-1 h-3" aria-hidden="true">
+                                {['#245B92', '#2289A8', '#20B8BE'].map((color, i) => (
+                                  <span
+                                    key={color}
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{ background: color, animation: `blinkDot 1s ease-in-out ${i * 0.16}s infinite` }}
+                                  />
+                                ))}
+                              </span>
+                              <AnimatePresence mode="wait" initial={false}>
+                                <motion.p
+                                  key={stepText}
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -4 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="text-xs font-semibold text-slate-600"
+                                >
+                                  {stepText}…
+                                </motion.p>
+                              </AnimatePresence>
+                            </div>
+
+                            {/* Calm placeholder in the shape of the answer */}
+                            <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2.5" aria-hidden="true">
+                              <div className="blink-skeleton h-3 w-1/2" />
+                              <div className="blink-skeleton h-2.5 w-3/4" />
+                              <div className="blink-skeleton h-2.5 w-2/3" />
+                            </div>
+                            <div className="rounded-xl border border-slate-100 bg-white p-3 space-y-2" aria-hidden="true">
+                              <div className="blink-skeleton h-2.5 w-full" />
+                              <div className="blink-skeleton h-2.5 w-11/12" />
+                              <div className="blink-skeleton h-2.5 w-4/5" />
+                              <div className="blink-skeleton h-8 w-full mt-3 rounded-lg" />
+                            </div>
+                          </div>
+                        );
+                      })()
                     ) : (
                       <div
                         key={`${activeActionId}`}
@@ -1432,305 +1641,189 @@ export default function FloatingRobot({
                         {activeActionId === 'recommend' ? (
                           (() => {
                             const followUp = parseFollowUpResponse(aiResponse || '');
+                            const isWriting = uiState === 'processing';
+                            const snapshotLines = followUp.snapshot.split('\n').map((l) => l.trim());
+                            const field = (label: string) =>
+                              snapshotLines.find((l) => l.toLowerCase().startsWith(label))?.replace(/^[^:]+:\s*/, '') || '';
+
+                            const clientName = field('client:') || 'Selected client';
+                            const amount = field('amount due:');
+                            const daysRaw = field('days overdue:');
+                            const timing = /^\d+$/.test(daysRaw)
+                              ? `${daysRaw} ${daysRaw === '1' ? 'day' : 'days'} overdue`
+                              : daysRaw;
+                            const stage = field('stage:').replace(/\s*\(.*\)\s*$/, '');
+                            const STAGE_LABELS: Record<string, string> = {
+                              first: 'First reminder', second: 'Follow-up', final: 'Final reminder', stalled: 'Stalled',
+                            };
+
+                            const target = clients.find((c: any) => c.id === selectedClientId);
+                            const canWhatsApp = String(target?.whatsapp || target?.phone || '').replace(/\D/g, '').length >= 10;
+                            const canEmail = Boolean(String(target?.email || '').trim());
+                            const prefersEmail = /\bemail\b/i.test(followUp.recommendation) && !/whatsapp/i.test(followUp.recommendation);
+                            const tab: 'whatsapp' | 'email' =
+                              followUpTab ||
+                              (prefersEmail && canEmail ? 'email' : canWhatsApp || !canEmail ? 'whatsapp' : 'email');
+
+                            const message = tab === 'whatsapp' ? followUp.whatsapp : followUp.email;
+                            const { subject, body } = splitEmailText(followUp.email || '');
+                            const sentHere = sentChannel?.channel === tab && sentChannel.clientId === selectedClientId;
 
                             return (
                               <div className="space-y-3 text-left">
 
-                                {/* Title */}
+                                {/* Title (same on every command) */}
                                 <div className="flex items-center gap-1.5 px-1">
-                                  <Brain size={13} className="text-[#20B8BE]" />
-                                  <span className="text-[11px] font-black text-slate-900">
-                                    Generate Follow-up
-                                  </span>
+                                  <Brain size={14} className="text-[#20B8BE]" />
+                                  <span className="text-[13px] font-bold text-slate-900">Generate Follow-up</span>
                                 </div>
 
-                                {/* Client */}
-                                {followUp.snapshot && (
-                                  <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-[11px] font-black text-slate-900 truncate">
-                                        {followUp.snapshot
-                                          .split('\n')
-                                          .find(line => line.toLowerCase().startsWith('client:'))
-                                          ?.replace(/^client:\s*/i, '') || 'Selected Client'}
-                                      </p>
+                                {/* Client + the coloured cards */}
+                                <p className="text-sm font-bold text-slate-900 truncate px-1">{clientName}</p>
+                                {(amount || timing || stage) && renderStatTiles([
+                                  { label: 'Amount due', value: amount || '—', tone: 'blue', wide: true },
+                                  {
+                                    label: /overdue/i.test(timing) ? 'Overdue' : 'Status',
+                                    value: /^\d+$/.test(daysRaw) ? daysRaw : (timing ? timing.charAt(0).toUpperCase() + timing.slice(1) : '—'),
+                                    unit: /^\d+$/.test(daysRaw) ? plural(Number(daysRaw), 'day') : undefined,
+                                    tone: /^\d+$/.test(daysRaw) && Number(daysRaw) > 0 ? 'amber' : 'emerald',
+                                  },
+                                  {
+                                    label: 'Stage',
+                                    value: STAGE_LABELS[stage] || stage || '—',
+                                    tone: stage === 'stalled' || stage === 'final' ? 'rose' : 'slate',
+                                  },
+                                ])}
 
-                                      <span className="shrink-0 text-[8px] font-bold text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
-                                        Recovery
-                                      </span>
-                                    </div>
-
-                                    <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
-                                      {followUp.snapshot
-                                        .split('\n')
-                                        .filter(line =>
-                                          /^(amount due|due date|days overdue|stage):/i.test(line.trim())
-                                        )
-                                        .map(line =>
-                                          line
-                                            .trim()
-                                            .replace(/^amount due:\s*/i, '')
-                                            .replace(/^due date:\s*/i, 'Due ')
-                                            .replace(/^days overdue:\s*(\d+).*$/i, '$1 days overdue')
-                                            .replace(/^stage:\s*/i, 'Stage: ')
-                                        )
-                                        .join(' · ')}
-                                    </p>
+                                {/* Blink's advice */}
+                                {followUp.recommendation ? (
+                                  <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-[#20B8BE]/5 border-l-2 border-[#20B8BE]">
+                                    <Sparkles size={13} className="text-[#20B8BE] mt-0.5 shrink-0" />
+                                    <p className="text-[13px] text-slate-700 leading-snug">{followUp.recommendation}</p>
                                   </div>
-                                )}
+                                ) : isWriting ? (
+                                  <div className="blink-skeleton h-9 w-full rounded-xl" aria-hidden="true" />
+                                ) : null}
 
-                                {/* Recovery */}
-                                {(followUp.recoveryStatus || followUp.recommendation) && (
-                                  <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                      <Zap size={10} className="text-[#20B8BE]" />
-                                      <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
-                                        Recovery
-                                      </span>
-                                    </div>
-                                    <p className="text-[10px] text-slate-700 leading-relaxed">
-                                      {followUp.recommendation || followUp.recoveryStatus}
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Email */}
-                                {followUp.email && (
-                                  <div className="rounded-lg bg-blue-50/50 border border-blue-100 px-2.5 py-2">
-
-                                    <div className="flex items-center justify-between mb-1.5">
-                                      <div className="flex items-center gap-1.5">
-                                        <Mail size={11} className="text-[#245B92]" />
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#245B92]">
-                                          Email
-                                        </span>
-                                      </div>
-
-                                      <span className="text-[8px] font-bold text-[#245B92]">
-                                        Ready
-                                      </span>
-                                    </div>
-
-                                    <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[110px] overflow-y-auto scroll-smooth">
-                                      {followUp.email}
-                                    </div>
-
-                                    <div className="flex gap-1.5 mt-2">
+                                {/* Message: WhatsApp or Email, one at a time */}
+                                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                  <div className="grid grid-cols-2 text-xs font-bold border-b border-slate-100" role="tablist">
+                                    {([
+                                      { id: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
+                                      { id: 'email', label: 'Email', Icon: Mail },
+                                    ] as const).map(({ id, label, Icon }) => (
                                       <button
-                                        onClick={() => copyFollowUpEmail(aiResponse || '')}
-                                        className="py-1.5 px-2.5 rounded-lg bg-white text-[#245B92] border border-slate-200 hover:border-[#245B92]/40 hover:bg-blue-50/40 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
-                                      >
-                                        <AnimatePresence mode="wait" initial={false}>
-                                          {copied ? (
-                                            <motion.span
-                                              key="copied"
-                                              initial={{ opacity: 0, scale: 0.4, rotate: -30 }}
-                                              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                              exit={{ opacity: 0, scale: 0.4 }}
-                                              transition={{ type: "spring", stiffness: 500, damping: 18 }}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Check size={10} /> Copied
-                                            </motion.span>
-                                          ) : (
-                                            <motion.span
-                                              key="copy"
-                                              initial={{ opacity: 0 }}
-                                              animate={{ opacity: 1 }}
-                                              exit={{ opacity: 0 }}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Copy size={10} /> Copy
-                                            </motion.span>
-                                          )}
-                                        </AnimatePresence>
-                                      </button>
-
-                                      <button
-                                        onClick={() =>
-                                          handleActionClick(
-                                            'rewrite',
-                                            'Rewrite Reminder',
-                                            selectedClientId || undefined
-                                          )
-                                        }
-                                        className="py-1.5 px-2.5 rounded-lg bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
-                                      >
-                                        <RefreshCw size={10} className="text-slate-400" />
-                                        Rewrite
-                                      </button>
-
-                                      <motion.button
-                                        onClick={() => sendReminder('email', followUp.email)}
-                                        disabled={markingSent}
-                                        animate={
-                                          sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
-                                            ? { scale: [1, 1.12, 1] }
-                                            : { scale: 1 }
-                                        }
-                                        transition={{ duration: 0.4, ease: "easeOut" }}
-                                        className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[9px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                                          sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
-                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                            : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
+                                        key={id}
+                                        role="tab"
+                                        aria-selected={tab === id}
+                                        onClick={() => setFollowUpTab(id)}
+                                        className={`relative flex items-center justify-center gap-1.5 py-2.5 transition-colors cursor-pointer ${
+                                          tab === id ? 'text-[#245B92]' : 'text-slate-400 hover:text-slate-600'
                                         }`}
                                       >
-                                        <AnimatePresence mode="wait" initial={false}>
-                                          {sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId ? (
-                                            <motion.span
-                                              key="sent"
-                                              initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
-                                              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                              exit={{ opacity: 0, scale: 0.5 }}
-                                              transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <CheckCircle2 size={11} /> Sent
-                                            </motion.span>
-                                          ) : (
-                                            <motion.span
-                                              key="mark"
-                                              initial={{ opacity: 0 }}
-                                              animate={{ opacity: 1 }}
-                                              exit={{ opacity: 0 }}
-                                              className="flex items-center gap-1"
-                                            >
-                                              <Mail size={11} /> Send email
-                                            </motion.span>
-                                          )}
-                                        </AnimatePresence>
-                                      </motion.button>
-                                    </div>
-
-                                  </div>
-                                )}
-
-                                {/* WhatsApp */}
-                                {followUp.whatsapp && (
-                                  <div className="rounded-lg bg-emerald-50/50 border border-emerald-100 px-2.5 py-2">
-
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <MessageCircle size={11} className="text-[#159A9F]" />
-                                      <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
-                                        WhatsApp
-                                      </span>
-                                    </div>
-
-                                    <span className="text-[8px] font-bold text-[#159A9F]">
-                                      Ready
-                                    </span>
-                                  </div>
-
-                                  <div className="px-1 text-[10px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-[14vh] sm:max-h-[85px] overflow-y-auto scroll-smooth">
-                                    {followUp.whatsapp}
-                                  </div>
-
-                                  <div className="flex gap-1.5 mt-2">
-                                    <button
-                                      onClick={() => copyFollowUpWhatsApp(aiResponse || '')}
-                                      className="py-1.5 px-2.5 rounded-lg bg-white text-[#159A9F] border border-emerald-100 hover:border-[#159A9F]/40 hover:bg-emerald-50/40 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer overflow-hidden"
-                                    >
-                                      <AnimatePresence mode="wait" initial={false}>
-                                        {copied ? (
+                                        <Icon size={13} /> {label}
+                                        {tab === id && (
                                           <motion.span
-                                            key="copied"
-                                            initial={{ opacity: 0, scale: 0.4, rotate: -30 }}
-                                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                            exit={{ opacity: 0, scale: 0.4 }}
-                                            transition={{ type: "spring", stiffness: 500, damping: 18 }}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Check size={10} /> Copied
-                                          </motion.span>
-                                        ) : (
-                                          <motion.span
-                                            key="copy"
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <Copy size={10} /> Copy
-                                          </motion.span>
+                                            layoutId="blink-followup-tab"
+                                            className="absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-gradient-to-r from-[#245B92] to-[#20B8BE]"
+                                          />
                                         )}
-                                      </AnimatePresence>
-                                    </button>
-
-                                    <button
-                                      onClick={() =>
-                                        handleActionClick(
-                                          'rewrite',
-                                          'Rewrite Reminder',
-                                          selectedClientId || undefined
-                                        )
-                                      }
-                                      className="py-1.5 px-2.5 rounded-lg bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
-                                    >
-                                      <RefreshCw size={10} className="text-slate-400" />
-                                      Rewrite
-                                    </button>
-
-                                    <motion.button
-                                      onClick={() => sendReminder('whatsapp', followUp.whatsapp)}
-                                      disabled={markingSent}
-                                      animate={
-                                        sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId
-                                          ? { scale: [1, 1.12, 1] }
-                                          : { scale: 1 }
-                                      }
-                                      transition={{ duration: 0.4, ease: "easeOut" }}
-                                      className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[9px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                                        sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId
-                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                          : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
-                                      }`}
-                                    >
-                                      <AnimatePresence mode="wait" initial={false}>
-                                        {sentChannel?.channel === 'whatsapp' && sentChannel.clientId === selectedClientId ? (
-                                          <motion.span
-                                            key="sent"
-                                            initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
-                                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                                            exit={{ opacity: 0, scale: 0.5 }}
-                                            transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <CheckCircle2 size={11} /> Sent
-                                          </motion.span>
-                                        ) : (
-                                          <motion.span
-                                            key="mark"
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="flex items-center gap-1"
-                                          >
-                                            <MessageCircle size={11} /> Send on WhatsApp
-                                          </motion.span>
-                                        )}
-                                      </AnimatePresence>
-                                    </motion.button>
+                                      </button>
+                                    ))}
                                   </div>
 
+                                  <div className="p-3">
+                                    {message ? (
+                                      <div className="max-h-[32vh] sm:max-h-[190px] overflow-y-auto scroll-smooth">
+                                        {tab === 'email' && (
+                                          <p className="text-xs font-bold text-slate-900 mb-1.5">{subject}</p>
+                                        )}
+                                        <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+                                          {tab === 'email' ? body : message}
+                                        </p>
+                                      </div>
+                                    ) : isWriting ? (
+                                      <div className="space-y-2" aria-hidden="true">
+                                        <div className="blink-skeleton h-2.5 w-full" />
+                                        <div className="blink-skeleton h-2.5 w-11/12" />
+                                        <div className="blink-skeleton h-2.5 w-3/4" />
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-slate-400">No {tab === 'email' ? 'email' : 'WhatsApp message'} this time. Try Rewrite.</p>
+                                    )}
+
+                                    {tab === 'whatsapp' && !canWhatsApp && message && (
+                                      <p className="text-[11px] text-slate-400 mt-2">No WhatsApp number saved: WhatsApp will ask who to send it to.</p>
+                                    )}
+                                    {tab === 'email' && !canEmail && message && (
+                                      <p className="text-[11px] text-slate-400 mt-2">No email saved for this client: add one with Edit.</p>
+                                    )}
+                                  </div>
                                 </div>
-                                )}
 
-                                {/* Next Best Action */}
-                                {followUp.nextBestAction && (
-                                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
-                                    <div className="flex items-center gap-1.5 mb-0.5">
-                                      <ArrowRight size={10} className="text-[#20B8BE]" />
-                                      <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
-                                        Next Best Action
-                                      </span>
-                                    </div>
+                                {/* Actions: one main button, two small ones */}
+                                <div className="space-y-2">
+                                  <motion.button
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => sendReminder(tab, tab === 'whatsapp' ? followUp.whatsapp : followUp.email)}
+                                    disabled={markingSent || isWriting || !message}
+                                    className={`w-full py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      sentHere
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:opacity-90'
+                                    }`}
+                                  >
+                                    {sentHere ? (
+                                      <><CheckCircle2 size={15} /> Sent</>
+                                    ) : isWriting ? (
+                                      <><Loader2 size={15} className="animate-spin" /> Writing…</>
+                                    ) : tab === 'whatsapp' ? (
+                                      <><MessageCircle size={15} /> Send on WhatsApp</>
+                                    ) : (
+                                      <><Mail size={15} /> Send email</>
+                                    )}
+                                  </motion.button>
 
-                                    <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
-                                      {followUp.nextBestAction}
-                                    </p>
+                                  {/* Sent: go straight to the next client who needs a reminder */}
+                                  {sentHere && (() => {
+                                    const next = urgentClients().find((c: any) => c.id !== selectedClientId && (daysLateFor(c.dueDate) ?? -1) >= 0);
+                                    if (!next) return null;
+                                    return (
+                                      <motion.button
+                                        initial={{ opacity: 0, y: 6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => handleActionClick('recommend', 'Generate Follow-up', next.id)}
+                                        className="w-full py-2.5 px-3 rounded-xl bg-[#245B92]/5 border border-[#245B92]/15 text-[#245B92] text-xs font-bold hover:bg-[#245B92]/10 transition flex items-center justify-between gap-2 cursor-pointer"
+                                      >
+                                        <span className="truncate">Next: {next.name} · {timingLabel(next)}</span>
+                                        <ArrowRight size={14} className="shrink-0" />
+                                      </motion.button>
+                                    );
+                                  })()}
+
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                      onClick={async () => {
+                                        if (tab === 'whatsapp') await copyFollowUpWhatsApp(aiResponse || '');
+                                        else await copyFollowUpEmail(aiResponse || '');
+                                        setCopiedWhich(`followup-${tab}`);
+                                        setTimeout(() => setCopiedWhich(null), 1800);
+                                      }}
+                                      disabled={isWriting || !message}
+                                      className="py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {copiedWhich === `followup-${tab}` ? <><Check size={13} className="text-emerald-500" /> Copied</> : <><Copy size={13} /> Copy</>}
+                                    </button>
+                                    <button
+                                      onClick={() => handleActionClick('rewrite', 'Rewrite Reminder', selectedClientId || undefined)}
+                                      disabled={isWriting}
+                                      className="py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <RefreshCw size={13} className="text-[#20B8BE]" /> Rewrite
+                                    </button>
                                   </div>
-                                )}
+                                </div>
 
                               </div>
                             );
@@ -1744,44 +1837,59 @@ export default function FloatingRobot({
 
                                   {/* Header */}
                                   <div className="flex items-center gap-1.5 px-1">
-                                    <Zap size={13} className="text-[#20B8BE]" />
-                                    <span className="text-[11px] font-black text-slate-900">
+                                    <Zap size={14} className="text-[#20B8BE]" />
+                                    <span className="text-[13px] font-bold text-slate-900">
                                       Today's Priorities
                                     </span>
                                   </div>
+
+                                  {/* The coloured cards */}
+                                  {(() => {
+                                    const unpaid = clients.filter((c: any) => c.status === 'Pending');
+                                    const late = unpaid.filter((c: any) => (daysLateFor(c.dueDate) ?? 0) > 0).length;
+                                    const today = unpaid.filter((c: any) => daysLateFor(c.dueDate) === 0).length;
+                                    const top = priorityData.priorities[0];
+                                    return renderStatTiles([
+                                      { label: 'Chase first', value: top ? `${top.client}${top.amount ? ` · ${top.amount}` : ''}` : '—', tone: 'blue', wide: true },
+                                      { label: 'Overdue', value: String(late), unit: plural(late, 'Client'), tone: 'amber' },
+                                      { label: 'Due today', value: String(today), unit: plural(today, 'Client'), tone: 'emerald' },
+                                    ]);
+                                  })()}
 
                                   {/* Priority list */}
                                   <div className="space-y-1.5">
                                     {priorityData.priorities.map((priority: any) => (
                                       <div
                                         key={priority.number}
-                                        className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2"
+                                        className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5"
                                       >
                                         <div className="flex items-center justify-between gap-2">
 
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-1.5">
-                                              <span className="text-[8px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                              <span className="text-[11px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
                                                 #{priority.number}
                                               </span>
 
-                                              <p className="text-[10px] font-black text-slate-900 truncate">
+                                              <p className="text-[13px] font-black text-slate-900 truncate">
                                                 {priority.client || 'Client'}
                                               </p>
                                             </div>
 
-                                            <p className="text-[9px] text-slate-500 mt-1 truncate">
+                                            <p className="text-xs text-slate-500 mt-1 truncate">
                                               {priority.amount &&
                                                 (/^\d/.test(priority.amount.trim())
                                                   ? `₹${priority.amount}`
                                                   : priority.amount)}
                                               {priority.daysOverdue
-                                                ? ` · ${priority.daysOverdue} days overdue`
+                                                ? (/^\d+$/.test(priority.daysOverdue.trim())
+                                                    ? (Number(priority.daysOverdue) === 0 ? ' · due today' : ` · ${priority.daysOverdue} ${priority.daysOverdue.trim() === '1' ? 'day' : 'days'} overdue`)
+                                                    : ` · ${priority.daysOverdue}`)
                                                 : ''}
                                             </p>
 
                                             {priority.action && (
-                                              <p className="text-[9px] text-slate-600 mt-1 leading-relaxed">
+                                              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                                                 {priority.action}
                                               </p>
                                             )}
@@ -1789,12 +1897,15 @@ export default function FloatingRobot({
 
                                           <button
                                             onClick={() => {
-                                              const matchedClient = activeClients.find(
-                                                (client: any) =>
-                                                  client.name?.toLowerCase() === priority.client?.toLowerCase()
-                                              );
+                                              const matchedClient =
+                                                activeClients.find((client: any) => priority.clientId && client.id === priority.clientId) ||
+                                                activeClients.find(
+                                                  (client: any) =>
+                                                    client.name?.toLowerCase() === priority.client?.toLowerCase()
+                                                );
 
                                               if (matchedClient) {
+                                                setReturnTo({ actionId: 'priorities', name: "Today's Priorities", response: aiResponse || '' });
                                                 setSelectedClientId(matchedClient.id);
                                                 setAiResponse(null);
                                                 handleActionClick(
@@ -1804,9 +1915,9 @@ export default function FloatingRobot({
                                                 );
                                               }
                                             }}
-                                            className="shrink-0 px-2 py-1.5 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[8px] transition flex items-center gap-1 cursor-pointer"
+                                            className="shrink-0 px-2 py-1.5 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer"
                                           >
-                                            <Sparkles size={9} className="text-[#20B8BE]" />
+                                            <Sparkles size={12} className="text-[#20B8BE]" />
                                             Follow-up
                                           </button>
 
@@ -1817,15 +1928,15 @@ export default function FloatingRobot({
 
                                   {/* Today's focus */}
                                   {priorityData.focus && (
-                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-3 py-2.5">
                                       <div className="flex items-center gap-1.5 mb-1">
-                                        <ArrowRight size={10} className="text-[#20B8BE]" />
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <ArrowRight size={12} className="text-[#20B8BE]" />
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Today's Focus
                                         </span>
                                       </div>
 
-                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                      <p className="text-[13px] text-slate-700 leading-relaxed">
                                         {priorityData.focus}
                                       </p>
                                     </div>
@@ -1843,8 +1954,8 @@ export default function FloatingRobot({
 
                                   {/* Header */}
                                   <div className="flex items-center gap-1.5 px-1">
-                                    <BarChart3 size={13} className="text-[#20B8BE]" />
-                                    <span className="text-[11px] font-black text-slate-900">
+                                    <BarChart3 size={14} className="text-[#20B8BE]" />
+                                    <span className="text-[13px] font-bold text-slate-900">
                                       Outstanding Summary
                                     </span>
                                   </div>
@@ -1852,10 +1963,10 @@ export default function FloatingRobot({
                                   {/* Quick Summary */}
                                   {summary.quickSummary && (
                                     <div className="px-1">
-                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92]">
+                                      <p className="text-xs font-black uppercase tracking-wider text-[#245B92]">
                                         Quick Summary
                                       </p>
-                                      <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">
+                                      <p className="text-[13px] text-slate-600 leading-relaxed mt-0.5">
                                         {summary.quickSummary}
                                       </p>
                                     </div>
@@ -1865,7 +1976,7 @@ export default function FloatingRobot({
                                   {summary.importantInformation && (
                                     <div className="space-y-1.5">
 
-                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92] px-1">
+                                      <p className="text-xs font-black uppercase tracking-wider text-[#245B92] px-1">
                                         Important Information
                                       </p>
 
@@ -1888,50 +1999,50 @@ export default function FloatingRobot({
                                           <div className="grid grid-cols-2 gap-1.5">
 
                                             {/* Outstanding */}
-                                            <div className="rounded-lg bg-blue-50/70 border border-blue-100 px-2.5 py-2">
-                                              <p className="text-[8px] font-bold uppercase tracking-wider text-[#245B92]">
+                                            <div className="col-span-2 rounded-xl bg-blue-50/70 border border-blue-100 px-3 py-2.5">
+                                              <p className="text-[11px] font-bold uppercase tracking-wider text-[#245B92]">
                                                 Outstanding
                                               </p>
-                                              <p className="text-[12px] font-black text-[#245B92] mt-0.5 truncate">
+                                              <p className="text-base font-black text-[#245B92] mt-0.5 break-words">
                                                 {outstanding}
                                               </p>
                                             </div>
 
                                             {/* Pending */}
-                                            <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
-                                              <p className="text-[8px] font-bold uppercase tracking-wider text-slate-500">
+                                            <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
+                                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                                                 Pending
                                               </p>
-                                              <p className="text-[12px] font-black text-slate-800 mt-0.5">
+                                              <p className="text-base font-black text-slate-800 mt-0.5">
                                                 {pending}
-                                                <span className="text-[8px] font-semibold text-slate-400 ml-1">
-                                                  Clients
+                                                <span className="text-[11px] font-semibold text-slate-400 ml-1">
+                                                  {pending === '1' ? 'Client' : 'Clients'}
                                                 </span>
                                               </p>
                                             </div>
 
                                             {/* Overdue */}
-                                            <div className="rounded-lg bg-amber-50/70 border border-amber-100 px-2.5 py-2">
-                                              <p className="text-[8px] font-bold uppercase tracking-wider text-amber-700">
+                                            <div className="rounded-xl bg-amber-50/70 border border-amber-100 px-3 py-2.5">
+                                              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
                                                 Overdue
                                               </p>
-                                              <p className="text-[12px] font-black text-amber-700 mt-0.5">
+                                              <p className="text-base font-black text-amber-700 mt-0.5">
                                                 {overdue}
-                                                <span className="text-[8px] font-semibold text-amber-600 ml-1">
-                                                  Clients
+                                                <span className="text-[11px] font-semibold text-amber-600 ml-1">
+                                                  {overdue === '1' ? 'Client' : 'Clients'}
                                                 </span>
                                               </p>
                                             </div>
 
                                             {/* Paid */}
-                                            <div className="rounded-lg bg-emerald-50/70 border border-emerald-100 px-2.5 py-2">
-                                              <p className="text-[8px] font-bold uppercase tracking-wider text-emerald-700">
+                                            <div className="rounded-xl bg-emerald-50/70 border border-emerald-100 px-3 py-2.5">
+                                              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                                                 Paid
                                               </p>
-                                              <p className="text-[12px] font-black text-emerald-700 mt-0.5">
+                                              <p className="text-base font-black text-emerald-700 mt-0.5">
                                                 {paid}
-                                                <span className="text-[8px] font-semibold text-emerald-600 ml-1">
-                                                  Clients
+                                                <span className="text-[11px] font-semibold text-emerald-600 ml-1">
+                                                  {paid === '1' ? 'Client' : 'Clients'}
                                                 </span>
                                               </p>
                                             </div>
@@ -1946,15 +2057,15 @@ export default function FloatingRobot({
 
                                   {/* Blink Insight */}
                                   {summary.insight && (
-                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-3 py-2.5">
                                       <div className="flex items-center gap-1.5 mb-0.5">
-                                        <Zap size={10} className="text-[#20B8BE]" />
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <Zap size={12} className="text-[#20B8BE]" />
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Blink Insight
                                         </span>
                                       </div>
 
-                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                      <p className="text-[13px] text-slate-700 leading-relaxed">
                                         {summary.insight}
                                       </p>
                                     </div>
@@ -1962,15 +2073,15 @@ export default function FloatingRobot({
 
                                   {/* Next Best Action */}
                                   {summary.nextBestAction && (
-                                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
+                                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
                                       <div className="flex items-center gap-1.5 mb-0.5">
-                                        <ArrowRight size={10} className="text-[#20B8BE]" />
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <ArrowRight size={12} className="text-[#20B8BE]" />
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Next Best Action
                                         </span>
                                       </div>
 
-                                      <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
+                                      <p className="text-[13px] text-slate-700 font-semibold leading-relaxed">
                                         {summary.nextBestAction}
                                       </p>
                                     </div>
@@ -1982,132 +2093,100 @@ export default function FloatingRobot({
                         ) : activeActionId === 'rewrite' ? (
                             (() => {
                               const rewrite = parseRewriteResponse(aiResponse || '');
+                              const isWriting = uiState === 'processing';
+                              const infoLines = (rewrite.importantInformation || '')
+                                .split('\n')
+                                .map((l) => l.replace(/^[•*\-\s]+/, '').trim());
+                              const field = (label: string) =>
+                                infoLines.find((l) => l.toLowerCase().startsWith(label))?.replace(/^[^:]+:\s*/, '') || '';
+                              const clientName = field('client:') || 'Selected client';
+                              const amount = field('amount due:');
+                              const daysRaw = field('days overdue:');
+                              const timing = /^\d+$/.test(daysRaw)
+                                ? `${daysRaw} ${daysRaw === '1' ? 'day' : 'days'} overdue`
+                                : daysRaw;
+                              const tone = field('tone:');
+                              const { subject, body } = splitEmailText(rewrite.message || '');
+                              const sentHere = sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId;
 
                               return (
-                                <div className="space-y-2.5 text-left">
+                                <div className="space-y-3 text-left">
 
-                                  {/* Header */}
+                                  {/* Title (same on every command) */}
                                   <div className="flex items-center gap-1.5 px-1">
-                                    <Clock size={13} className="text-[#20B8BE]" />
-                                    <span className="text-[11px] font-black text-slate-900">
-                                      Rewrite Reminder
-                                    </span>
+                                    <Clock size={14} className="text-[#20B8BE]" />
+                                    <span className="text-[13px] font-bold text-slate-900">Rewrite Reminder</span>
                                   </div>
 
-                                  {/* Quick Summary */}
-                                  {rewrite.quickSummary && (
-                                    <div className="px-1">
-                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92]">
-                                      Quick Summary
-                                      </p>
+                                  {/* Client + the coloured cards */}
+                                  <p className="text-sm font-bold text-slate-900 truncate px-1">{clientName}</p>
+                                  {(amount || timing || tone) && renderStatTiles([
+                                    { label: 'Amount due', value: amount || '—', tone: 'blue', wide: true },
+                                    {
+                                      label: /overdue/i.test(timing) ? 'Overdue' : 'Status',
+                                      value: /^\d+$/.test(daysRaw) ? daysRaw : (timing ? timing.charAt(0).toUpperCase() + timing.slice(1) : '—'),
+                                      unit: /^\d+$/.test(daysRaw) ? plural(Number(daysRaw), 'day') : undefined,
+                                      tone: /^\d+$/.test(daysRaw) && Number(daysRaw) > 0 ? 'amber' : 'emerald',
+                                    },
+                                    { label: 'Tone', value: tone || '—', tone: 'slate' },
+                                  ])}
 
-                                      <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">
-                                        {rewrite.quickSummary}
-                                      </p>
+                                  {/* Rewritten email */}
+                                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-[#245B92]">
+                                      <Mail size={13} /> Fresh email
                                     </div>
-                                  )}
-
-                                  {/* Important Information */}
-                                  {rewrite.importantInformation && (
-                                    <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2">
-                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92] mb-1">
-                                        Important Information
-                                      </p>
-
-                                      <div className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap">
-                                        {rewrite.importantInformation}
+                                    {rewrite.message ? (
+                                      <div className="max-h-[32vh] sm:max-h-[190px] overflow-y-auto scroll-smooth">
+                                        <p className="text-xs font-bold text-slate-900 mb-1.5">{subject}</p>
+                                        <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{body}</p>
                                       </div>
-                                    </div>
-                                  )}
-
-                                  {/* Rewritten Reminder */}
-                                  {rewrite.message && (
-                                    <div className="rounded-lg bg-blue-50/60 border border-blue-100 px-2.5 py-2">
-
-                                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                                        <div className="flex items-center gap-1.5">
-                                          <Mail size={11} className="text-[#245B92]" />
-
-                                          <span className="text-[8px] font-black uppercase tracking-wider text-[#245B92]">
-                                            Rewritten Reminder
-                                          </span>
-                                        </div>
-
-                                        <span className="text-[8px] font-bold text-[#245B92]">
-                                          Ready
-                                        </span>
+                                    ) : isWriting ? (
+                                      <div className="space-y-2" aria-hidden="true">
+                                        <div className="blink-skeleton h-3 w-1/2" />
+                                        <div className="blink-skeleton h-2.5 w-full" />
+                                        <div className="blink-skeleton h-2.5 w-11/12" />
+                                        <div className="blink-skeleton h-2.5 w-3/4" />
                                       </div>
+                                    ) : (
+                                      <p className="text-xs text-slate-400">Couldn&apos;t write it this time. Tap Rewrite again.</p>
+                                    )}
+                                  </div>
 
-                                      <div className="text-[10px] text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[18vh] sm:max-h-[120px] overflow-y-auto scroll-smooth">
-                                        {rewrite.message}
-                                      </div>
-
-                                      <div className="flex gap-1.5 mt-2">
-                                        <button
-                                          onClick={() => copyRewriteMessage(aiResponse || '')}
-                                          className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
-                                        >
-                                          {copied ? <Check size={10} /> : <Copy size={10} />}
-                                          {copied ? 'Copied' : 'Copy Reminder'}
-                                        </button>
-
-                                        <button
-                                          onClick={() => sendReminder('email', rewrite.message)}
-                                          disabled={markingSent}
-                                          className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-[9px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                                            sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId
-                                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                              : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90'
-                                          }`}
-                                        >
-                                          {sentChannel?.channel === 'email' && sentChannel.clientId === selectedClientId ? (
-                                            <><CheckCircle2 size={11} /> Sent</>
-                                          ) : (
-                                            <><Mail size={11} /> Send email</>
-                                          )}
-                                        </button>
-                                      </div>
-
-                                    </div>
-                                  )}
-
-                                  {/* Blink Recommendation */}
+                                  {/* Why this tone */}
                                   {rewrite.recommendation && (
-                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
-
-                                      <div className="flex items-center gap-1.5 mb-0.5">
-                                        <Zap size={10} className="text-[#20B8BE]" />
-
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
-                                          Blink Recommendation
-                                        </span>
-                                      </div>
-
-                                      <p className="text-[10px] text-slate-700 leading-relaxed">
-                                        {rewrite.recommendation}
-                                      </p>
-
+                                    <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-[#20B8BE]/5 border-l-2 border-[#20B8BE]">
+                                      <Sparkles size={13} className="text-[#20B8BE] mt-0.5 shrink-0" />
+                                      <p className="text-[13px] text-slate-700 leading-snug">{rewrite.recommendation}</p>
                                     </div>
                                   )}
 
-                                  {/* Next Best Action */}
-                                  {rewrite.nextBestAction && (
-                                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
-
-                                      <div className="flex items-center gap-1.5 mb-0.5">
-                                        <ArrowRight size={10} className="text-[#20B8BE]" />
-
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
-                                          Next Best Action
-                                        </span>
-                                      </div>
-
-                                      <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
-                                        {rewrite.nextBestAction}
-                                      </p>
-
-                                    </div>
-                                  )}
+                                  {/* Actions */}
+                                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                                    <motion.button
+                                      whileTap={{ scale: 0.98 }}
+                                      onClick={() => sendReminder('email', rewrite.message)}
+                                      disabled={markingSent || isWriting || !rewrite.message}
+                                      className={`py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                        sentHere
+                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                          : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:opacity-90'
+                                      }`}
+                                    >
+                                      {sentHere ? <><CheckCircle2 size={15} /> Sent</> : isWriting ? <><Loader2 size={15} className="animate-spin" /> Writing…</> : <><Mail size={15} /> Send email</>}
+                                    </motion.button>
+                                    <button
+                                      onClick={async () => {
+                                        await copyRewriteMessage(aiResponse || '');
+                                        setCopiedWhich('rewrite');
+                                        setTimeout(() => setCopiedWhich(null), 1800);
+                                      }}
+                                      disabled={isWriting || !rewrite.message}
+                                      className="px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {copiedWhich === 'rewrite' ? <><Check size={13} className="text-emerald-500" /> Copied</> : <><Copy size={13} /> Copy</>}
+                                    </button>
+                                  </div>
 
                                 </div>
                               );
@@ -2121,20 +2200,35 @@ export default function FloatingRobot({
 
                                   {/* Header */}
                                   <div className="flex items-center gap-1.5 px-1">
-                                    <Users size={13} className="text-[#20B8BE]" />
-                                    <span className="text-[11px] font-black text-slate-900">
+                                    <Users size={14} className="text-[#20B8BE]" />
+                                    <span className="text-[13px] font-bold text-slate-900">
                                       Find Overdue Clients
                                     </span>
                                   </div>
 
+                                  {/* The coloured cards */}
+                                  {(() => {
+                                    const lateClients = clients.filter(
+                                      (c: any) => c.status === 'Pending' && (daysLateFor(c.dueDate) ?? 0) > 0
+                                    );
+                                    const longest = lateClients.reduce(
+                                      (max: number, c: any) => Math.max(max, daysLateFor(c.dueDate) ?? 0), 0
+                                    );
+                                    return renderStatTiles([
+                                      { label: 'Overdue amount', value: lateClients.length ? formatTotalsByCurrency(lateClients) : formatAmountWithCurrency(0, 'INR'), tone: 'blue', wide: true },
+                                      { label: 'Overdue', value: String(lateClients.length), unit: plural(lateClients.length, 'Client'), tone: 'amber' },
+                                      { label: 'Longest wait', value: String(longest), unit: plural(longest, 'day'), tone: longest >= 21 ? 'rose' : 'slate' },
+                                    ]);
+                                  })()}
+
                                   {/* Quick Summary */}
                                   {overdue.quickSummary && (
                                     <div className="px-1">
-                                      <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92]">
+                                      <p className="text-xs font-black uppercase tracking-wider text-[#245B92]">
                                       Quick Summary
                                       </p>
 
-                                      <p className="text-[10px] text-slate-600 leading-relaxed mt-0.5">
+                                      <p className="text-[13px] text-slate-600 leading-relaxed mt-0.5">
                                         {overdue.quickSummary}
                                       </p>
                                     </div>
@@ -2144,32 +2238,34 @@ export default function FloatingRobot({
                                   {overdue.priorities.length > 0 && (
                                   <div className="space-y-1.5">
 
-                                    <p className="text-[9px] font-black uppercase tracking-wider text-[#245B92] px-1">
+                                    <p className="text-xs font-black uppercase tracking-wider text-[#245B92] px-1">
                                       Overdue Recovery Queue
                                     </p>
 
                                     {overdue.priorities.map((priority: any) => (
                                       <div
                                         key={priority.number}
-                                        className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-2"
+                                        className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5"
                                       >
 
                                         {/* Client header */}
                                         <div className="flex items-center justify-between gap-2">
 
                                           <div className="flex items-center gap-1.5 min-w-0">
-                                            <span className="shrink-0 text-[8px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                            <span className="shrink-0 text-[11px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
                                               #{priority.number}
                                             </span>
 
-                                            <p className="text-[10px] font-black text-slate-900 truncate">
+                                            <p className="text-[13px] font-black text-slate-900 truncate">
                                               {priority.client || 'Client'}
                                             </p>
                                           </div>
 
                                           {priority.recoveryStage && (
-                                            <span className="shrink-0 text-[8px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded-full">
-                                              {priority.recoveryStage}
+                                            <span className="shrink-0 text-[11px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full">
+                                              {({ first: 'First reminder', second: 'Follow-up', final: 'Final reminder', stalled: 'Stalled' } as Record<string, string>)[
+                                                String(priority.recoveryStage).split(' ')[0].toLowerCase()
+                                              ] || priority.recoveryStage}
                                             </span>
                                           )}
 
@@ -2179,7 +2275,7 @@ export default function FloatingRobot({
                                         <div className="flex items-center gap-1.5 mt-1.5">
 
                                           {priority.amount && (
-                                            <span className="text-[9px] font-bold text-slate-700">
+                                            <span className="text-xs font-bold text-slate-700">
                                               {/^\d/.test(priority.amount.trim())
                                                 ? `₹${priority.amount}`
                                                 : priority.amount}
@@ -2187,8 +2283,8 @@ export default function FloatingRobot({
                                           )}
 
                                           {priority.daysOverdue && (
-                                            <span className="text-[8px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                                              {priority.daysOverdue} days overdue
+                                            <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                              {priority.daysOverdue} {String(priority.daysOverdue).trim() === '1' ? 'day' : 'days'} overdue
                                             </span>
                                           )}
 
@@ -2196,7 +2292,7 @@ export default function FloatingRobot({
 
                                         {/* Company */}
                                         {priority.company && priority.company !== 'N/A' && (
-                                          <p className="text-[8px] text-slate-400 mt-1 truncate">
+                                          <p className="text-[11px] text-slate-400 mt-1 truncate">
                                             {priority.company}
                                           </p>
                                         )}
@@ -2204,11 +2300,11 @@ export default function FloatingRobot({
                                         {/* Why it matters */}
                                         {priority.why && (
                                           <div className="mt-1.5">
-                                            <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">
+                                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
                                               Why It Matters
                                             </p>
 
-                                            <p className="text-[9px] text-slate-600 leading-relaxed mt-0.5">
+                                            <p className="text-xs text-slate-600 leading-relaxed mt-0.5">
                                               {priority.why}
                                             </p>
                                           </div>
@@ -2217,11 +2313,11 @@ export default function FloatingRobot({
                                         {/* Recommended action */}
                                         {priority.action && (
                                           <div className="mt-1.5 border-l-2 border-[#20B8BE] pl-2">
-                                            <p className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                            <p className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
                                               Recommended Action
                                             </p>
 
-                                            <p className="text-[9px] text-slate-700 font-semibold leading-relaxed mt-0.5">
+                                            <p className="text-xs text-slate-700 font-semibold leading-relaxed mt-0.5">
                                               {priority.action}
                                             </p>
                                           </div>
@@ -2231,13 +2327,15 @@ export default function FloatingRobot({
                                         {priority.client && (
                                           <button
                                             onClick={() => {
-                                              const matchedClient = activeClients.find(
-                                                (client: any) =>
-                                                  client.name?.toLowerCase() ===
-                                                  priority.client?.toLowerCase()
-                                              );
+                                              const matchedClient =
+                                                activeClients.find((client: any) => priority.clientId && client.id === priority.clientId) ||
+                                                activeClients.find(
+                                                  (client: any) =>
+                                                    client.name?.toLowerCase() === priority.client?.toLowerCase()
+                                                );
 
                                               if (matchedClient) {
+                                                setReturnTo({ actionId: 'overdue', name: 'Find Overdue Clients', response: aiResponse || '' });
                                                 setSelectedClientId(matchedClient.id);
                                                 setAiResponse(null);
 
@@ -2248,9 +2346,9 @@ export default function FloatingRobot({
                                                 );
                                               }
                                             }}
-                                            className="w-full mt-2 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                                            className="w-full mt-2 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer"
                                           >
-                                            <Sparkles size={10} className="text-[#20B8BE]" />
+                                            <Sparkles size={12} className="text-[#20B8BE]" />
                                             Generate Follow-up
                                           </button>
                                         )}
@@ -2263,17 +2361,17 @@ export default function FloatingRobot({
 
                                   {/* Blink Recommendation */}
                                   {overdue.recommendation && (
-                                    <div className="rounded-lg bg-teal-50/60 border border-teal-100 px-2.5 py-2">
+                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-3 py-2.5">
 
                                       <div className="flex items-center gap-1.5 mb-0.5">
-                                        <Zap size={10} className="text-[#20B8BE]" />
+                                        <Zap size={12} className="text-[#20B8BE]" />
 
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Blink Recommendation
                                         </span>
                                       </div>
 
-                                      <p className="text-[10px] text-slate-700 leading-relaxed">
+                                      <p className="text-[13px] text-slate-700 leading-relaxed">
                                         {overdue.recommendation}
                                       </p>
 
@@ -2282,17 +2380,17 @@ export default function FloatingRobot({
 
                                   {/* Next Best Action */}
                                   {overdue.nextBestAction && (
-                                    <div className="rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-2">
+                                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
 
                                       <div className="flex items-center gap-1.5 mb-0.5">
-                                        <ArrowRight size={10} className="text-[#20B8BE]" />
+                                        <ArrowRight size={12} className="text-[#20B8BE]" />
 
-                                        <span className="text-[8px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Next Best Action
                                         </span>
                                       </div>
 
-                                      <p className="text-[10px] text-slate-700 font-semibold leading-relaxed">
+                                      <p className="text-[13px] text-slate-700 font-semibold leading-relaxed">
                                         {overdue.nextBestAction}
                                       </p>
 
@@ -2303,7 +2401,7 @@ export default function FloatingRobot({
                               );
                             })()
                         ) : (
-                          <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 text-[10px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto scroll-smooth">
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[13px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto scroll-smooth">
                             {aiResponse}
                           </div>
                         )}
@@ -2321,24 +2419,17 @@ export default function FloatingRobot({
                           selectedClientId || undefined
                         )
                       }
-                      className="flex-1 py-1.5 px-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                      className="flex-1 py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer"
                     >
-                      <RefreshCw size={10} className="text-[#20B8BE]" />
+                      <RefreshCw size={12} className="text-[#20B8BE]" />
                       Regenerate
                     </button>
                     <button
-                      onClick={() => {
-                        setAiResponse(null);
-                        setActiveActionName(null);
-                        setActiveActionId(null);
-                        setSelectedClientId(null);
-                        setClientPickerAction(null);
-                        setAllClientsPaid(false);
-                      }}
-                      className="flex-1 py-1.5 px-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1 cursor-pointer"
+                      onClick={goBack}
+                      className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer"
                     >
-                      <ArrowLeft size={10} />
-                      Back
+                      <ArrowLeft size={12} />
+                      {returnTo ? 'Back to list' : 'Back'}
                     </button>
                   </div>
                 )}
@@ -2347,11 +2438,11 @@ export default function FloatingRobot({
                   <div className="grid grid-cols-2 gap-1.5 pt-1">
                   {activeActionId === 'summarize' && (
                     <>
-                      <button onClick={handleCopy} className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                      <button onClick={handleCopy} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
                       {copied ? <Check size={11} className="text-emerald-400" /> : <Download size={11} />}
                       {copied ? 'Copied!' : 'Export Summary'}
                       </button>
-                      <button onClick={() => handleActionClick('summarize', 'Outstanding Summary', selectedClientId || undefined)} className="flex-1 py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer">
+                      <button onClick={() => handleActionClick('summarize', 'Outstanding Summary', selectedClientId || undefined)} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
                       <RefreshCw size={11} className="text-[#20B8BE]" /> Analyze Again
                       </button>
                     </>
@@ -2359,7 +2450,7 @@ export default function FloatingRobot({
 
                   {activeActionId === 'priorities' && (
                     <>
-                      <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2">
+                      <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[13px] transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2">
                       {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy Summary'}
                       </button>
                     </>
@@ -2375,9 +2466,9 @@ export default function FloatingRobot({
                             selectedClientId || undefined
                           )
                         }
-                        className="py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <RefreshCw size={10} className="text-[#20B8BE]" />
+                        <RefreshCw size={12} className="text-[#20B8BE]" />
                         Rewrite Again
                       </button>
 
@@ -2390,9 +2481,9 @@ export default function FloatingRobot({
                           setClientPickerAction(null);
                           setAllClientsPaid(false);
                         }}
-                        className="py-1.5 px-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-2.5 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <ArrowLeft size={10} />
+                        <ArrowLeft size={12} />
                         Back
                       </button>
                     </>
@@ -2402,9 +2493,9 @@ export default function FloatingRobot({
                     <>
                       <button
                         onClick={handleCopy}
-                        className="py-1.5 px-2 rounded-lg bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        {copied ? <Check size={10} /> : <Copy size={10} />}
+                        {copied ? <Check size={12} /> : <Copy size={12} />}
                         {copied ? 'Copied!' : 'Copy List'}
                       </button>
 
@@ -2416,9 +2507,9 @@ export default function FloatingRobot({
                             undefined
                           )
                         }
-                        className="py-1.5 px-2 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[9px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <RefreshCw size={10} className="text-[#20B8BE]" />
+                        <RefreshCw size={12} className="text-[#20B8BE]" />
                         Refresh
                       </button>
                     </>
@@ -2428,7 +2519,7 @@ export default function FloatingRobot({
 
                 <button 
                   onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }}
-                  className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
+                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
                 >
                   <ArrowLeft size={12} /> Back to Quick Actions
                 </button>
@@ -2444,51 +2535,81 @@ export default function FloatingRobot({
                   </p>
                 </div>
 
-                {clients.filter((client: any) => (client.status !== 'Paid' && client.status !== 'Written off')).length === 0 ? (
-                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
-                    <p className="text-[11px] font-bold text-emerald-700">All caught up! 🎉</p>
-                    <p className="text-[10px] text-emerald-600 mt-1">
-                      Every client is marked Paid, so there's nothing to follow up on right now.
-                    </p>
-                  </div>
-                ) : (
-                  clients.filter((client: any) => (client.status !== 'Paid' && client.status !== 'Written off')).map((client: any, index: number) => (
-                  <motion.button
-                    key={client.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.04, type: "spring", stiffness: 320, damping: 26 }}
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      setClientPickerAction(null);
-                      handleActionClick(
-                        clientPickerAction.id,
-                        clientPickerAction.name,
-                        client.id
-                      );
-                    }}
-                    className="w-full text-left p-2.5 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-bold text-[11px] text-slate-800 truncate">
-                        {client.name}
-                      </p>
-                      <p className="text-[9px] text-slate-400 truncate">
-                        {client.company || 'No company'} · {formatAmountWithCurrency(client.amount, client.currency)}
-                      </p>
-                    </div>
+                {(() => {
+                  const all = urgentClients();
+                  const q = pickerSearch.trim().toLowerCase();
+                  const shown = q
+                    ? all.filter((c: any) => `${c.name || ''} ${c.company || ''}`.toLowerCase().includes(q))
+                    : all;
 
-                    <ChevronRight
-                      size={13}
-                      className="text-slate-300 flex-shrink-0"
-                    />
-                  </motion.button>
-                  ))
-                )}
+                  if (all.length === 0) {
+                    return (
+                      <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
+                        <p className="text-[13px] font-bold text-emerald-700">All caught up! 🎉</p>
+                        <p className="text-xs text-emerald-600 mt-1">
+                          Every client is marked Paid, so there's nothing to follow up on right now.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {all.length > 5 && (
+                        <input
+                          type="search"
+                          value={pickerSearch}
+                          onChange={(e) => setPickerSearch(e.target.value)}
+                          placeholder={`Search ${all.length} clients`}
+                          aria-label="Search clients"
+                          className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-[13px] focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20"
+                        />
+                      )}
+
+                      <div className="space-y-1.5 max-h-[46vh] sm:max-h-[300px] overflow-y-auto">
+                        {shown.length === 0 && (
+                          <p className="text-xs text-slate-400 text-center py-4">No client matches &quot;{pickerSearch}&quot;.</p>
+                        )}
+                        {shown.map((client: any, index: number) => {
+                          const late = daysLateFor(client.dueDate) ?? 0;
+                          return (
+                            <motion.button
+                              key={client.id}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              // Only the first few rows animate in, so long lists stay quick.
+                              transition={{ delay: Math.min(index, 6) * 0.03, duration: 0.18 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                const action = clientPickerAction;
+                                setClientPickerAction(null);
+                                setPickerSearch('');
+                                if (action) handleActionClick(action.id, action.name, client.id);
+                              }}
+                              className="w-full text-left px-3 py-2.5 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                            >
+                              <div className="min-w-0">
+                                <p className="font-bold text-[13px] text-slate-800 truncate">{client.name}</p>
+                                <p className="text-xs text-slate-500 truncate">
+                                  {formatAmountWithCurrency(client.amount, client.currency)}
+                                  {client.company ? ` · ${client.company}` : ''}
+                                </p>
+                              </div>
+                              <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                late > 0 ? 'bg-amber-50 text-amber-700' : late === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {timingLabel(client)}
+                              </span>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  );
+                })()}
 
                 <button
-                  onClick={() => setClientPickerAction(null)}
+                  onClick={() => { setClientPickerAction(null); setPickerSearch(''); }}
                   className="w-full py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer"
                 >
                   <ArrowLeft size={12} className="inline mr-1" />
@@ -2516,9 +2637,15 @@ export default function FloatingRobot({
                     whileHover={{ y: -2 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => {
+                      setReturnTo(null);
                       const clientSpecificActions = ['recommend', 'rewrite'];
+                      const unpaid = urgentClients();
 
-                      if (clientSpecificActions.includes(act.id) && clients.length > 0) {
+                      if (clientSpecificActions.includes(act.id) && unpaid.length === 1) {
+                        // Only one unpaid client: no need to pick, go straight to it.
+                        handleActionClick(act.id, act.name, unpaid[0].id);
+                      } else if (clientSpecificActions.includes(act.id) && unpaid.length > 1) {
+                        setPickerSearch('');
                         setClientPickerAction({
                           id: act.id,
                           name: act.name,

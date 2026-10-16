@@ -130,6 +130,8 @@ export default function DashboardPage() {
 
   const [robotAction, setRobotAction] = useState<string | null>(null);
   const [robotActionClientId, setRobotActionClientId] = useState<string | null>(null);
+  // Goes up on every button press, so the same button works twice in a row.
+  const [robotActionNonce, setRobotActionNonce] = useState(0);
 
   // First-invoice form shown to new users with no clients yet.
   const [firstName, setFirstName] = useState('');
@@ -405,6 +407,7 @@ export default function DashboardPage() {
       return;
     }
     setRobotAction('summarize');
+    setRobotActionNonce((n) => n + 1);
   };
 
   const recommendation = clients.filter(c => c.status === 'Pending').sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0)).pop();
@@ -1169,6 +1172,7 @@ export default function DashboardPage() {
         isPro={isPro}
         externalAction={robotAction}
         externalActionClientId={robotActionClientId}
+        externalActionNonce={robotActionNonce}
         onProcessingChange={setIsRobotProcessing}
         recommendation={recommendation ? { id: recommendation.id, name: recommendation.name, amount: recommendation.amount, currency: recommendation.currency, daysOverdue: getRecommendationDaysOverdue(recommendation) } : null} 
         onOpenAddClient={() => { setClientToEdit(null); setIsModalOpen(true); }}
@@ -1639,6 +1643,7 @@ export default function DashboardPage() {
                                 }
                                 setRobotActionClientId(c.id);
                                 setRobotAction('recommend');
+                                setRobotActionNonce((n) => n + 1);
                               }}
                               className="w-full sm:w-auto bg-[#0F172A] text-white px-6 py-3 rounded-xl font-bold text-sm shadow-xs hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
                               suppressHydrationWarning={true}
@@ -2081,7 +2086,7 @@ export default function DashboardPage() {
                               {isPro && (
                                 <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
                                   <button 
-                                    onClick={() => { setRobotActionClientId(c.id); setRobotAction('recommend'); }} 
+                                    onClick={() => { setRobotActionClientId(c.id); setRobotAction('recommend'); setRobotActionNonce((n) => n + 1); }} 
                                     className="text-xs font-bold text-[#245B92] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
                                     suppressHydrationWarning={true}
                                   >
