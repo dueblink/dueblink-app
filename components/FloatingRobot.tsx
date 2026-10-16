@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { auth, db } from '@/lib/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Brain, X, Sparkles, BarChart3, Clock, ArrowRight, Users, ChevronRight, Zap, ArrowLeft, Loader2, Copy, Check, Download, RefreshCw, UserPlus, Mail, MessageCircle, CheckCircle2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { formatAmountWithCurrency, formatTotalsByCurrency } from '@/lib/reminderRules';
 
 // Landing page sections Blink reacts to, in the order they appear on the page.
@@ -1270,15 +1270,15 @@ export default function FloatingRobot({
   const renderStatTiles = (
     tiles: { label: string; value: string; unit?: string; tone: TileTone; wide?: boolean }[]
   ) => (
-    <div className="grid grid-cols-2 gap-1.5">
+    <div className={`grid gap-1.5 ${tiles.some((t) => t.wide) ? 'grid-cols-2' : 'grid-cols-3'}`}>
       {tiles.map((t) => {
         const st = TILE_STYLES[t.tone];
         return (
-          <div key={t.label} className={`rounded-xl border px-3 py-2.5 ${st.box} ${t.wide ? 'col-span-2' : ''}`}>
-            <p className={`text-[11px] font-bold uppercase tracking-wider ${st.label}`}>{t.label}</p>
-            <p className={`text-base font-black mt-0.5 break-words ${st.value}`}>
+          <div key={t.label} className={`rounded-xl border px-2.5 py-2 min-w-0 ${st.box} ${t.wide ? 'col-span-2' : ''}`}>
+            <p className={`text-[9px] font-bold uppercase tracking-wider truncate ${st.label}`}>{t.label}</p>
+            <p className={`text-sm font-black mt-0.5 leading-tight break-words ${st.value}`}>
               {t.value}
-              {t.unit && <span className={`text-[11px] font-semibold ml-1 ${st.unit}`}>{t.unit}</span>}
+              {t.unit && <span className={`text-[10px] font-semibold ml-1 ${st.unit}`}>{t.unit}</span>}
             </p>
           </div>
         );
@@ -1299,6 +1299,7 @@ export default function FloatingRobot({
   const plural = (n: number, word: string) => `${n === 1 ? word : `${word}s`}`;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div 
       className={`blink-widget-root fixed z-[900] flex flex-col items-end gap-3 transition-all duration-200 ease-in-out ${positioningClass}`}
       suppressHydrationWarning={true}
@@ -1321,6 +1322,21 @@ export default function FloatingRobot({
         @keyframes blinkDot {
           0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
           40% { transform: translateY(-5px); opacity: 1; }
+        }
+        /* People who turn on "reduce motion" get a still screen. */
+        @media (prefers-reduced-motion: reduce) {
+          .blink-widget-root .blink-skeleton,
+          .blink-widget-root [style*="blinkDot"],
+          .blink-widget-root .animate-ping,
+          .blink-widget-root .animate-bounce,
+          .blink-widget-root .animate-pulse { animation: none !important; }
+        }
+        /* Clear keyboard focus ring on every Blink button and field. */
+        .blink-widget-root button:focus-visible,
+        .blink-widget-root a:focus-visible,
+        .blink-widget-root input:focus-visible {
+          outline: 2px solid #245B92;
+          outline-offset: 2px;
         }
         .blink-widget-root .overflow-y-auto {
           -webkit-overflow-scrolling: touch;
@@ -1610,7 +1626,7 @@ export default function FloatingRobot({
                                   animate={{ opacity: 1, y: 0 }}
                                   exit={{ opacity: 0, y: -4 }}
                                   transition={{ duration: 0.2 }}
-                                  className="text-xs font-semibold text-slate-600"
+                                  className="text-[11px] font-semibold text-slate-600"
                                 >
                                   {stepText}…
                                 </motion.p>
@@ -1637,6 +1653,8 @@ export default function FloatingRobot({
                         key={`${activeActionId}`}
                         style={{ animation: 'blinkFadeSlideUp 0.4s ease-out' }}
                         className="space-y-3"
+                        aria-busy={uiState === 'processing'}
+                        aria-label={activeActionName || 'Blink answer'}
                       >
                         {activeActionId === 'recommend' ? (
                           (() => {
@@ -1654,7 +1672,7 @@ export default function FloatingRobot({
                               : daysRaw;
                             const stage = field('stage:').replace(/\s*\(.*\)\s*$/, '');
                             const STAGE_LABELS: Record<string, string> = {
-                              first: 'First reminder', second: 'Follow-up', final: 'Final reminder', stalled: 'Stalled',
+                              first: 'First', second: 'Follow-up', final: 'Final', stalled: 'Stalled',
                             };
 
                             const target = clients.find((c: any) => c.id === selectedClientId);
@@ -1672,16 +1690,11 @@ export default function FloatingRobot({
                             return (
                               <div className="space-y-3 text-left">
 
-                                {/* Title (same on every command) */}
-                                <div className="flex items-center gap-1.5 px-1">
-                                  <Brain size={14} className="text-[#20B8BE]" />
-                                  <span className="text-[13px] font-bold text-slate-900">Generate Follow-up</span>
-                                </div>
 
                                 {/* Client + the coloured cards */}
-                                <p className="text-sm font-bold text-slate-900 truncate px-1">{clientName}</p>
+                                <p className="text-xs font-bold text-slate-900 truncate px-1">{clientName}</p>
                                 {(amount || timing || stage) && renderStatTiles([
-                                  { label: 'Amount due', value: amount || '—', tone: 'blue', wide: true },
+                                  { label: 'Amount', value: amount || '—', tone: 'blue' },
                                   {
                                     label: /overdue/i.test(timing) ? 'Overdue' : 'Status',
                                     value: /^\d+$/.test(daysRaw) ? daysRaw : (timing ? timing.charAt(0).toUpperCase() + timing.slice(1) : '—'),
@@ -1698,8 +1711,8 @@ export default function FloatingRobot({
                                 {/* Blink's advice */}
                                 {followUp.recommendation ? (
                                   <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-[#20B8BE]/5 border-l-2 border-[#20B8BE]">
-                                    <Sparkles size={13} className="text-[#20B8BE] mt-0.5 shrink-0" />
-                                    <p className="text-[13px] text-slate-700 leading-snug">{followUp.recommendation}</p>
+                                    <Sparkles size={13} className="text-[#20B8BE] mt-0.5 shrink-0" aria-hidden="true" />
+                                    <p className="text-xs text-slate-700 leading-snug">{followUp.recommendation}</p>
                                   </div>
                                 ) : isWriting ? (
                                   <div className="blink-skeleton h-9 w-full rounded-xl" aria-hidden="true" />
@@ -1707,17 +1720,19 @@ export default function FloatingRobot({
 
                                 {/* Message: WhatsApp or Email, one at a time */}
                                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                                  <div className="grid grid-cols-2 text-xs font-bold border-b border-slate-100" role="tablist">
+                                  <div className="grid grid-cols-2 text-[11px] font-bold border-b border-slate-100" role="tablist" aria-label="Message type">
                                     {([
                                       { id: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
                                       { id: 'email', label: 'Email', Icon: Mail },
                                     ] as const).map(({ id, label, Icon }) => (
                                       <button
                                         key={id}
+                                        id={`blink-tab-${id}`}
                                         role="tab"
                                         aria-selected={tab === id}
+                                        aria-controls="blink-followup-panel"
                                         onClick={() => setFollowUpTab(id)}
-                                        className={`relative flex items-center justify-center gap-1.5 py-2.5 transition-colors cursor-pointer ${
+                                        className={`relative flex items-center justify-center gap-1.5 py-2 transition-colors cursor-pointer ${
                                           tab === id ? 'text-[#245B92]' : 'text-slate-400 hover:text-slate-600'
                                         }`}
                                       >
@@ -1732,13 +1747,13 @@ export default function FloatingRobot({
                                     ))}
                                   </div>
 
-                                  <div className="p-3">
+                                  <div className="p-3" id="blink-followup-panel" role="tabpanel" aria-labelledby={`blink-tab-${tab}`}>
                                     {message ? (
                                       <div className="max-h-[32vh] sm:max-h-[190px] overflow-y-auto scroll-smooth">
                                         {tab === 'email' && (
-                                          <p className="text-xs font-bold text-slate-900 mb-1.5">{subject}</p>
+                                          <p className="text-[11px] font-bold text-slate-900 mb-1.5">{subject}</p>
                                         )}
-                                        <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+                                        <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
                                           {tab === 'email' ? body : message}
                                         </p>
                                       </div>
@@ -1749,14 +1764,14 @@ export default function FloatingRobot({
                                         <div className="blink-skeleton h-2.5 w-3/4" />
                                       </div>
                                     ) : (
-                                      <p className="text-xs text-slate-400">No {tab === 'email' ? 'email' : 'WhatsApp message'} this time. Try Rewrite.</p>
+                                      <p className="text-[11px] text-slate-400">No {tab === 'email' ? 'email' : 'WhatsApp message'} this time. Try Rewrite.</p>
                                     )}
 
                                     {tab === 'whatsapp' && !canWhatsApp && message && (
-                                      <p className="text-[11px] text-slate-400 mt-2">No WhatsApp number saved: WhatsApp will ask who to send it to.</p>
+                                      <p className="text-[10px] text-slate-400 mt-2">No WhatsApp number saved: WhatsApp will ask who to send it to.</p>
                                     )}
                                     {tab === 'email' && !canEmail && message && (
-                                      <p className="text-[11px] text-slate-400 mt-2">No email saved for this client: add one with Edit.</p>
+                                      <p className="text-[10px] text-slate-400 mt-2">No email saved for this client: add one with Edit.</p>
                                     )}
                                   </div>
                                 </div>
@@ -1767,20 +1782,20 @@ export default function FloatingRobot({
                                     whileTap={{ scale: 0.98 }}
                                     onClick={() => sendReminder(tab, tab === 'whatsapp' ? followUp.whatsapp : followUp.email)}
                                     disabled={markingSent || isWriting || !message}
-                                    className={`w-full py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    className={`w-full py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                                       sentHere
                                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                         : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:opacity-90'
                                     }`}
                                   >
                                     {sentHere ? (
-                                      <><CheckCircle2 size={15} /> Sent</>
+                                      <><span className="sr-only" role="status">Marked as sent.</span><CheckCircle2 size={13} /> Sent</>
                                     ) : isWriting ? (
-                                      <><Loader2 size={15} className="animate-spin" /> Writing…</>
+                                      <><Loader2 size={13} className="animate-spin" /> Writing…</>
                                     ) : tab === 'whatsapp' ? (
-                                      <><MessageCircle size={15} /> Send on WhatsApp</>
+                                      <><MessageCircle size={13} /> Send on WhatsApp</>
                                     ) : (
-                                      <><Mail size={15} /> Send email</>
+                                      <><Mail size={13} /> Send email</>
                                     )}
                                   </motion.button>
 
@@ -1794,10 +1809,10 @@ export default function FloatingRobot({
                                         animate={{ opacity: 1, y: 0 }}
                                         whileTap={{ scale: 0.98 }}
                                         onClick={() => handleActionClick('recommend', 'Generate Follow-up', next.id)}
-                                        className="w-full py-2.5 px-3 rounded-xl bg-[#245B92]/5 border border-[#245B92]/15 text-[#245B92] text-xs font-bold hover:bg-[#245B92]/10 transition flex items-center justify-between gap-2 cursor-pointer"
+                                        className="w-full py-2 px-3 rounded-xl bg-[#245B92]/5 border border-[#245B92]/15 text-[#245B92] text-[11px] font-bold hover:bg-[#245B92]/10 transition flex items-center justify-between gap-2 cursor-pointer"
                                       >
                                         <span className="truncate">Next: {next.name} · {timingLabel(next)}</span>
-                                        <ArrowRight size={14} className="shrink-0" />
+                                        <ArrowRight size={13} className="shrink-0" />
                                       </motion.button>
                                     );
                                   })()}
@@ -1811,14 +1826,14 @@ export default function FloatingRobot({
                                         setTimeout(() => setCopiedWhich(null), 1800);
                                       }}
                                       disabled={isWriting || !message}
-                                      className="py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       {copiedWhich === `followup-${tab}` ? <><Check size={13} className="text-emerald-500" /> Copied</> : <><Copy size={13} /> Copy</>}
                                     </button>
                                     <button
                                       onClick={() => handleActionClick('rewrite', 'Rewrite Reminder', selectedClientId || undefined)}
                                       disabled={isWriting}
-                                      className="py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       <RefreshCw size={13} className="text-[#20B8BE]" /> Rewrite
                                     </button>
@@ -1835,13 +1850,6 @@ export default function FloatingRobot({
                               return (
                                 <div className="space-y-3 text-left">
 
-                                  {/* Header */}
-                                  <div className="flex items-center gap-1.5 px-1">
-                                    <Zap size={14} className="text-[#20B8BE]" />
-                                    <span className="text-[13px] font-bold text-slate-900">
-                                      Today's Priorities
-                                    </span>
-                                  </div>
 
                                   {/* The coloured cards */}
                                   {(() => {
@@ -1861,22 +1869,22 @@ export default function FloatingRobot({
                                     {priorityData.priorities.map((priority: any) => (
                                       <div
                                         key={priority.number}
-                                        className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5"
+                                        className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2"
                                       >
                                         <div className="flex items-center justify-between gap-2">
 
                                           <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-1.5">
-                                              <span className="text-[11px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                              <span className="text-[10px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
                                                 #{priority.number}
                                               </span>
 
-                                              <p className="text-[13px] font-black text-slate-900 truncate">
+                                              <p className="text-xs font-black text-slate-900 truncate">
                                                 {priority.client || 'Client'}
                                               </p>
                                             </div>
 
-                                            <p className="text-xs text-slate-500 mt-1 truncate">
+                                            <p className="text-[11px] text-slate-500 mt-1 truncate">
                                               {priority.amount &&
                                                 (/^\d/.test(priority.amount.trim())
                                                   ? `₹${priority.amount}`
@@ -1889,7 +1897,7 @@ export default function FloatingRobot({
                                             </p>
 
                                             {priority.action && (
-                                              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                                              <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
                                                 {priority.action}
                                               </p>
                                             )}
@@ -1915,7 +1923,7 @@ export default function FloatingRobot({
                                                 );
                                               }
                                             }}
-                                            className="shrink-0 px-2 py-1.5 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                                            className="shrink-0 px-2 py-1.5 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[10px] transition flex items-center gap-1 cursor-pointer"
                                           >
                                             <Sparkles size={12} className="text-[#20B8BE]" />
                                             Follow-up
@@ -1928,15 +1936,15 @@ export default function FloatingRobot({
 
                                   {/* Today's focus */}
                                   {priorityData.focus && (
-                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-3 py-2.5">
+                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-2.5 py-2">
                                       <div className="flex items-center gap-1.5 mb-1">
                                         <ArrowRight size={12} className="text-[#20B8BE]" />
-                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Today's Focus
                                         </span>
                                       </div>
 
-                                      <p className="text-[13px] text-slate-700 leading-relaxed">
+                                      <p className="text-xs text-slate-700 leading-relaxed">
                                         {priorityData.focus}
                                       </p>
                                     </div>
@@ -1952,21 +1960,14 @@ export default function FloatingRobot({
                               return (
                                 <div className="space-y-2.5 text-left">
 
-                                  {/* Header */}
-                                  <div className="flex items-center gap-1.5 px-1">
-                                    <BarChart3 size={14} className="text-[#20B8BE]" />
-                                    <span className="text-[13px] font-bold text-slate-900">
-                                      Outstanding Summary
-                                    </span>
-                                  </div>
 
                                   {/* Quick Summary */}
                                   {summary.quickSummary && (
                                     <div className="px-1">
-                                      <p className="text-xs font-black uppercase tracking-wider text-[#245B92]">
+                                      <p className="text-[11px] font-black uppercase tracking-wider text-[#245B92]">
                                         Quick Summary
                                       </p>
-                                      <p className="text-[13px] text-slate-600 leading-relaxed mt-0.5">
+                                      <p className="text-xs text-slate-600 leading-relaxed mt-0.5">
                                         {summary.quickSummary}
                                       </p>
                                     </div>
@@ -1976,7 +1977,7 @@ export default function FloatingRobot({
                                   {summary.importantInformation && (
                                     <div className="space-y-1.5">
 
-                                      <p className="text-xs font-black uppercase tracking-wider text-[#245B92] px-1">
+                                      <p className="text-[11px] font-black uppercase tracking-wider text-[#245B92] px-1">
                                         Important Information
                                       </p>
 
@@ -1999,49 +2000,49 @@ export default function FloatingRobot({
                                           <div className="grid grid-cols-2 gap-1.5">
 
                                             {/* Outstanding */}
-                                            <div className="col-span-2 rounded-xl bg-blue-50/70 border border-blue-100 px-3 py-2.5">
-                                              <p className="text-[11px] font-bold uppercase tracking-wider text-[#245B92]">
+                                            <div className="col-span-2 rounded-xl bg-blue-50/70 border border-blue-100 px-2.5 py-2">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-[#245B92]">
                                                 Outstanding
                                               </p>
-                                              <p className="text-base font-black text-[#245B92] mt-0.5 break-words">
+                                              <p className="text-sm font-black text-[#245B92] mt-0.5 break-words">
                                                 {outstanding}
                                               </p>
                                             </div>
 
                                             {/* Pending */}
-                                            <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
-                                              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                            <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                                                 Pending
                                               </p>
-                                              <p className="text-base font-black text-slate-800 mt-0.5">
+                                              <p className="text-sm font-black text-slate-800 mt-0.5">
                                                 {pending}
-                                                <span className="text-[11px] font-semibold text-slate-400 ml-1">
+                                                <span className="text-[10px] font-semibold text-slate-400 ml-1">
                                                   {pending === '1' ? 'Client' : 'Clients'}
                                                 </span>
                                               </p>
                                             </div>
 
                                             {/* Overdue */}
-                                            <div className="rounded-xl bg-amber-50/70 border border-amber-100 px-3 py-2.5">
-                                              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                                            <div className="rounded-xl bg-amber-50/70 border border-amber-100 px-2.5 py-2">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
                                                 Overdue
                                               </p>
-                                              <p className="text-base font-black text-amber-700 mt-0.5">
+                                              <p className="text-sm font-black text-amber-700 mt-0.5">
                                                 {overdue}
-                                                <span className="text-[11px] font-semibold text-amber-600 ml-1">
+                                                <span className="text-[10px] font-semibold text-amber-600 ml-1">
                                                   {overdue === '1' ? 'Client' : 'Clients'}
                                                 </span>
                                               </p>
                                             </div>
 
                                             {/* Paid */}
-                                            <div className="rounded-xl bg-emerald-50/70 border border-emerald-100 px-3 py-2.5">
-                                              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                                            <div className="rounded-xl bg-emerald-50/70 border border-emerald-100 px-2.5 py-2">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                                                 Paid
                                               </p>
-                                              <p className="text-base font-black text-emerald-700 mt-0.5">
+                                              <p className="text-sm font-black text-emerald-700 mt-0.5">
                                                 {paid}
-                                                <span className="text-[11px] font-semibold text-emerald-600 ml-1">
+                                                <span className="text-[10px] font-semibold text-emerald-600 ml-1">
                                                   {paid === '1' ? 'Client' : 'Clients'}
                                                 </span>
                                               </p>
@@ -2057,15 +2058,15 @@ export default function FloatingRobot({
 
                                   {/* Blink Insight */}
                                   {summary.insight && (
-                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-3 py-2.5">
+                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-2.5 py-2">
                                       <div className="flex items-center gap-1.5 mb-0.5">
                                         <Zap size={12} className="text-[#20B8BE]" />
-                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Blink Insight
                                         </span>
                                       </div>
 
-                                      <p className="text-[13px] text-slate-700 leading-relaxed">
+                                      <p className="text-xs text-slate-700 leading-relaxed">
                                         {summary.insight}
                                       </p>
                                     </div>
@@ -2073,15 +2074,15 @@ export default function FloatingRobot({
 
                                   {/* Next Best Action */}
                                   {summary.nextBestAction && (
-                                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
+                                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-2">
                                       <div className="flex items-center gap-1.5 mb-0.5">
                                         <ArrowRight size={12} className="text-[#20B8BE]" />
-                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Next Best Action
                                         </span>
                                       </div>
 
-                                      <p className="text-[13px] text-slate-700 font-semibold leading-relaxed">
+                                      <p className="text-xs text-slate-700 font-semibold leading-relaxed">
                                         {summary.nextBestAction}
                                       </p>
                                     </div>
@@ -2112,16 +2113,11 @@ export default function FloatingRobot({
                               return (
                                 <div className="space-y-3 text-left">
 
-                                  {/* Title (same on every command) */}
-                                  <div className="flex items-center gap-1.5 px-1">
-                                    <Clock size={14} className="text-[#20B8BE]" />
-                                    <span className="text-[13px] font-bold text-slate-900">Rewrite Reminder</span>
-                                  </div>
 
                                   {/* Client + the coloured cards */}
-                                  <p className="text-sm font-bold text-slate-900 truncate px-1">{clientName}</p>
+                                  <p className="text-xs font-bold text-slate-900 truncate px-1">{clientName}</p>
                                   {(amount || timing || tone) && renderStatTiles([
-                                    { label: 'Amount due', value: amount || '—', tone: 'blue', wide: true },
+                                    { label: 'Amount', value: amount || '—', tone: 'blue' },
                                     {
                                       label: /overdue/i.test(timing) ? 'Overdue' : 'Status',
                                       value: /^\d+$/.test(daysRaw) ? daysRaw : (timing ? timing.charAt(0).toUpperCase() + timing.slice(1) : '—'),
@@ -2133,13 +2129,13 @@ export default function FloatingRobot({
 
                                   {/* Rewritten email */}
                                   <div className="rounded-xl border border-slate-200 bg-white p-3">
-                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-[#245B92]">
+                                    <div className="flex items-center gap-1.5 mb-2 text-[11px] font-bold text-[#245B92]">
                                       <Mail size={13} /> Fresh email
                                     </div>
                                     {rewrite.message ? (
                                       <div className="max-h-[32vh] sm:max-h-[190px] overflow-y-auto scroll-smooth">
-                                        <p className="text-xs font-bold text-slate-900 mb-1.5">{subject}</p>
-                                        <p className="text-[13px] text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{body}</p>
+                                        <p className="text-[11px] font-bold text-slate-900 mb-1.5">{subject}</p>
+                                        <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{body}</p>
                                       </div>
                                     ) : isWriting ? (
                                       <div className="space-y-2" aria-hidden="true">
@@ -2149,15 +2145,15 @@ export default function FloatingRobot({
                                         <div className="blink-skeleton h-2.5 w-3/4" />
                                       </div>
                                     ) : (
-                                      <p className="text-xs text-slate-400">Couldn&apos;t write it this time. Tap Rewrite again.</p>
+                                      <p className="text-[11px] text-slate-400">Couldn&apos;t write it this time. Tap Rewrite again.</p>
                                     )}
                                   </div>
 
                                   {/* Why this tone */}
                                   {rewrite.recommendation && (
                                     <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-[#20B8BE]/5 border-l-2 border-[#20B8BE]">
-                                      <Sparkles size={13} className="text-[#20B8BE] mt-0.5 shrink-0" />
-                                      <p className="text-[13px] text-slate-700 leading-snug">{rewrite.recommendation}</p>
+                                      <Sparkles size={13} className="text-[#20B8BE] mt-0.5 shrink-0" aria-hidden="true" />
+                                      <p className="text-xs text-slate-700 leading-snug">{rewrite.recommendation}</p>
                                     </div>
                                   )}
 
@@ -2167,13 +2163,13 @@ export default function FloatingRobot({
                                       whileTap={{ scale: 0.98 }}
                                       onClick={() => sendReminder('email', rewrite.message)}
                                       disabled={markingSent || isWriting || !rewrite.message}
-                                      className={`py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                      className={`py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                                         sentHere
                                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                           : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:opacity-90'
                                       }`}
                                     >
-                                      {sentHere ? <><CheckCircle2 size={15} /> Sent</> : isWriting ? <><Loader2 size={15} className="animate-spin" /> Writing…</> : <><Mail size={15} /> Send email</>}
+                                      {sentHere ? <><CheckCircle2 size={13} /> Sent</> : isWriting ? <><Loader2 size={13} className="animate-spin" /> Writing…</> : <><Mail size={13} /> Send email</>}
                                     </motion.button>
                                     <button
                                       onClick={async () => {
@@ -2182,7 +2178,7 @@ export default function FloatingRobot({
                                         setTimeout(() => setCopiedWhich(null), 1800);
                                       }}
                                       disabled={isWriting || !rewrite.message}
-                                      className="px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="px-4 rounded-xl border border-slate-200 bg-white text-slate-700 text-[11px] font-bold hover:bg-slate-50 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       {copiedWhich === 'rewrite' ? <><Check size={13} className="text-emerald-500" /> Copied</> : <><Copy size={13} /> Copy</>}
                                     </button>
@@ -2198,13 +2194,6 @@ export default function FloatingRobot({
                               return (
                                 <div className="space-y-2.5 text-left">
 
-                                  {/* Header */}
-                                  <div className="flex items-center gap-1.5 px-1">
-                                    <Users size={14} className="text-[#20B8BE]" />
-                                    <span className="text-[13px] font-bold text-slate-900">
-                                      Find Overdue Clients
-                                    </span>
-                                  </div>
 
                                   {/* The coloured cards */}
                                   {(() => {
@@ -2224,11 +2213,11 @@ export default function FloatingRobot({
                                   {/* Quick Summary */}
                                   {overdue.quickSummary && (
                                     <div className="px-1">
-                                      <p className="text-xs font-black uppercase tracking-wider text-[#245B92]">
+                                      <p className="text-[11px] font-black uppercase tracking-wider text-[#245B92]">
                                       Quick Summary
                                       </p>
 
-                                      <p className="text-[13px] text-slate-600 leading-relaxed mt-0.5">
+                                      <p className="text-xs text-slate-600 leading-relaxed mt-0.5">
                                         {overdue.quickSummary}
                                       </p>
                                     </div>
@@ -2238,31 +2227,31 @@ export default function FloatingRobot({
                                   {overdue.priorities.length > 0 && (
                                   <div className="space-y-1.5">
 
-                                    <p className="text-xs font-black uppercase tracking-wider text-[#245B92] px-1">
+                                    <p className="text-[11px] font-black uppercase tracking-wider text-[#245B92] px-1">
                                       Overdue Recovery Queue
                                     </p>
 
                                     {overdue.priorities.map((priority: any) => (
                                       <div
                                         key={priority.number}
-                                        className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5"
+                                        className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2"
                                       >
 
                                         {/* Client header */}
                                         <div className="flex items-center justify-between gap-2">
 
                                           <div className="flex items-center gap-1.5 min-w-0">
-                                            <span className="shrink-0 text-[11px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
+                                            <span className="shrink-0 text-[10px] font-black text-[#245B92] bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full">
                                               #{priority.number}
                                             </span>
 
-                                            <p className="text-[13px] font-black text-slate-900 truncate">
+                                            <p className="text-xs font-black text-slate-900 truncate">
                                               {priority.client || 'Client'}
                                             </p>
                                           </div>
 
                                           {priority.recoveryStage && (
-                                            <span className="shrink-0 text-[11px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full">
+                                            <span className="shrink-0 text-[10px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full">
                                               {({ first: 'First reminder', second: 'Follow-up', final: 'Final reminder', stalled: 'Stalled' } as Record<string, string>)[
                                                 String(priority.recoveryStage).split(' ')[0].toLowerCase()
                                               ] || priority.recoveryStage}
@@ -2275,7 +2264,7 @@ export default function FloatingRobot({
                                         <div className="flex items-center gap-1.5 mt-1.5">
 
                                           {priority.amount && (
-                                            <span className="text-xs font-bold text-slate-700">
+                                            <span className="text-[11px] font-bold text-slate-700">
                                               {/^\d/.test(priority.amount.trim())
                                                 ? `₹${priority.amount}`
                                                 : priority.amount}
@@ -2283,7 +2272,7 @@ export default function FloatingRobot({
                                           )}
 
                                           {priority.daysOverdue && (
-                                            <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
                                               {priority.daysOverdue} {String(priority.daysOverdue).trim() === '1' ? 'day' : 'days'} overdue
                                             </span>
                                           )}
@@ -2292,7 +2281,7 @@ export default function FloatingRobot({
 
                                         {/* Company */}
                                         {priority.company && priority.company !== 'N/A' && (
-                                          <p className="text-[11px] text-slate-400 mt-1 truncate">
+                                          <p className="text-[10px] text-slate-400 mt-1 truncate">
                                             {priority.company}
                                           </p>
                                         )}
@@ -2300,11 +2289,11 @@ export default function FloatingRobot({
                                         {/* Why it matters */}
                                         {priority.why && (
                                           <div className="mt-1.5">
-                                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                                               Why It Matters
                                             </p>
 
-                                            <p className="text-xs text-slate-600 leading-relaxed mt-0.5">
+                                            <p className="text-[11px] text-slate-600 leading-relaxed mt-0.5">
                                               {priority.why}
                                             </p>
                                           </div>
@@ -2313,11 +2302,11 @@ export default function FloatingRobot({
                                         {/* Recommended action */}
                                         {priority.action && (
                                           <div className="mt-1.5 border-l-2 border-[#20B8BE] pl-2">
-                                            <p className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-[#159A9F]">
                                               Recommended Action
                                             </p>
 
-                                            <p className="text-xs text-slate-700 font-semibold leading-relaxed mt-0.5">
+                                            <p className="text-[11px] text-slate-700 font-semibold leading-relaxed mt-0.5">
                                               {priority.action}
                                             </p>
                                           </div>
@@ -2346,7 +2335,7 @@ export default function FloatingRobot({
                                                 );
                                               }
                                             }}
-                                            className="w-full mt-2 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                                            className="w-full mt-2 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center justify-center gap-1 cursor-pointer"
                                           >
                                             <Sparkles size={12} className="text-[#20B8BE]" />
                                             Generate Follow-up
@@ -2361,17 +2350,17 @@ export default function FloatingRobot({
 
                                   {/* Blink Recommendation */}
                                   {overdue.recommendation && (
-                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-3 py-2.5">
+                                    <div className="rounded-xl bg-teal-50/60 border border-teal-100 px-2.5 py-2">
 
                                       <div className="flex items-center gap-1.5 mb-0.5">
                                         <Zap size={12} className="text-[#20B8BE]" />
 
-                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Blink Recommendation
                                         </span>
                                       </div>
 
-                                      <p className="text-[13px] text-slate-700 leading-relaxed">
+                                      <p className="text-xs text-slate-700 leading-relaxed">
                                         {overdue.recommendation}
                                       </p>
 
@@ -2380,17 +2369,17 @@ export default function FloatingRobot({
 
                                   {/* Next Best Action */}
                                   {overdue.nextBestAction && (
-                                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
+                                    <div className="rounded-xl bg-slate-50 border border-slate-200 px-2.5 py-2">
 
                                       <div className="flex items-center gap-1.5 mb-0.5">
                                         <ArrowRight size={12} className="text-[#20B8BE]" />
 
-                                        <span className="text-[11px] font-black uppercase tracking-wider text-[#159A9F]">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-[#159A9F]">
                                           Next Best Action
                                         </span>
                                       </div>
 
-                                      <p className="text-[13px] text-slate-700 font-semibold leading-relaxed">
+                                      <p className="text-xs text-slate-700 font-semibold leading-relaxed">
                                         {overdue.nextBestAction}
                                       </p>
 
@@ -2401,7 +2390,7 @@ export default function FloatingRobot({
                               );
                             })()
                         ) : (
-                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[13px] text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto scroll-smooth">
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words block w-full text-left max-h-[42vh] sm:max-h-[240px] overflow-y-auto scroll-smooth">
                             {aiResponse}
                           </div>
                         )}
@@ -2419,14 +2408,14 @@ export default function FloatingRobot({
                           selectedClientId || undefined
                         )
                       }
-                      className="flex-1 py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                      className="flex-1 py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[11px] transition flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <RefreshCw size={12} className="text-[#20B8BE]" />
                       Regenerate
                     </button>
                     <button
                       onClick={goBack}
-                      className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                      className="flex-1 py-2 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[11px] transition flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <ArrowLeft size={12} />
                       {returnTo ? 'Back to list' : 'Back'}
@@ -2438,11 +2427,11 @@ export default function FloatingRobot({
                   <div className="grid grid-cols-2 gap-1.5 pt-1">
                   {activeActionId === 'summarize' && (
                     <>
-                      <button onClick={handleCopy} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+                      <button onClick={handleCopy} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer">
                       {copied ? <Check size={11} className="text-emerald-400" /> : <Download size={11} />}
                       {copied ? 'Copied!' : 'Export Summary'}
                       </button>
-                      <button onClick={() => handleActionClick('summarize', 'Outstanding Summary', selectedClientId || undefined)} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+                      <button onClick={() => handleActionClick('summarize', 'Outstanding Summary', selectedClientId || undefined)} className="flex-1 py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer">
                       <RefreshCw size={11} className="text-[#20B8BE]" /> Analyze Again
                       </button>
                     </>
@@ -2450,7 +2439,7 @@ export default function FloatingRobot({
 
                   {activeActionId === 'priorities' && (
                     <>
-                      <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[13px] transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2">
+                      <button onClick={handleCopy} className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer col-span-2">
                       {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied!' : 'Copy Summary'}
                       </button>
                     </>
@@ -2466,7 +2455,7 @@ export default function FloatingRobot({
                             selectedClientId || undefined
                           )
                         }
-                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <RefreshCw size={12} className="text-[#20B8BE]" />
                         Rewrite Again
@@ -2481,7 +2470,7 @@ export default function FloatingRobot({
                           setClientPickerAction(null);
                           setAllClientsPaid(false);
                         }}
-                        className="py-2.5 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-2 px-3 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <ArrowLeft size={12} />
                         Back
@@ -2493,7 +2482,7 @@ export default function FloatingRobot({
                     <>
                       <button
                         onClick={handleCopy}
-                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2 rounded-xl bg-blue-50 text-[#245B92] border border-blue-100 hover:bg-blue-100 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         {copied ? <Check size={12} /> : <Copy size={12} />}
                         {copied ? 'Copied!' : 'Copy List'}
@@ -2507,7 +2496,7 @@ export default function FloatingRobot({
                             undefined
                           )
                         }
-                        className="py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="py-1.5 px-2 rounded-xl bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <RefreshCw size={12} className="text-[#20B8BE]" />
                         Refresh
@@ -2519,7 +2508,7 @@ export default function FloatingRobot({
 
                 <button 
                   onClick={() => { setAiResponse(null); setActiveActionName(null); setActiveActionId(null); setSelectedClientId(null); setClientPickerAction(null); }}
-                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
+                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-[11px] hover:bg-slate-50 transition cursor-pointer flex items-center justify-center gap-1 mt-1"
                 >
                   <ArrowLeft size={12} /> Back to Quick Actions
                 </button>
@@ -2545,8 +2534,8 @@ export default function FloatingRobot({
                   if (all.length === 0) {
                     return (
                       <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-center">
-                        <p className="text-[13px] font-bold text-emerald-700">All caught up! 🎉</p>
-                        <p className="text-xs text-emerald-600 mt-1">
+                        <p className="text-xs font-bold text-emerald-700">All caught up! 🎉</p>
+                        <p className="text-[11px] text-emerald-600 mt-1">
                           Every client is marked Paid, so there's nothing to follow up on right now.
                         </p>
                       </div>
@@ -2562,13 +2551,13 @@ export default function FloatingRobot({
                           onChange={(e) => setPickerSearch(e.target.value)}
                           placeholder={`Search ${all.length} clients`}
                           aria-label="Search clients"
-                          className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-[13px] focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20"
+                          className="w-full px-2.5 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20"
                         />
                       )}
 
                       <div className="space-y-1.5 max-h-[46vh] sm:max-h-[300px] overflow-y-auto">
                         {shown.length === 0 && (
-                          <p className="text-xs text-slate-400 text-center py-4">No client matches &quot;{pickerSearch}&quot;.</p>
+                          <p className="text-[11px] text-slate-400 text-center py-4">No client matches &quot;{pickerSearch}&quot;.</p>
                         )}
                         {shown.map((client: any, index: number) => {
                           const late = daysLateFor(client.dueDate) ?? 0;
@@ -2586,16 +2575,16 @@ export default function FloatingRobot({
                                 setPickerSearch('');
                                 if (action) handleActionClick(action.id, action.name, client.id);
                               }}
-                              className="w-full text-left px-3 py-2.5 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                              className="w-full text-left px-2.5 py-2 rounded-xl border border-slate-100 hover:border-[#20B8BE]/50 hover:bg-teal-50/20 transition-colors flex items-center justify-between gap-2 cursor-pointer"
                             >
                               <div className="min-w-0">
-                                <p className="font-bold text-[13px] text-slate-800 truncate">{client.name}</p>
-                                <p className="text-xs text-slate-500 truncate">
+                                <p className="font-bold text-xs text-slate-800 truncate">{client.name}</p>
+                                <p className="text-[11px] text-slate-500 truncate">
                                   {formatAmountWithCurrency(client.amount, client.currency)}
                                   {client.company ? ` · ${client.company}` : ''}
                                 </p>
                               </div>
-                              <span className={`shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                              <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 late > 0 ? 'bg-amber-50 text-amber-700' : late === 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
                               }`}>
                                 {timingLabel(client)}
@@ -2730,5 +2719,6 @@ export default function FloatingRobot({
       <div className="w-full h-full pointer-events-none" style={{ backgroundImage: "url('/anima-bot.svg')", backgroundPosition: 'center', backgroundSize: '120%', backgroundRepeat: 'no-repeat' }} suppressHydrationWarning={true} />
     </motion.button>
    </div>
+    </MotionConfig>
   );
 }
