@@ -78,6 +78,56 @@ export default function BlinkChat({ onClose }: { onClose: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // FULL-SCREEN MODE, used on:
+  // - phones (narrower than 640 px),
+  // - short screens like a phone turned sideways (under 520 px tall),
+  // - touch tablets while the keyboard is open.
+  // The chat then fills the visible area ABOVE the keyboard and follows it
+  // exactly, so the header and messages never slide off the screen.
+  // Everywhere else it's the floating box in the corner.
+  const [mobileBox, setMobileBox] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px), (max-height: 519px)');
+    const coarse = window.matchMedia('(pointer: coarse)');
+    const vv = window.visualViewport;
+    const update = () => {
+      const keyboardOpen = vv ? vv.height < window.innerHeight * 0.8 : false;
+      const fullScreen = mq.matches || (coarse.matches && keyboardOpen);
+      if (!fullScreen) { setMobileBox(null); return; }
+      setMobileBox({
+        top: vv ? vv.offsetTop : 0,
+        height: vv ? vv.height : window.innerHeight,
+      });
+    };
+    update();
+    vv?.addEventListener('resize', update);
+    vv?.addEventListener('scroll', update);
+    mq.addEventListener?.('change', update);
+    window.addEventListener('resize', update);
+    return () => {
+      vv?.removeEventListener('resize', update);
+      vv?.removeEventListener('scroll', update);
+      mq.removeEventListener?.('change', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  // While the full-screen chat is open on a phone, the page behind it
+  // doesn't scroll.
+  const isMobileSheet = mobileBox !== null;
+  useEffect(() => {
+    if (!isMobileSheet) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [isMobileSheet]);
+
+  // Keyboard opened or closed: keep the newest message in view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [mobileBox?.height]);
+
   // Restore this visit's chat (survives a page reload).
   useEffect(() => {
     setMessages(loadSaved());
@@ -195,7 +245,12 @@ export default function BlinkChat({ onClose }: { onClose: () => void }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: 8 }}
       transition={{ type: 'spring', stiffness: 380, damping: 28, mass: 0.7 }}
-      className="bg-white border border-slate-200/90 shadow-2xl rounded-2xl w-[min(330px,calc(100vw-24px))] sm:w-[350px] h-[min(72vh,560px)] flex flex-col overflow-hidden transform-gpu"
+      className={
+        isMobileSheet
+          ? 'fixed left-0 right-0 z-[10] bg-white flex flex-col overflow-hidden'
+          : 'bg-white border border-slate-200/90 shadow-2xl rounded-2xl w-[min(350px,calc(100vw-32px))] lg:w-[370px] h-[min(560px,calc(100vh-230px))] min-h-[280px] flex flex-col overflow-hidden transform-gpu'
+      }
+      style={mobileBox ? { top: mobileBox.top, height: mobileBox.height } : undefined}
       role="dialog"
       aria-label="Chat with Blink"
     >
@@ -240,7 +295,12 @@ export default function BlinkChat({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-slate-50/60" aria-live="polite">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-slate-50/60"
+        style={isMobileSheet ? { paddingInline: 'max(12px, calc((100% - 640px) / 2))' } : undefined}
+        aria-live="polite"
+      >
         {/* Greeting */}
         <div className="flex">
           <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-white border border-slate-100 px-3 py-2 text-[12px] sm:text-[13px] text-slate-700 leading-relaxed shadow-3xs">
@@ -355,6 +415,10 @@ export default function BlinkChat({ onClose }: { onClose: () => void }) {
           ask(input);
         }}
         className="p-2.5 border-t border-slate-100 bg-white flex-shrink-0"
+        style={isMobileSheet ? {
+          paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
+          paddingInline: 'max(10px, calc((100% - 640px) / 2))',
+        } : undefined}
       >
         <div className="blink-chat-input flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 pl-4 pr-1 py-1 transition-colors focus-within:border-[#20B8BE] focus-within:bg-white">
           <input
