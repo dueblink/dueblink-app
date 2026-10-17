@@ -107,6 +107,6 @@ International (outside India, paid by card via Dodo Payments): $9/month or $89/y
 === CONTACT & SUPPORT ===
 - Email: support@dueblink.com. Contact form: /contact.
 - Hours: Monday to Friday, 9:00 AM to 6:00 PM IST. Replies usually within 1 to 2 business days.
-- How automatic reminders work in detail: /help.
+- How automatic reminders work in detail: /help/automated-reminders
 `.trim();
 }

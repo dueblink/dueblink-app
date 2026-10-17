@@ -35,15 +35,42 @@ const LINKS: Record<string, { label: string; href: string }> = {
   refund: { label: 'Refund policy', href: '/refund-policy' },
   privacy: { label: 'Privacy policy', href: '/privacy' },
   terms: { label: 'Terms of service', href: '/terms' },
-  help: { label: 'How reminders work', href: '/help' },
+  help: { label: 'How reminders work', href: '/help/automated-reminders' },
   contact: { label: 'Contact the team', href: '/contact' },
 };
 
 // Splits Blink's reply into the text and its buttons. While the answer
 // is still arriving, a half-written "[[pri" is hidden.
+// Words the AI sometimes leaves next to a button tag ("… pricing page").
+// The button already says it, so they're removed from the end of the reply.
+const LEFTOVER_LABELS = [
+  'pricing page', 'see pricing', 'free reminder generator', 'try free generator', 'create a free account',
+  'create free account', 'free tools', 'refund policy', 'privacy policy', 'terms of service',
+  'how automatic reminders work', 'how reminders work', 'the page explaining automatic reminders',
+  'contact the team', 'contact page', 'click here', 'see below',
+];
+
+function stripLeftoverLabels(text: string): string {
+  let out = text.trimEnd();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const label of LEFTOVER_LABELS) {
+      // Only a stand-alone fragment after a full stop or on its own line,
+      // so a normal sentence ending is never cut.
+      const re = new RegExp(`(^|[.!?]\\s+|\\n)${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s.:!·|-]*$`, 'i');
+      if (re.test(out)) {
+        out = out.replace(re, '$1').trimEnd();
+        changed = true;
+      }
+    }
+  }
+  return out;
+}
+
 function splitReply(text: string): { body: string; links: string[] } {
   const links: string[] = [];
-  const body = text
+  const raw = text
     .replace(/\[\[\s*([a-z]+)\s*\]\]/gi, (_, id: string) => {
       const key = id.toLowerCase();
       if (LINKS[key] && !links.includes(key)) links.push(key);
@@ -55,6 +82,8 @@ function splitReply(text: string): { body: string; links: string[] } {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+  // Only clean up leftovers when a button was actually added.
+  const body = links.length ? stripLeftoverLabels(raw) : raw;
   return { body, links: links.slice(0, 2) };
 }
 
@@ -334,7 +363,27 @@ export default function BlinkChat({ onClose }: { onClose: () => void }) {
               </div>
             );
           }
-          const { body, links } = splitReply(m.content);
+          const { body, links: rawLinks } = splitReply(m.content);
+          // The same button right after it was just shown (in Blink's previous
+          // answer) is skipped, unless the visitor asked for that page again.
+          const prevAnswer = messages.slice(0, i).reverse().find((x) => x.role === 'assistant');
+          const prevLinks = new Set(prevAnswer ? splitReply(prevAnswer.content).links : []);
+          const askedAgain = (id: string) => {
+            const question = (messages[i - 1]?.role === 'user' ? messages[i - 1].content : '').toLowerCase();
+            const words: Record<string, string[]> = {
+              pricing: ['price', 'pricing', 'plan', 'cost', 'kitna', 'pay'],
+              generator: ['generator', 'try', 'free reminder'],
+              signup: ['sign up', 'signup', 'account', 'register', 'start'],
+              tools: ['tool'],
+              refund: ['refund'],
+              privacy: ['privacy', 'data', 'safe'],
+              terms: ['terms'],
+              help: ['automatic', 'automated', 'how it works'],
+              contact: ['contact', 'support', 'talk', 'email', 'human'],
+            };
+            return (words[id] || []).some((w) => question.includes(w));
+          };
+          const links = rawLinks.filter((id) => !prevLinks.has(id) || askedAgain(id));
           const isLast = i === messages.length - 1;
           return (
             <div key={i} className="flex flex-col items-start gap-1.5">
