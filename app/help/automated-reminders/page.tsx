@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Sparkles, Zap, Menu, X, ChevronDown, ArrowRight, ShieldCheck, Clock, BellRing } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import SiteFooter from '@/components/SiteFooter';
 
 export default function AutomatedRemindersPage() {
   const router = useRouter();
@@ -377,41 +378,7 @@ export default function AutomatedRemindersPage() {
       </section>
 
       {/* --- GLOBAL FOOTER WITH ANIMATION --- */}
-      <motion.footer 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4 }}
-        className="bg-white py-12 border-t border-slate-200 px-6"
-        suppressHydrationWarning={true}
-      >
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-center text-center md:text-left" suppressHydrationWarning={true}>
-            
-          <div className="flex flex-col items-center md:items-start gap-2" suppressHydrationWarning={true}>
-            <div className="h-24 sm:h-32 w-[380px] flex items-center justify-center md:justify-start" suppressHydrationWarning={true}>
-              <Image src="/logo.png" alt="DueBlink Logo" width={380} height={128} className="h-full w-full object-contain object-left" />
-            </div>
-            <div className="text-xs font-bold text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
-              Know who owes you money.<br />Know exactly what to do next.
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs font-bold uppercase tracking-wider text-slate-500" suppressHydrationWarning={true}>
-            <a href="/privacy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Privacy</a>
-            <a href="/terms" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Terms</a>
-            <a href="/refund-policy" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Refunds</a>
-            <a href="/contact" className="text-slate-500 hover:text-black transition-colors" suppressHydrationWarning={true}>Contact</a>
-          </div>
-            
-          <div className="flex flex-col items-center md:items-end gap-1 text-xs font-bold uppercase tracking-wider text-slate-400" suppressHydrationWarning={true}>
-            <a href="mailto:support@dueblink.com" className="text-slate-500 hover:text-black transition-colors normal-case lowercase font-medium" suppressHydrationWarning={true}>
-              support@dueblink.com
-            </a>
-            <span suppressHydrationWarning={true}>© 2026 DueBlink</span>
-          </div>
-            
-        </div>
-      </motion.footer>
+      <SiteFooter />
 
     </div>
   );
