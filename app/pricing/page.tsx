@@ -14,7 +14,11 @@ import {
   EARLY_OFFER,
 } from '@/lib/seasonalPricing';
 import { loadRazorpay } from '@/lib/loadRazorpay';
-import { track } from '@/lib/track';
+import { track, trackOnce } from '@/lib/track';
+
+// Remembers that this browser went to Dodo to pay, so the payment can be
+// counted in Google Analytics when the user comes back here.
+const DODO_PENDING_KEY = 'dueblink_dodo_checkout';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -112,6 +116,83 @@ export default function PricingPage() {
       setWasPro(true);
     }
   }, []);
+
+  // ============================================================
+  // Google Analytics: count an international (Dodo) payment.
+  // Dodo sends the user back to this page after paying. Dodo then tells
+  // our server (webhook), which turns on Pro. Here we wait for that
+  // (checking every 5 seconds, for up to 1 minute) and send "purchase"
+  // to Google Analytics once. Only a webhook that arrived AFTER this
+  // checkout started counts, so closing Dodo without paying counts nothing.
+  // ============================================================
+  useEffect(() => {
+    if (!user) return;
+
+    let pending: { at: number; billingCycle: string } | null = null;
+    try {
+      pending = JSON.parse(localStorage.getItem(DODO_PENDING_KEY) || 'null');
+    } catch {
+      pending = null;
+    }
+    if (!pending || typeof pending.at !== 'number') return;
+
+    // Older than 3 hours: forget it.
+    if (Date.now() - pending.at > 3 * 60 * 60 * 1000) {
+      try { localStorage.removeItem(DODO_PENDING_KEY); } catch {}
+      return;
+    }
+
+    const startedAt = pending.at;
+    const pendingCycle = pending.billingCycle;
+    let tries = 0;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const check = async () => {
+      if (stopped) return;
+      tries += 1;
+
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        const data: any = snap.exists() ? snap.data() : null;
+        const subscriptionId = data?.dodoSubscriptionId ? String(data.dodoSubscriptionId) : '';
+        const webhookAt: Date | null = data?.dodoLastWebhookAt?.toDate ? data.dodoLastWebhookAt.toDate() : null;
+        const paidNow = !!data?.isPro && !!subscriptionId && !!webhookAt && webhookAt.getTime() >= startedAt - 60 * 1000;
+
+        if (paidNow && !stopped) {
+          const cycle = data.billingCycle === 'yearly' || pendingCycle === 'yearly' ? 'yearly' : 'monthly';
+
+          trackOnce(`purchase_${subscriptionId}`, 'purchase', {
+            transaction_id: subscriptionId,
+            value: cycle === 'yearly' ? 89 : 9,
+            currency: 'USD',
+            billing_cycle: cycle,
+            region: 'international',
+          });
+
+          try {
+            localStorage.removeItem(DODO_PENDING_KEY);
+            localStorage.setItem('dueblink_is_pro', 'true');
+            localStorage.setItem('dueblink_pro_active', 'true');
+          } catch {}
+          setIsUserPro(true);
+          return;
+        }
+      } catch {
+        // network hiccup: try again below
+      }
+
+      if (tries < 12 && !stopped) {
+        timer = setTimeout(check, 5000);
+      }
+    };
+
+    check();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [user]);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -266,6 +347,15 @@ export default function PricingPage() {
         throw new Error(
           data.message || 'Unable to start checkout'
         );
+      }
+
+      try {
+        localStorage.setItem(
+          DODO_PENDING_KEY,
+          JSON.stringify({ at: Date.now(), billingCycle })
+        );
+      } catch {
+        // storage blocked: the payment still works, it just isn't counted in Analytics
       }
 
       window.location.href = data.checkoutUrl;
