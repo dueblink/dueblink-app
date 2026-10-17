@@ -2208,9 +2208,9 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
       >
           {[
-        { label: "Outstanding Amount", val: "₹85,000", border: "#245B92", icon: <Layers className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Clients Awaiting Payment", val: "4", border: "#F59E0B", icon: <Users className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Recovered This Month", val: "₹25,000", border: "#20B8BE", icon: <TrendingUp className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> }
+        { label: "Total Outstanding", val: "₹40,000", note: "Across 2 invoices.", border: "#245B92", color: "#0F172A", icon: <Layers className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
+        { label: "Overdue", val: "₹25,000", note: "1 overdue invoice.", border: "#20B8BE", color: "#0F172A", icon: <AlertTriangle className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
+        { label: "Recovered This Month", val: "₹45,000", note: "1 invoice paid.", border: "#2BB6A8", color: "#2BB6A8", icon: <TrendingUp className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> }
           ].map((stat, i) => (
         <motion.div 
           key={i}
@@ -2225,7 +2225,8 @@ export default function LandingPage() {
           <div className="flex items-center gap-2 text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1" suppressHydrationWarning={true}>
             {stat.icon} {stat.label}
           </div>
-          <p className="text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>{stat.val}</p>
+          <p className="text-3xl font-black tracking-tight" style={{ color: stat.color }} suppressHydrationWarning={true}>{stat.val}</p>
+          <p className="text-xs font-medium text-slate-500 mt-1" suppressHydrationWarning={true}>{stat.note}</p>
         </motion.div>
           ))}
       </motion.div>
@@ -2253,28 +2254,26 @@ export default function LandingPage() {
         </motion.button>
         </div>
              
-        <div className="divide-y divide-slate-100 min-w-[300px]" suppressHydrationWarning={true}>
-        <div className="py-4 flex items-center justify-between gap-4 first:pt-0 last:pb-0" suppressHydrationWarning={true}>
-          <div className="flex items-center gap-3" suppressHydrationWarning={true}>
-            <div style={{ background: '#245B92' }} className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-xs shrink-0" suppressHydrationWarning={true}>AA</div>
-            <div suppressHydrationWarning={true}><h4 className="text-sm font-bold text-slate-800" suppressHydrationWarning={true}>ABC Agency</h4><p className="text-xs text-slate-400 font-medium" suppressHydrationWarning={true}>₹15,000</p></div>
+        {/* Same client cards as the real dashboard */}
+        <div className="space-y-3 min-w-[260px]" suppressHydrationWarning={true}>
+        {[
+          { name: "ABC Agency", status: "Pending", badge: "bg-amber-50 text-amber-600", auto: true, info: "₹15,000 · First reminder · Due in 5 days" },
+          { name: "Growthify Solutions", status: "Overdue", badge: "bg-rose-50 text-rose-600", auto: true, info: "₹25,000 · Follow-up · Last reminder 3 days ago" },
+          { name: "BrightLabs", status: "Paid", badge: "bg-emerald-50 text-emerald-600", auto: false, info: "₹45,000 · Paid this month" }
+        ].map((client, cIdx) => (
+          <div key={cIdx} className="p-4 sm:p-5 border border-slate-100 bg-slate-50/50 rounded-2xl space-y-1" suppressHydrationWarning={true}>
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap" suppressHydrationWarning={true}>
+              <p className="font-bold text-sm sm:text-base text-slate-900" suppressHydrationWarning={true}>{client.name}</p>
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${client.badge}`} suppressHydrationWarning={true}>{client.status}</span>
+              {client.auto && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E8F8F8] text-[#159A9F]" suppressHydrationWarning={true}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#20B8BE]" /> Auto Reminder ON
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 font-medium" suppressHydrationWarning={true}>{client.info}</p>
           </div>
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}><span className="w-1 h-1 rounded-full bg-amber-500" suppressHydrationWarning={true} /> Pending</span>
-        </div>
-        <div className="py-4 flex items-center justify-between gap-4" suppressHydrationWarning={true}>
-          <div className="flex items-center gap-3" suppressHydrationWarning={true}>
-            <div style={{ background: '#0F172A' }} className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-xs shrink-0" suppressHydrationWarning={true}>GS</div>
-            <div suppressHydrationWarning={true}><h4 className="text-sm font-bold text-slate-800" suppressHydrationWarning={true}>Growthify Solutions</h4><p className="text-xs text-slate-400 font-medium" suppressHydrationWarning={true}>₹25,000</p></div>
-          </div>
-          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}><span className="w-1 h-1 rounded-full bg-blue-500" suppressHydrationWarning={true} /> Reminder Sent</span>
-        </div>
-        <div className="py-4 flex items-center justify-between gap-4" suppressHydrationWarning={true}>
-          <div className="flex items-center gap-3" suppressHydrationWarning={true}>
-            <div style={{ background: '#147D75' }} className="w-9 h-9 rounded-full flex items-center justify-center text-white font-black text-xs shrink-0" suppressHydrationWarning={true}>B</div>
-            <div suppressHydrationWarning={true}><h4 className="text-sm font-bold text-slate-800" suppressHydrationWarning={true}>BrightLabs</h4><p className="text-xs text-slate-400 font-medium" suppressHydrationWarning={true}>₹45,000</p></div>
-          </div>
-          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0" suppressHydrationWarning={true}><span className="w-1 h-1 rounded-full bg-emerald-500" suppressHydrationWarning={true} /> Paid</span>
-        </div>
+        ))}
         </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 text-center text-xs font-bold text-slate-500" suppressHydrationWarning={true}>
@@ -2320,7 +2319,7 @@ export default function LandingPage() {
       <div className="space-y-2.5" suppressHydrationWarning={true}>
         <div className="flex justify-center select-none" suppressHydrationWarning={true}><Clipboard className="w-10 h-10 text-slate-600" suppressHydrationWarning={true} /></div>
         <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Real Reminder Examples</h2>
-        <p className="text-sm text-slate-500 font-medium px-2" suppressHydrationWarning={true}>See how DueBlink automatically adjusts the reminder tone based on how overdue a payment is.</p>
+        <p className="text-sm text-slate-500 font-medium px-2" suppressHydrationWarning={true}>Each follow-up gets a little firmer, in English, Hinglish, Hindi or Marathi.</p>
       </div>
 
       <motion.div 
@@ -2347,15 +2346,14 @@ export default function LandingPage() {
         <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
           <div suppressHydrationWarning={true}>
             <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-              <span className="text-[10px] font-bold text-[#147D75] bg-[#E6F7F5] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Gentle</span>
-              <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>3 days overdue</span>
+              <span className="text-[10px] font-bold text-[#147D75] bg-[#E6F7F5] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Friendly</span>
+              <span className="text-[11px] font-semibold text-slate-500" suppressHydrationWarning={true}>Due today · Email</span>
             </div>
-            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>ABC Marketing Team</h4>
+            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Rahul Mehta</h4>
             <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-              <p suppressHydrationWarning={true}>Hi ABC Marketing Team,</p>
-              <p suppressHydrationWarning={true}>Just a friendly reminder that invoice #1234 for ₹25,000 is due.</p>
-              <p suppressHydrationWarning={true}>Could you please confirm when payment is expected?</p>
-              <p suppressHydrationWarning={true}>Thank you.</p>
+              <p suppressHydrationWarning={true}>Hi Rahul,</p>
+              <p suppressHydrationWarning={true}>Quick reminder that invoice #1042 for ₹25,000 is due today.</p>
+              <p suppressHydrationWarning={true}>You can pay using the link below. Thanks!</p>
             </div>
           </div>
         </div>
@@ -2375,15 +2373,14 @@ export default function LandingPage() {
         <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
           <div suppressHydrationWarning={true}>
             <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-              <span className="text-[10px] font-bold text-[#1E4A75] bg-[#EEF4FA] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Professional</span>
-              <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>10 days overdue</span>
+              <span className="text-[10px] font-bold text-[#1E4A75] bg-[#EEF4FA] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Follow-up</span>
+              <span className="text-[11px] font-semibold text-slate-500" suppressHydrationWarning={true}>3 days overdue · WhatsApp</span>
             </div>
-            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Growthify Solutions</h4>
+            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Priya Sharma <span className="text-xs font-bold text-slate-500">(Hinglish)</span></h4>
             <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-              <p suppressHydrationWarning={true}>Hi Growthify Solutions,</p>
-              <p suppressHydrationWarning={true}>I wanted to follow up regarding invoice #1234 for ₹25,000, which is now 10 days past due.</p>
-              <p suppressHydrationWarning={true}>Please let me know when payment is expected.</p>
-              <p suppressHydrationWarning={true}>Thank you.</p>
+              <p suppressHydrationWarning={true}>Hi Priya,</p>
+              <p suppressHydrationWarning={true}>Invoice #1038 (₹18,500) 3 din se pending hai.</p>
+              <p suppressHydrationWarning={true}>Payment kab tak ho payega? Ek date bata dijiye, thanks!</p>
             </div>
           </div>
         </div>
@@ -2403,15 +2400,15 @@ export default function LandingPage() {
         <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
           <div suppressHydrationWarning={true}>
             <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-              <span className="text-[10px] font-bold text-[#C24133] bg-[#FFF0EF] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Firm</span>
-              <span className="text-[11px] font-semibold text-slate-400" suppressHydrationWarning={true}>20+ days overdue</span>
+              <span className="text-[10px] font-bold text-[#C24133] bg-[#FFF0EF] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Final</span>
+              <span className="text-[11px] font-semibold text-slate-500" suppressHydrationWarning={true}>7 days overdue · Email</span>
             </div>
-            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>BrightLabs Agency</h4>
+            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Amit Verma</h4>
             <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-              <p suppressHydrationWarning={true}>Hi BrightLabs Agency,</p>
-              <p suppressHydrationWarning={true}>This is my third follow-up regarding invoice #1234 for ₹25,000, now over 20 days overdue.</p>
-              <p className="font-bold text-[#99261A] bg-[#FFE4E2] p-2 rounded-lg text-[13px]" suppressHydrationWarning={true}>Please process payment within the next 3 business days.</p>
-              <p suppressHydrationWarning={true}>Thank you.</p>
+              <p suppressHydrationWarning={true}>Hi Amit,</p>
+              <p suppressHydrationWarning={true}>Invoice #1027 for ₹40,000 is now 7 days overdue, after two reminders.</p>
+              <p className="font-bold text-[#99261A] bg-[#FFE4E2] p-2 rounded-lg text-[13px]" suppressHydrationWarning={true}>Please pay within 3 days, by Friday.</p>
+              <p suppressHydrationWarning={true}>{"If I don't hear back by then, I'll move to formal recovery, which may include a legal notice."}</p>
             </div>
           </div>
         </div>
@@ -2771,16 +2768,12 @@ export default function LandingPage() {
           suppressHydrationWarning={true}
         >
           {[
-        { q: "How do the free monthly reminders work?", a: "Logged-in users get 15 free reminders every month. Your reminder count automatically refills at the start of each month." },
-        { q: "Is DueBlink just another AI writer?", a: "No. DueBlink is a specialized payment recovery system combining automated workflows with structured invoice tracking." },
-        { q: "How long until I get paid?", a: "It depends on your client, and DueBlink can't guarantee payment. What it does is make sure every follow-up goes out on time and in the right tone, so your invoices don't get forgotten." },
+        { q: "Do I need an account?", a: "No. You can try the reminder generator right away. A free account gives you the dashboard and 15 free AI reminders every month, refilled automatically." },
+        { q: "How is it different from ChatGPT?", a: "ChatGPT writes one message and forgets. DueBlink remembers every invoice and every follow-up, tells you who to chase today, and makes each reminder a little firmer when a client stays quiet." },
         { q: "Does it work with WhatsApp?", a: "Yes. Tap \"Send on WhatsApp\" and WhatsApp opens on your phone with the reminder ready, sent from your own number. DueBlink never sends WhatsApp messages by itself." },
-        { q: "Can reminders be in Hindi or Marathi?", a: "Yes. Pick English, Hinglish, Hindi or Marathi for each client, and DueBlink writes the reminder in that language." },
-        { q: "Does it work for clients outside India?", a: "Yes. Set each client's currency ($, €, £, AED and more). Reminders show the right currency, and your totals are kept separate per currency." },
-        { q: "Is there a mobile app?", a: "You can install DueBlink on your phone like an app, with no app store needed. Open your dashboard on your phone and tap \"Install\" (on iPhone: Share, then Add to Home Screen)." },
-        { q: "Do I need an account?", a: "No. You can try the reminder generator instantly. An account is only required for the central dashboard and monthly free reminders." },
-        { q: "Is it secure?", a: "Yes. DueBlink never accesses your bank account or payment processor. We only track the specific invoice data you input." },
-        { q: "What's included in DueBlink Pro?", a: "DueBlink Pro unlocks the Floating AI Recovery Assistant, unlimited AI reminders, AI recommendations, unlimited clients, payment history, and premium recovery tools." }
+        { q: "Does it work in other languages and currencies?", a: "Yes. Pick English, Hinglish, Hindi or Marathi for each client, and set their currency (₹, $, €, £, AED and more). Your totals are kept separate per currency." },
+        { q: "How long until I get paid?", a: "It depends on your client, and DueBlink can't guarantee payment. What it does is make sure every follow-up goes out on time and in the right tone, so your invoices don't get forgotten." },
+        { q: "Is it secure?", a: "Yes. DueBlink never accesses your bank account or payment processor. We only store the invoice and client details you enter." }
           ].map((faq, index) => (
         <motion.div 
           key={index}
