@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import PwaSetup from "@/components/PwaSetup";
 import "./globals.css";
 
 const inter = Inter({
@@ -63,6 +64,22 @@ export const metadata: Metadata = {
       "Polite payment reminders for email and WhatsApp that follow up for you, step by step.",
     images: ["/og-image.png"],
   },
+
+  // Install DueBlink like an app (PWA). The app settings live in app/manifest.ts.
+  applicationName: "DueBlink",
+  appleWebApp: {
+    capable: true,
+    title: "DueBlink",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+// Colour of the phone's top bar when DueBlink is opened as an app.
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
@@ -91,7 +108,8 @@ export default function RootLayout({
         {/* Main Content */}
         {children}
         <Analytics />
-<SpeedInsights />
+        <SpeedInsights />
+        <PwaSetup />
 
 
         {/*

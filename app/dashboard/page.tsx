@@ -13,6 +13,7 @@ import { track, trackOnce } from '@/lib/track';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
 import AddClientModal from '@/components/AddClientModal';
+import InstallAppCard from '@/components/InstallAppCard';
 
 function CustomSelectDropdown({ 
   value, 
@@ -1403,6 +1404,9 @@ export default function DashboardPage() {
               </div>
 
             </header>
+
+            {/* Install DueBlink like an app (phones only, once they have a client) */}
+            {clients.length > 0 && <InstallAppCard />}
 
             {/* Mobile Quick Add Client */}
             {clients.length > 0 && (
