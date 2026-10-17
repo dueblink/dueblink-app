@@ -5,7 +5,10 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD5LZ0GW7JhJQv3O0ain4nwjVOQcTs-VN0",
-  authDomain: "dueblink-1ab08.firebaseapp.com",
+  // Google sign-in shows this domain ("to continue to ...").
+  // Set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=www.dueblink.com in Vercel to show
+  // dueblink.com. If it isn't set, the old Firebase address is used, as before.
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "dueblink-1ab08.firebaseapp.com",
   projectId: "dueblink-1ab08",
   storageBucket: "dueblink-1ab08.firebasestorage.app",
   messagingSenderId: "716153090685",
