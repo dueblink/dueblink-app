@@ -7,7 +7,8 @@ import { motion, AnimatePresence, MotionConfig, animate, useReducedMotion } from
 import { 
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X, Hourglass, CalendarClock,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
-  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight, ChevronLeft, CheckCircle
+  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight, ChevronLeft, CheckCircle,
+  Languages, Globe, Smartphone
 } from 'lucide-react';
 // IMPORT FIREBASE
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -2152,7 +2153,7 @@ export default function LandingPage() {
             { when: "Due date", title: "Friendly reminder", desc: "A polite nudge." },
             { when: "Day 3", title: "Direct follow-up", desc: "Asks for a payment date." },
             { when: "Day 7", title: "Firm final reminder", desc: "Clear, with the next step." },
-            { when: "After that", title: "Call or payment plan", desc: "Blink suggests what to try." }
+            { when: "After that", title: "What to do next", desc: "Call, pause work or a formal notice." }
           ].map((step, sIdx) => (
             <li key={sIdx} className="relative flex sm:flex-col items-start sm:items-center gap-4 sm:gap-3" suppressHydrationWarning={true}>
               <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 ring-4 ring-white" style={{ background: 'linear-gradient(135deg, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
@@ -2286,7 +2287,10 @@ export default function LandingPage() {
         {[
           { title: "Automatic reminders (Pro)", desc: "Sent on the due date, day 3 and day 7.", icon: <Clock className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
           { title: "Blink assistant (Pro)", desc: "Tells you who to contact today and writes the message.", icon: <Bot className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
-          { title: "Paid in one click (Pro)", desc: "Mark a payment as paid straight from your email.", icon: <CheckCircle className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> }
+          { title: "Paid in one click (Pro)", desc: "Mark a payment as paid straight from your email.", icon: <CheckCircle className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
+          { title: "Hindi, Marathi & Hinglish", desc: "Reminders in your client's language, or in English.", icon: <Languages className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
+          { title: "Clients anywhere", desc: "₹, $, €, £, AED and more. Totals are never mixed.", icon: <Globe className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
+          { title: "Install on your phone", desc: "Open your Today list in one tap, like an app.", icon: <Smartphone className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> }
         ].map((point, pIdx) => (
           <div key={pIdx} className="bg-white border border-slate-200/60 rounded-xl p-4 flex items-start gap-3" suppressHydrationWarning={true}>
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[#245B92]/10" suppressHydrationWarning={true}>{point.icon}</div>
@@ -2770,7 +2774,10 @@ export default function LandingPage() {
         { q: "How do the free monthly reminders work?", a: "Logged-in users get 15 free reminders every month. Your reminder count automatically refills at the start of each month." },
         { q: "Is DueBlink just another AI writer?", a: "No. DueBlink is a specialized payment recovery system combining automated workflows with structured invoice tracking." },
         { q: "How long until I get paid?", a: "It depends on your client, and DueBlink can't guarantee payment. What it does is make sure every follow-up goes out on time and in the right tone, so your invoices don't get forgotten." },
-        { q: "Does it work with WhatsApp?", a: "Yes. DueBlink automatically formats messages for WhatsApp. Just copy the text and paste it directly into your chat." },
+        { q: "Does it work with WhatsApp?", a: "Yes. Tap \"Send on WhatsApp\" and WhatsApp opens on your phone with the reminder ready, sent from your own number. DueBlink never sends WhatsApp messages by itself." },
+        { q: "Can reminders be in Hindi or Marathi?", a: "Yes. Pick English, Hinglish, Hindi or Marathi for each client, and DueBlink writes the reminder in that language." },
+        { q: "Does it work for clients outside India?", a: "Yes. Set each client's currency ($, €, £, AED and more). Reminders show the right currency, and your totals are kept separate per currency." },
+        { q: "Is there a mobile app?", a: "You can install DueBlink on your phone like an app, with no app store needed. Open your dashboard on your phone and tap \"Install\" (on iPhone: Share, then Add to Home Screen)." },
         { q: "Do I need an account?", a: "No. You can try the reminder generator instantly. An account is only required for the central dashboard and monthly free reminders." },
         { q: "Is it secure?", a: "Yes. DueBlink never accesses your bank account or payment processor. We only track the specific invoice data you input." },
         { q: "What's included in DueBlink Pro?", a: "DueBlink Pro unlocks the Floating AI Recovery Assistant, unlimited AI reminders, AI recommendations, unlimited clients, payment history, and premium recovery tools." }

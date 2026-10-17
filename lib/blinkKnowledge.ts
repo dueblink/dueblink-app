@@ -70,6 +70,10 @@ International (outside India, paid by card via Dodo Payments): $9/month or $89/y
 - Reminder language per client: English, Hinglish, Hindi or Marathi.
 - Mark a client "Paid" and all reminders stop immediately.
 
+=== PHONE APP ===
+- DueBlink can be installed on a phone like an app (no app store). Android/Chrome: open the dashboard on the phone and tap "Install app". iPhone: in Safari tap Share, then "Add to Home Screen".
+- It opens straight to the dashboard (the Today list). There is no separate Play Store or App Store app.
+
 === WHEN A CLIENT IGNORES YOU ===
 - Stages: first reminder -> follow-up -> firm final reminder -> "stalled".
 - Final reminder: amount, invoice number, days overdue, a clear 3-day deadline and the next step (formal recovery, which may include a legal notice). Optional: a late fee line (only if the client agreed to it) and, for Indian clients, an MSME/Udyam line about interest under the MSMED Act, 2006.

@@ -1685,7 +1685,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <form onSubmit={handleAddFirstInvoice} className="grid grid-cols-1 sm:grid-cols-3 gap-3" suppressHydrationWarning={true}>
+                <form onSubmit={handleAddFirstInvoice} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end gap-3" suppressHydrationWarning={true}>
                   <div className="space-y-1.5" suppressHydrationWarning={true}>
                     <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Client</label>
                     <input
@@ -1720,20 +1720,20 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  {firstError && (
-                    <p className="sm:col-span-3 text-[11px] font-bold text-red-500" suppressHydrationWarning={true}>{firstError}</p>
-                  )}
-
                   <button
                     type="submit"
                     disabled={firstSaving}
-                    className="sm:col-span-3 w-full py-3.5 rounded-xl font-bold text-white text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                    className="sm:col-span-3 lg:col-span-1 w-full lg:w-auto py-3.5 lg:py-3 px-6 rounded-xl font-bold text-white text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 whitespace-nowrap"
                     style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                     suppressHydrationWarning={true}
                   >
                     {firstSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
-                    {firstSaving ? 'Saving...' : 'Add your first late invoice'}
+                    {firstSaving ? 'Saving...' : 'Add invoice'}
                   </button>
+
+                  {firstError && (
+                    <p className="sm:col-span-3 lg:col-span-4 text-[11px] font-bold text-red-500" suppressHydrationWarning={true}>{firstError}</p>
+                  )}
                 </form>
 
                 <p className="text-xs text-slate-400 font-medium" suppressHydrationWarning={true}>
