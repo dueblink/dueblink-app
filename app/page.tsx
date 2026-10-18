@@ -8,7 +8,7 @@ import {
   Layers, Users, TrendingUp, Check, Sparkles, Clock, X, Hourglass, CalendarClock,
   Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
   Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight, ChevronLeft, CheckCircle,
-  Languages, Globe, Smartphone
+  Languages, Globe, Smartphone, Laptop, Building2, Camera, GraduationCap, Store
 } from 'lucide-react';
 // IMPORT FIREBASE
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -2440,7 +2440,7 @@ export default function LandingPage() {
         </svg>
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Built For</h2>
-        <p className="text-sm sm:text-base text-slate-400 font-medium" suppressHydrationWarning={true}>If clients owe you money, DueBlink is built for you.</p>
+        <p className="text-sm sm:text-base text-slate-500 font-medium" suppressHydrationWarning={true}>If clients owe you money, DueBlink is built for you.</p>
       </div>
 
       <motion.div 
@@ -2450,15 +2450,16 @@ export default function LandingPage() {
         variants={{
         visible: { transition: { staggerChildren: 0.03 } }
         }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto pt-2"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 max-w-5xl mx-auto pt-2 text-left"
         suppressHydrationWarning={true}
       >
         {[
-        { label: "Freelancers", icon: <Briefcase className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Agencies", icon: <Layers className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Consultants", icon: <Users className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Marketers", icon: <Send className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Service Businesses", icon: <Briefcase className="w-5 h-5 text-slate-400" suppressHydrationWarning={true} /> }
+        { label: "Freelancers", desc: "Designers, developers and writers waiting on project payments.", icon: <Laptop className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
+        { label: "Agencies & studios", desc: "Many clients, many invoices, and no one to chase them.", icon: <Building2 className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
+        { label: "Consultants & coaches", desc: "Retainers and sessions billed every month.", icon: <Users className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
+        { label: "Video editors & photographers", desc: "Final files delivered, payment still pending.", icon: <Camera className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
+        { label: "Tutors & trainers", desc: "Monthly fees from many students and parents.", icon: <GraduationCap className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
+        { label: "Small service businesses", desc: "Any business that sends invoices and waits to be paid.", icon: <Store className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> }
         ].map((persona, pIdx) => (
         <motion.div 
           key={pIdx}
@@ -2466,12 +2467,17 @@ export default function LandingPage() {
             hidden: { opacity: 0, scale: 0.95 },
             visible: { opacity: 1, scale: 1, transition: { duration: 0.2 } }
           }}
-          whileHover={{ y: -2, borderColor: "#bfdbfe" }}
-          className="px-6 py-6 bg-white border border-slate-200 rounded-3xl shadow-3xs text-sm font-bold text-slate-700 flex flex-col items-center justify-center gap-3 transition cursor-default"
+          whileHover={{ y: -2 }}
+          className="p-5 bg-white border border-slate-200 rounded-2xl shadow-3xs flex items-start gap-4 transition-colors hover:border-[#245B92]/30 cursor-default"
           suppressHydrationWarning={true}
         >
-          {persona.icon}
-          {persona.label}
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-[#245B92]/10" suppressHydrationWarning={true}>
+            {persona.icon}
+          </div>
+          <div className="space-y-1" suppressHydrationWarning={true}>
+            <p className="text-sm sm:text-base font-bold text-[#0F172A]" suppressHydrationWarning={true}>{persona.label}</p>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>{persona.desc}</p>
+          </div>
         </motion.div>
         ))}
       </motion.div>
