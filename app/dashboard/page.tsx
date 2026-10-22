@@ -3,414 +3,235 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { motion, AnimatePresence, MotionConfig, animate, useReducedMotion } from 'framer-motion';
-import { 
-  Layers, Users, TrendingUp, Check, Sparkles, Clock, X, Hourglass, CalendarClock,
-  Mail, MessageCircle, RefreshCw, Send, Copy, AlertTriangle, Brain, FileSpreadsheet, FileText,
-  Target, Clipboard, Zap, Briefcase, HelpCircle, ChevronDown, Activity, Bot, CheckCircle2, ArrowRight, Menu, BarChart3, ChevronRight, ChevronLeft, CheckCircle,
-  Languages, Globe, Smartphone, Laptop, Building2, Camera, GraduationCap, Store
-} from 'lucide-react';
-// IMPORT FIREBASE
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, Calendar, FileText, CheckCircle2, Layers, TrendingUp, Users, Trash2, AlertTriangle, Eye, ChevronDown, Menu, Crown, Bell, Shield, HelpCircle, Search, ArrowUpDown, Edit3, Check, MessageCircle, MessageSquare, Gavel, PhoneCall, Ban, Undo2 } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { formatAmountWithCurrency, normalizeLanguage, finalReminderNote, msmeApplies, isIndianCurrency, formatTotalsByCurrency, guessDefaultCurrency, getCurrencySymbol } from '@/lib/reminderRules';
 import { auth, db } from '@/lib/firebase';
-import SiteFooter from '@/components/SiteFooter';
-import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { track, trackOnce } from '@/lib/track';
 import FloatingRobot from '@/components/FloatingRobot';
-import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
-import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
-import { getSeasonalEvent } from '@/lib/seasonalEvents';
-import { REMINDER_LANGUAGES } from '@/lib/reminderRules';
-import { track } from '@/lib/track';
+import SeasonalBanner from '@/components/SeasonalBanner';
+import AddClientModal from '@/components/AddClientModal';
+import InstallAppCard from '@/components/InstallAppCard';
 
-// --- SCROLL REVEAL ---
-// Wraps any block of content and, as it scrolls into view, fades and
-// lifts it in slightly — calm and controlled rather than a flashy
-// 3D flip, to match a fintech-adjacent B2B tool's tone.
-// Rows for the "Why not my invoicing tool or ChatGPT?" comparison.
-const COMPARISON_ROWS = [
-  { label: "Works with invoices you already send", us: "Yes, made anywhere", tools: "Only invoices made in that tool", gpt: "Only if you paste the details each time" },
-  { label: "Remembers every reminder you sent", us: "Yes", tools: "For their own invoices", gpt: "You have to tell it each time" },
-  { label: "Tells you who to chase today, and how firmly", us: "Yes", tools: "Not usually", gpt: "No" },
-  { label: "Writes the email and WhatsApp message", us: "Yes", tools: "Mostly fixed templates", gpt: "Yes" },
-  { label: "Simple, built for one person", us: "Yes", tools: "Built for full invoicing and accounting", gpt: "A general chat tool" },
-];
-
-function stripToDigits(val: string): string {
-  const cleaned = val.replace(/[^\d.]/g, '');
-  const parts = cleaned.split('.');
-  return parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
-}
-
-// Formats a clean digit string with thousand separators for display,
-// e.g. "25000" -> "25,000", "25000.5" -> "25,000.5".
-function formatWithCommas(val: string): string {
-  if (!val) return '';
-  const [intPart, decPart] = val.split('.');
-  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
-}
-
-// Counts a number up from its last value whenever it mounts or changes.
-// Used for the stat slides (each slide remounts when it appears) and for the
-// live client numbers, which re-animate when Firestore pushes an update.
-export default function LandingPage() {
-  // True when the visitor's phone or computer asks for less motion
-  // (an accessibility setting). The hero cards then stay still.
-  const reduceMotion = useReducedMotion();
-
-  // Hero badge: a common late-payment problem, changing every 3 seconds.
-  // The heading below ("Stop chasing clients. Get paid faster.") answers it.
-  const HERO_PROBLEMS = [
-    'Invoice overdue again?',
-    'Client not replying?',
-    '"Next week" again?',
-    'Awkward follow-ups?',
-    'Chasing on WhatsApp?',
-  ];
-  // One icon per line, same order as HERO_PROBLEMS.
-  const HERO_PROBLEM_ICONS = [FileText, Hourglass, CalendarClock, RefreshCw, MessageCircle];
-  const [problemIndex, setProblemIndex] = useState(0);
+function CustomSelectDropdown({ 
+  value, 
+  options, 
+  onChange, 
+  icon: Icon 
+}: { 
+  value: string; 
+  options: { label: string; value: string }[]; 
+  onChange: (val: string) => void;
+  icon?: any;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (reduceMotion) return;
-    const timer = setInterval(() => {
-      setProblemIndex((i) => (i + 1) % HERO_PROBLEMS.length);
-    }, 3000);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reduceMotion]);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full sm:w-auto px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:border-[#245B92] transition flex items-center justify-between gap-3 cursor-pointer shadow-3xs"
+      >
+        <div className="flex items-center gap-2 truncate">
+          {Icon && <Icon size={14} className="text-slate-400 shrink-0" />}
+          <span className="truncate">{selectedOption.label}</span>
+        </div>
+        <ChevronDown size={14} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-xl overflow-hidden z-50 py-1.5"
+          >
+            {options.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-4 py-2.5 text-xs font-bold text-left flex items-center justify-between transition cursor-pointer ${
+                    isSelected 
+                      ? 'bg-[#245B92]/10 text-[#245B92]' 
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && <Check size={14} className="text-[#245B92] shrink-0" />}
+                </button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
   const router = useRouter();
-
-  // Every "Create account" button: logs the click for Google Analytics,
-  // then opens sign-up. "from" says which button it was.
-  const goToSignUp = (from: string) => {
-    track('start_free_click', { from });
-    router.push('/create-account');
-  };
   const pathname = usePathname();
-    
-  // Auth & Pro State
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
-  // Same permanent marker as the dashboard: true once someone has ever paid
-  // for Pro, never cleared — so a lapsed subscriber sees "Renew" instead of
-  // "Upgrade" on their first stop being the homepage.
+  // True the moment someone has ever paid for Pro, and never cleared — lets
+  // the UI tell an expired/cancelled subscriber apart from a brand-new
+  // visitor, so they see "Renew" instead of being sold Pro from scratch.
   const [wasPro, setWasPro] = useState(false);
-  const [myClients, setMyClients] = useState<any[]>([]);
-  const [clientsLoaded, setClientsLoaded] = useState(false);
-  const [isIndia, setIsIndia] = useState(true);
-
-  // Festival greeting above the problem badge.
-  // Visitors in India see every festival; visitors outside India
-  // see only Christmas.
-  const [festivalType, setFestivalType] = useState<string | null>(null);
-  useEffect(() => {
-    setFestivalType(getSeasonalEvent()?.type ?? null);
-  }, []);
-  const GLOBAL_FESTIVALS = ['christmas'];
-  const showFestivalGreeting =
-    !!festivalType && (isIndia || GLOBAL_FESTIVALS.includes(festivalType));
-
-  useEffect(() => {
-    const detectCountry = async () => {
-      try {
-        const response = await fetch('/api/visitor-country');
-        const data = await response.json();
-
-        setIsIndia(data.isIndia);
-      } catch (error) {
-        console.error('Country detection failed:', error);
-        setIsIndia(true);
-      }
-    };
-
-    detectCountry();
-  }, []);
-
-  // Live client data for the signed-in hero panel. Same query the dashboard uses.
-  useEffect(() => {
-    if (!user?.uid) {
-      setMyClients([]);
-      setClientsLoaded(false);
-      return;
-    }
-    const q = query(collection(db, 'clients'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setMyClients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setClientsLoaded(true);
-      },
-      () => setClientsLoaded(true)
-    );
-    return () => unsub();
-  }, [user?.uid]);
-  const [mounted, setMounted] = useState(false);
-
-  const seasonalPricing = getSeasonalPricing();
-
-  // Early offer (first 20 paying users) — the server decides who
-  // qualifies; this only controls what the pricing card shows.
-  const [earlyOffer, setEarlyOffer] = useState<{ eligible: boolean; spotsLeft: number } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const idToken = user ? await user.getIdToken() : null;
-        const response = await fetch('/api/early-offer', {
-          headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
-        });
-        const data = await response.json();
-        if (!cancelled) setEarlyOffer({ eligible: !!data.eligible, spotsLeft: Number(data.spotsLeft || 0) });
-      } catch {
-        if (!cancelled) setEarlyOffer({ eligible: false, spotsLeft: 0 });
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
-
-  const showEarlyOffer = isIndia && !!earlyOffer?.eligible && !isPro;
-
-  // Top strip: the early offer first; otherwise a running festival offer
-  // (not the founder's birthday one). Never for Pro users or outside India.
-  const showEarlyStrip = showEarlyOffer && !!earlyOffer && earlyOffer.spotsLeft > 0;
-  const FESTIVAL_STRIP_EMOJI: Record<string, string> = {
-    'diwali': '🪔',
-    'holi': '🎨',
-    'eid-al-fitr': '🌙',
-    'eid-al-adha': '🌙',
-    'christmas': '🎄',
-    'independence-day': '🇮🇳',
-    'republic-day': '🇮🇳',
-  };
-  const festivalStripOffer =
-    !showEarlyStrip && isIndia && !isPro && earlyOffer !== null &&
-    seasonalPricing && seasonalPricing.id !== 'founders-birthday'
-      ? seasonalPricing
-      : null;
-  const festivalStripEnds = festivalStripOffer
-    ? new Date(`${festivalStripOffer.end}T12:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-    : '';
-  const showOfferStrip = showEarlyStrip || !!festivalStripOffer;
-
-  // Sync pro status from localStorage and event listeners
-  useEffect(() => {
-    setMounted(true);
-     
-    const checkProStatus = () => {
-      const isAuthed = localStorage.getItem('user_authenticated') === 'true' || auth.currentUser !== null;
-      if (!isAuthed) {
-        setIsPro(false);
-        return;
-      }
-
-      const isProActive = 
-        localStorage.getItem('dueblink_is_pro') === 'true' || 
-        localStorage.getItem('dueblink_pro_active') === 'true';
-      setIsPro(isProActive);
-      // Same idea as isPro above: without this, wasPro defaults to false on
-      // every load and only becomes true once the Firestore read (further
-      // down) finishes, causing "Renew" to flash as "Upgrade to Pro".
-      if (localStorage.getItem('dueblink_was_pro') === 'true') {
-        setWasPro(true);
-      }
-    };
-     
-    checkProStatus();
-
-    const handleProUpdate = () => {
-      checkProStatus();
-    };
-
-    window.addEventListener('pro-status-updated', handleProUpdate);
-    window.addEventListener('storage', handleProUpdate);
-
-    return () => {
-      window.removeEventListener('pro-status-updated', handleProUpdate);
-      window.removeEventListener('storage', handleProUpdate);
-    };
-  }, []);
-
-  // App Tracker Memory State
-  const [reminderCount, setReminderCount] = useState<number>(0);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-   
-  // Dynamic limit: 15 for logged-in users, 5 for non-logged-in/guests. Unlimited if Pro.
-  const maxLimit = isPro ? 999999 : (user ? 15 : 5);
-  const limitReached = !isPro && reminderCount >= maxLimit;
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<string>('');
-
-  // Interactive local generator variables
-  const [clientName, setClientName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [currency, setCurrency] = useState('₹ INR');
-  const [invoiceRef, setInvoiceRef] = useState('');
-  const [daysOverdue, setDaysOverdue] = useState('7');
-  const [tone, setTone] = useState('professional');
-  const [language, setLanguage] = useState<string>('english');
-
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-
-  // Cycles through distinct "what the AI is doing" phases while
-  // generating, instead of a single static "AI Thinking…" label.
-  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
-  const loadingPhrases = [
-    'Reading the situation…',
-    'Choosing the right tone…',
-    clientName ? `Personalizing for ${clientName}…` : 'Personalizing the message…',
-    'Polishing the wording…',
-    'Almost ready…',
-  ];
-
-  useEffect(() => {
-    if (!isGenerating) {
-      setLoadingPhaseIndex(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setLoadingPhaseIndex((i) => (i + 1) % loadingPhrases.length);
-    }, 1100);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isGenerating]);
-
-  // Channel-specific loading phases for the results panel — cycles
-  // through what's actually being drafted instead of one static
-  // "AI is thinking" message the whole time.
-  const resultLoadingPhases = [
-    { icon: Mail, label: 'Drafting your email…', sub: 'Finding the right subject line and opening.' },
-    { icon: MessageCircle, label: 'Writing the WhatsApp message…', sub: 'Keeping it warm and conversational.' },
-    { icon: Send, label: 'Trimming down the SMS…', sub: 'Short, sharp, under 160 characters.' },
-  ];
-
-  // Micro-interaction state: which field is focused (label lift + focus
-  // scale) and which required fields should shake on failed validation.
-  const [focusedField, setFocusedField] = useState<string | null>(null);
-  const [shakeFields, setShakeFields] = useState<string[]>([]);
-  const [result, setResult] = useState<{ email_subject: string; email_body: string; whatsapp_message: string; sms_text: string; psychology_note: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'email' | 'whatsapp' | 'sms'>('email');
-  const [copied, setCopied] = useState(false);
-
-  // ============================================================
-  // Reminder Variation Memory (per-client, persisted)
-  // ============================================================
-  // Keeps the last 5 generated reminders PER CLIENT NAME, saved to
-  // localStorage so uniqueness survives a page refresh — and so
-  // switching between clients doesn't leak one client's reminder
-  // history into another client's variation context.
-  const [reminderHistoryMap, setReminderHistoryMap] = useState<
-    Record<
-      string,
-      Array<{
-        email_subject: string;
-        email_body: string;
-        whatsapp_message: string;
-        sms_text: string;
-      }>
-    >
-  >({});
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('dueblink_reminder_variations');
-      if (raw) setReminderHistoryMap(JSON.parse(raw));
-    } catch {
-      // Corrupt or missing storage — start fresh, non-fatal.
-    }
-  }, []);
-
+  // The actual date Pro is active until (if currently Pro) or ended on (if
+  // lapsed) — kept so Billing & Subscription can show a real date instead
+  // of just a plan name.
+  const [proExpiresAt, setProExpiresAt] = useState<Date | null>(null);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly' | null>(null);
+  const [clients, setClients] = useState<any[]>([]); 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalTitle, setModalTitle] = useState('');
+  const [clientToEdit, setClientToEdit] = useState<any | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
 
-  const generatorSectionRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Overdue' | 'Paid'>('All');
 
-  // Page-level scroll progress, used to drive parallax depth on the
-  // hero's background blobs (they move slower/faster than the content).
-  const pageRef = useRef<HTMLDivElement>(null);
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
-  const [isAtTop, setIsAtTop] = useState(true);
-  const toggleFaq = (index: number) => {
-    setOpenFaq(openFaq === index ? null : index);
-  };
+  const [aiTone, setAiTone] = useState('Professional');
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [reminderNotifs, setReminderNotifs] = useState(true);
 
-  // Close mobile menu on route change or resize
+  const [robotAction, setRobotAction] = useState<string | null>(null);
+  const [robotActionClientId, setRobotActionClientId] = useState<string | null>(null);
+  // Goes up on every button press, so the same button works twice in a row.
+  const [robotActionNonce, setRobotActionNonce] = useState(0);
+
+  // First-invoice form shown to new users with no clients yet.
+  const [firstName, setFirstName] = useState('');
+  const [firstAmount, setFirstAmount] = useState('');
+  const [firstDueDate, setFirstDueDate] = useState('');
+  const [firstSaving, setFirstSaving] = useState(false);
+  const [firstError, setFirstError] = useState('');
+  // Currency for the first invoice: rupees in India, local currency elsewhere
+  // (set after load, so server and browser match). Can be changed in Edit.
+  const [firstCurrency, setFirstCurrency] = useState('INR');
+  useEffect(() => { setFirstCurrency(guessDefaultCurrency()); }, []);
+  const [isRobotProcessing, setIsRobotProcessing] = useState(false);
+
+
   useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
+    if (clients && clients.length >= 0) {
+      localStorage.setItem('dueblink_clients', JSON.stringify(clients));
+      window.dispatchEvent(new Event('clients-updated'));
+    }
+  }, [clients]);
 
-  // Effect: Auth listener + separate guest/free usage tracking
   useEffect(() => {
-    const loadUsageForUser = async (currentUser: any) => {
+    const justUpgraded = localStorage.getItem('just_upgraded');
+    if (justUpgraded === 'true') {
+      localStorage.removeItem('just_upgraded');
+      
+      const timer = setTimeout(() => {
+        setIsPro(true);
+        setWasPro(true);
+        setRobotAction('welcome_pro');
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [clients]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
-        // Guest users use the separate 5-reminder counter.
-        const savedCount = localStorage.getItem(
-          'dueblink_guest_reminders'
-        );
+        router.push('/login');
+      } else {
+        setUser(currentUser);
 
-        const guestCount = savedCount
-          ? parseInt(savedCount, 10)
-          : 0;
+        // Google Analytics: a brand-new account (created in the last
+        // 30 minutes) reaching the dashboard counts as one sign-up.
+        const createdAt = Date.parse(currentUser.metadata?.creationTime || '');
+        if (Number.isFinite(createdAt) && Date.now() - createdAt < 30 * 60 * 1000) {
+          trackOnce(`signup_${currentUser.uid}`, 'sign_up', {
+            method: currentUser.providerData?.[0]?.providerId === 'google.com' ? 'google' : 'email',
+          });
+        }
+        
+        if (localStorage.getItem('dueblink_pro_active') === 'true') {
+          setIsPro(true);
+        }
+        // Same idea for wasPro: without this, it defaults to false on every
+        // load and only becomes true once the Firestore read below finishes.
+        // That gap is what caused "Renew" to flash as "Upgrade to Pro" on
+        // slower connections.
+        if (localStorage.getItem('dueblink_was_pro') === 'true') {
+          setWasPro(true);
+        }
 
-        setReminderCount(
-          Number.isNaN(guestCount) ? 0 : guestCount
-        );
+        try {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            
+            if (data.billingCycle) setBillingCycle(data.billingCycle);
 
-        return;
-      }
-
-      // Logged-in users NEVER use the guest counter.
-      try {
-        const userRef = doc(
-          db,
-          'users',
-          currentUser.uid
-        );
-
-        const userSnapshot = await getDoc(userRef);
-
-        if (userSnapshot.exists()) {
-          const userData = userSnapshot.data();
-
-          const aiRemindersUsed = Number(
-            userData.aiRemindersUsed || 0
-          );
-
-          setReminderCount(
-            Number.isNaN(aiRemindersUsed)
-              ? 0
-              : aiRemindersUsed
-          );
-
-          // Verify the REAL Pro status from Firestore instead of
-          // trusting only the cached localStorage flag — this is
-          // what makes Pro/expiry show correctly on a fresh visit,
-          // not just after having already been to the dashboard.
-          // isPro and proExpiresAt are server-controlled fields — the real
-          // Firestore rules require them to stay unchanged on any client
-          // update, so the client never attempts to write them. A lapsed
-          // subscription is only ever detected here for DISPLAY purposes.
-          try {
-            const rawExpiresAt = userData.proExpiresAt ? userData.proExpiresAt.toDate() : null;
-            const isExpired = !!(userData.isPro && rawExpiresAt && new Date() > rawExpiresAt);
-            const effectivelyPro = !!userData.isPro && !isExpired;
+            // isPro, expiresAt, plan, billingCycle and upgradedAt are all
+            // server-controlled fields per Firestore rules — the client is
+            // never allowed to write them, on purpose (otherwise anyone
+            // could just set themselves to Pro for free). So an expired
+            // subscription is only ever detected here for DISPLAY purposes;
+            // the database's isPro field itself must be flipped server-side.
+            const rawExpiresAt = data.proExpiresAt ? data.proExpiresAt.toDate() : null;
+            const isExpired = !!(data.isPro && rawExpiresAt && new Date() > rawExpiresAt);
+            const effectivelyPro = !!data.isPro && !isExpired;
 
             setIsPro(effectivelyPro);
+            setProExpiresAt(rawExpiresAt);
 
-            // wasPro isn't restricted by the rules, so it's safe to write on
-            // its own — just never bundled into the same call as isPro.
-            const reallyWasPro = effectivelyPro || isExpired || !!userData.wasPro || !!userData.cancelledAt;
+            // wasPro is NOT one of the blocked fields, so it's safe to write
+            // on its own — just never bundled into the same call as isPro.
+            const reallyWasPro = effectivelyPro || isExpired || !!data.wasPro || !!data.cancelledAt;
             setWasPro(reallyWasPro);
-            if (reallyWasPro && !userData.wasPro) {
-              updateDoc(doc(db, 'users', currentUser.uid), { wasPro: true }).catch(() => {});
+            if (reallyWasPro && !data.wasPro) {
+              updateDoc(userDocRef, { wasPro: true }).catch(() => {});
             }
 
-            // Fire-and-forget: only the server (Admin SDK) can actually
-            // correct isPro in the database — see check-pro-status route.
+            // isPro itself can only be corrected server-side (see
+            // check-pro-status route) — the client can detect and display
+            // the lapse instantly above, but this is what actually fixes
+            // the stored value for next time. Fire-and-forget: the UI
+            // already reflects the correct state from isExpired, this
+            // call doesn't need to block anything.
             if (isExpired) {
               currentUser.getIdToken().then((idToken: string) => {
                 fetch('/api/check-pro-status', {
@@ -427,155 +248,49 @@ export default function LandingPage() {
               localStorage.setItem('dueblink_pro_active', 'true');
             } else {
               localStorage.removeItem('dueblink_pro_active');
-              localStorage.removeItem('dueblink_is_pro');
             }
             if (reallyWasPro) {
               localStorage.setItem('dueblink_was_pro', 'true');
             } else {
               localStorage.removeItem('dueblink_was_pro');
             }
-          } catch (proCheckError) {
-            console.error('Failed to verify Pro status:', proCheckError);
-            // Leave whatever the localStorage-based optimistic
-            // value already set — don't downgrade on a transient
-            // network/read error.
+
+            if (data.aiTone) setAiTone(data.aiTone);
+            if (data.emailNotifs !== undefined) setEmailNotifs(data.emailNotifs);
+            if (data.reminderNotifs !== undefined) setReminderNotifs(data.reminderNotifs);
           }
-        } else {
-          // New account fallback.
-          setReminderCount(0);
+        } catch (err) {
+          console.error("Error fetching pro status:", err);
         }
-      } catch (error) {
-        console.error(
-          'Failed to load user reminder usage:',
-          error
-        );
 
-        // NEVER fall back to guest usage.
-        setReminderCount(0);
+        setLoading(false);
       }
-    };
+    });
+    return () => unsubscribe();
+  }, [router]);
 
-    const checkAuth = () => {
-      const currentAuthUser = auth.currentUser;
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'clients'), where('userId', '==', user.uid));
+    return onSnapshot(q, (snapshot) => {
+      const fetchedClients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setClients(fetchedClients);
+      localStorage.setItem('dueblink_clients', JSON.stringify(fetchedClients));
+      window.dispatchEvent(new Event('clients-updated'));
+    });
+  }, [user]);
 
-      setUser(currentAuthUser);
-
-      if (currentAuthUser) {
-        localStorage.setItem(
-          'user_authenticated',
-          'true'
-        );
-
-        loadUsageForUser(currentAuthUser);
-      } else {
-        localStorage.removeItem(
-          'user_authenticated'
-        );
-        localStorage.removeItem(
-          'dueblink_is_pro'
-        );
-        localStorage.removeItem(
-          'dueblink_pro_active'
-        );
-
-        setIsPro(false);
-
-        loadUsageForUser(null);
-      }
-    };
-
-    checkAuth();
-
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (currentUser) => {
-        setUser(currentUser);
-
-        if (currentUser) {
-          localStorage.setItem(
-            'user_authenticated',
-            'true'
-        );
-
-          await loadUsageForUser(currentUser);
-        } else {
-          localStorage.removeItem(
-            'user_authenticated'
-        );
-          localStorage.removeItem(
-            'dueblink_is_pro'
-        );
-          localStorage.removeItem(
-            'dueblink_pro_active'
-        );
-          // Nobody is signed in, so this browser's old "was Pro" memory
-          // must not turn the button into "Renew" for a new visitor.
-          localStorage.removeItem(
-            'dueblink_was_pro'
-        );
-
-          setIsPro(false);
-          setWasPro(false);
-
-          await loadUsageForUser(null);
-        }
-      }
-    );
-
-    // Monthly reset applies to the guest counter only.
-    const currentMonthKey = new Date()
-      .toISOString()
-      .slice(0, 7);
-
-    const savedMonthKey = localStorage.getItem(
-      'dueblink_reminder_month'
-    );
-
-    if (savedMonthKey !== currentMonthKey) {
-      localStorage.setItem(
-        'dueblink_reminder_month',
-        currentMonthKey
-      );
-
-      localStorage.setItem(
-        'dueblink_guest_reminders',
-        '0'
-      );
-
-      if (!auth.currentUser) {
-        setReminderCount(0);
-      }
-    }
-
-    const handleStorageChange = () => {
-      checkAuth();
-    };
-
-    window.addEventListener(
-      'storage',
-      handleStorageChange
-    );
-
-    return () => {
-      unsubscribe();
-
-      window.removeEventListener(
-        'storage',
-        handleStorageChange
-      );
-    };
-  }, []);
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       localStorage.removeItem('user_authenticated');
-      localStorage.removeItem('dueblink_is_pro');
-      localStorage.removeItem('dueblink_pro_active');
+      localStorage.removeItem('has_created_account');
       localStorage.removeItem('dueblink_was_pro');
       setUser(null);
-      setIsPro(false);
-      setWasPro(false);
       router.push('/');
       router.refresh();
     } catch (error) {
@@ -583,298 +298,1108 @@ export default function LandingPage() {
     }
   };
 
-  // Effect: Scroll Tracking & Active Section detection with clean boundary checks
-  useEffect(() => {
-    let ticking = false;
-
-    const updateScrollState = () => {
-      setIsAtTop(window.scrollY < 100);
-
-      if (window.scrollY < 200) {
-        setActiveSection('');
-        ticking = false;
-        return;
-      }
-
-      const sections = ['dashboard-preview', 'faq'];
-      const scrollPosition = window.scrollY + 250;
-
-      let currentActive = '';
-      for (const sectionId of sections) {
-        const el = document.getElementById(sectionId);
-        if (el) {
-          const top = el.offsetTop;
-          const height = el.offsetHeight;
-          if (scrollPosition >= top && scrollPosition < top + height) {
-            currentActive = sectionId;
-            break;
-          }
-        }
-      }
-      setActiveSection(currentActive);
-      ticking = false;
-    };
-
-    // Cap the layout-reading work to once per animation frame, no
-    // matter how many raw scroll events fire during a fast/momentum
-    // scroll — avoids layout thrashing on mobile.
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(updateScrollState);
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const getStageLabel = () => {
-    if (tone === 'gentle') return 'Stage 1 · Gentle Reminder';
-    if (tone === 'firm') return 'Stage 3 · Firm Reminder';
-    return 'Stage 2 · Professional Follow-Up';
-  };
-
-  const handleAssistantCta = () => {
-    if (isPro || user) {
-      router.push('/dashboard');
-    } else {
-      router.push('/pricing');
-    }
-  };
-
-  const handleToneChange = (selectedTone: string) => {
-    setTone(selectedTone);
-    if (selectedTone === 'gentle') setDaysOverdue('7');
-    else if (selectedTone === 'professional') setDaysOverdue('14');
-    else if (selectedTone === 'firm') setDaysOverdue('21');
-  };
-
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clientName || !amount) {
-      const missing: string[] = [];
-      if (!clientName) missing.push('clientName');
-      if (!amount) missing.push('amount');
-      setShakeFields(missing);
-      window.setTimeout(() => setShakeFields([]), 500);
+  const handleCancelSubscription = async () => {
+    if (!user) {
+      setErrorMessage("No active user found. Please log in again.");
+      setTimeout(() => setErrorMessage(null), 4000);
       return;
     }
-    if (limitReached) { handleOpenActionModal(user ? 'Member Limit Reached' : 'Free Limit Reached'); return; }
-     
-    setIsGenerating(true);
-    setResult(null);
-    setGenerationError(null);
-     
+    
     try {
-      const variationStrategies = [
-        'Use a fresh conversational opening and a natural human tone.',
-        'Use a concise, direct structure with different sentence patterns.',
-        'Use a relationship-focused approach while remaining professional.',
-        'Use an action-oriented approach that clearly encourages payment.',
-        'Use a calm and polished business communication style with fresh wording.',
-        'Use a different opening, sentence structure, and call-to-action from previous versions.',
-        'Use natural conversational wording and avoid generic AI-style phrases.',
-        'Approach the reminder from a different communication angle while keeping all facts accurate.'
-      ];
+      setLoading(true);
 
-      const variationInstruction =
-        variationStrategies[
-          Math.floor(Math.random() * variationStrategies.length)
-        ];
+      // isPro can only be changed server-side (see the real Firestore
+      // rules) — the client used to try to write this directly, which
+      // Firestore always rejected. This now goes through an API route
+      // that does the same update via the Admin SDK instead.
+      const idToken = await user.getIdToken();
 
-      const idToken = await auth.currentUser?.getIdToken();
-
-      let guestId = localStorage.getItem('dueblink_guest_id');
-
-      if (!guestId) {
-        guestId =
-          'guest_' +
-          Math.random().toString(36).substring(2) +
-          Date.now().toString(36);
-
-        localStorage.setItem('dueblink_guest_id', guestId);
-      }
-
-      const clientKey = clientName.trim().toLowerCase();
-      const previousReminders = reminderHistoryMap[clientKey] || [];
-
-      const response = await fetch('/api/generate-reminder', {
+      const response = await fetch('/api/cancel-subscription', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ 
-          clientName, 
-          amount: formatWithCommas(amount), 
-          currency, 
-          invoiceRef: invoiceRef.trim(), // only what the user typed; never a made-up number 
-          daysOverdue, 
-          tone,
-          language,
-          previousReminders,
-          variationInstruction,
-          guestId,
-        }),
       });
-        
+
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(`Server returned ${response.status}: ${data.details || data.message || 'Unknown error'}`);
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || 'Failed to cancel subscription.');
       }
 
-      setResult(data);
-      track('generate_reminder', { tone, language, signed_in: Boolean(user) });
-      setShowSuccessAnimation(true);
+      localStorage.removeItem('dueblink_pro_active');
+      
+      setIsPro(false);
+      setWasPro(true);
+      setProExpiresAt(new Date());
+      setLoading(false);
+      setCancelModalOpen(false);
+      
+      setSuccessMessage("Your Pro subscription has been successfully cancelled.");
+      setTimeout(() => setSuccessMessage(null), 4000);
 
-      setTimeout(() => {
-        setShowSuccessAnimation(false);
-      }, 1100);
-
-      setReminderHistoryMap((prevMap) => {
-        const existing = prevMap[clientKey] || [];
-        const updated = [
-          ...existing,
-          {
-            email_subject: data.email_subject || '',
-            email_body: data.email_body || '',
-            whatsapp_message: data.whatsapp_message || '',
-            sms_text: data.sms_text || ''
-          }
-        ].slice(-5);
-
-        const nextMap = { ...prevMap, [clientKey]: updated };
-
-        try {
-          localStorage.setItem('dueblink_reminder_variations', JSON.stringify(nextMap));
-        } catch {
-          // Storage full or unavailable — variation memory just won't persist this time.
-        }
-
-        return nextMap;
-      });
-
-      if (!isPro) {
-        const nextCount = reminderCount + 1;
-
-        setReminderCount(nextCount);
-
-        // Only guests use the localStorage counter.
-        // Logged-in users are tracked in Firestore.
-        if (!auth.currentUser) {
-          localStorage.setItem(
-            'dueblink_guest_reminders',
-            nextCount.toString()
-        );
-        }
-      }
-    } catch (error) {
-      console.error("AI GENERATION ERROR:", error);
-      setGenerationError("Something went wrong generating your reminder. Please try again in a moment.");
-    } finally {
-      setIsGenerating(false);
+      router.refresh();
+      
+    } catch (error: any) {
+      console.error("Detailed Cancellation Error:", error);
+      setErrorMessage(`Failed to cancel subscription: ${error.message || "Please try again."}`);
+      setTimeout(() => setErrorMessage(null), 4000);
+      setLoading(false);
     }
   };
 
-  const handleCopy = (text: string) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); track('copy_reminder', { channel: activeTab }); };
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+    try {
+      await deleteDoc(doc(db, 'clients', clientToDelete.id));
+      setClientToDelete(null);
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      setErrorMessage("Failed to delete client. Please try again.");
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
 
-  // Opens the user's own email app, WhatsApp or SMS app with the
-  // generated reminder already filled in. They pick who to send it to.
-  const handleSend = (channel: 'email' | 'whatsapp' | 'sms') => {
-    if (!result) return;
+  const totalOutstanding = clients.filter(c => c.status === 'Pending').reduce((acc, c) => acc + Number(c.amount || 0), 0);
+  const pendingCount = clients.filter(c => c.status === 'Pending').length;
+  const paidCount = clients.filter(c => c.status === 'Paid').length;
+  const totalRecovered = clients.filter(c => c.status === 'Paid').reduce((acc, c) => acc + Number(c.amount || 0), 0);
+
+  // Recovered this month = clients marked paid this calendar month (India
+  // time). Uses the paid date saved by "Mark paid"; older paid clients have
+  // no date, so they count only in the all-time total.
+  const thisMonthKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit',
+  }).format(new Date());
+  const paidThisMonth = clients.filter((c) => {
+    if (c.status !== 'Paid' || !c.paidAt) return false;
+    const paidDate = new Date(c.paidAt);
+    if (isNaN(paidDate.getTime())) return false;
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit',
+    }).format(paidDate) === thisMonthKey;
+  });
+  const recoveredThisMonth = paidThisMonth.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+  
+  const totalClientsCount = clients.length;
+  const recoveryRateValue = totalClientsCount > 0 ? Math.round((paidCount / totalClientsCount) * 100) : 0;
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    return "Good Evening";
+  };
+
+  const getUserDisplayName = () => {
+    if (user?.displayName) return user.displayName;
+    if (user?.email) {
+      const parts = user.email.split('@')[0].split(/[-_\.]/);
+      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    return "Juned";
+  };
+
+  const handleSummarizeOutstanding = () => {
+    if (!isPro) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+    setRobotAction('summarize');
+    setRobotActionNonce((n) => n + 1);
+  };
+
+  const recommendation = clients.filter(c => c.status === 'Pending').sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0)).pop();
+
+  // Whole calendar days late, counted in India time — the same way Blink
+  // and the automatic reminders count. Due today = 0 (not overdue yet);
+  // due yesterday = 1. (Before, a client due today showed "1 day overdue".)
+  const getDaysOverdue = (dueDate: any): number => {
+    if (!dueDate) return 0;
+
+    const dueText = String(dueDate).substring(0, 10);
+    const [y, m, d] = dueText.split('-').map(Number);
+    if (!y || !m || !d) return 0;
+
+    const todayText = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const [ty, tm, td] = todayText.split('-').map(Number);
+
+    const diffDays = Math.round(
+      (Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / (1000 * 60 * 60 * 24)
+    );
+
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  const getRecommendationDaysOverdue = (c: any): number =>
+    getDaysOverdue(c?.dueDate);
+
+  // Overdue = unpaid and past its due date (India time).
+  const overdueClients = clients.filter(
+    (c) => c.status === 'Pending' && getDaysOverdue(c.dueDate) > 0
+  );
+  const overdueCount = overdueClients.length;
+  const totalOverdue = overdueClients.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+
+  // ============================================================
+  // TODAY LIST — who to chase today, and how.
+  // Unpaid, due today or overdue, and no reminder in the last 2 days.
+  // Stage uses the same reminder count as Blink's escalation ladder.
+  // ============================================================
+  const getLastReminderDaysAgo = (c: any): number | null => {
+    const history = Array.isArray(c.reminderHistory) ? c.reminderHistory : [];
+    let latest = 0;
+    for (const r of history) {
+      const raw = r?.sentAt;
+      const time =
+        raw && typeof raw.toDate === 'function'
+          ? raw.toDate().getTime()
+          : raw
+            ? new Date(raw).getTime()
+            : NaN;
+      if (Number.isFinite(time) && time > latest) latest = time;
+    }
+    if (!latest) return null;
+    return Math.floor((Date.now() - latest) / (1000 * 60 * 60 * 24));
+  };
+
+  const getTodayStage = (c: any, daysOverdue: number) => {
+    const sent = Array.isArray(c.reminderHistory) ? c.reminderHistory.length : 0;
+    if (sent >= 3 || (sent === 2 && daysOverdue >= 21)) {
+      return { label: 'Stalled', advice: 'Reminders are not working. Call them or offer to split the payment.' };
+    }
+    if (sent === 2) {
+      return { label: 'Final reminder', advice: 'Two reminders ignored. Send a firm final reminder.' };
+    }
+    if (sent === 1) {
+      return { label: 'Follow-up', advice: 'One reminder sent. Follow up on a different channel and ask for a date.' };
+    }
+    return {
+      label: 'First reminder',
+      advice: daysOverdue === 0 ? 'Due today. Send a friendly reminder.' : 'No reminder sent yet. Send a friendly one today.',
+    };
+  };
+
+  // When the daily reminder job will next email this client, using the
+  // same rules as the job: first on the due date, follow-up from day 3,
+  // final from day 7; each stage once; at least 2 days apart.
+  const STAGE_ORDER: Record<string, number> = { first: 1, 'follow-up': 2, final: 3 };
+  const STAGE_NAMES: Record<string, string> = { first: 'first reminder', 'follow-up': 'follow-up', final: 'final reminder' };
+
+  const getNextAutoReminder = (c: any): string => {
+    if (c.status !== 'Pending') return '';
+    if (!(c.automatedReminders === true && c.automationStatus === 'active')) return 'Automatic reminders off';
+    if (!c.email) {
+      return c.whatsapp || c.phone
+        ? 'No email: send reminders from the Today list in one tap'
+        : 'Automatic reminders need an email';
+    }
+
+    const last = String(c.lastAutomatedReminderStage || '');
+    if (last === 'final') return 'All automatic reminders sent';
+
+    const [dy, dm, dd] = String(c.dueDate || '').substring(0, 10).split('-').map(Number);
+    if (!dy || !dm || !dd) return '';
+    const dueUtc = Date.UTC(dy, dm - 1, dd);
+    const DAY = 1000 * 60 * 60 * 24;
+
+    const todayText = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+    const [ty, tm, td] = todayText.split('-').map(Number);
+    const todayUtc = Date.UTC(ty, tm - 1, td);
+
+    const lastSentRaw = c.lastAutomatedReminderSentAt;
+    const lastSent =
+      lastSentRaw && typeof lastSentRaw.toDate === 'function'
+        ? lastSentRaw.toDate()
+        : lastSentRaw ? new Date(lastSentRaw) : null;
+    let lastSentUtc: number | null = null;
+    if (lastSent && !isNaN(lastSent.getTime())) {
+      const t = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(lastSent).split('-').map(Number);
+      lastSentUtc = Date.UTC(t[0], t[1] - 1, t[2]);
+    }
+
+    for (let i = 0; i <= 14; i++) {
+      const dayUtc = todayUtc + i * DAY;
+      const daysLate = Math.round((dayUtc - dueUtc) / DAY);
+      const stage = daysLate >= 7 ? 'final' : daysLate >= 3 ? 'follow-up' : daysLate >= 0 ? 'first' : '';
+      if (!stage || STAGE_ORDER[stage] <= (STAGE_ORDER[last] || 0)) continue;
+      if (lastSentUtc !== null && (dayUtc - lastSentUtc) / DAY < 2) continue;
+
+      const when =
+        i === 0 ? 'today' : i === 1 ? 'tomorrow'
+        : new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(dayUtc));
+      return `Next automatic reminder ${when} (${STAGE_NAMES[stage]})`;
+    }
+    return '';
+  };
+
+  // ============================================================
+  // TAP TO SEND — a ready message for each client in the Today list.
+  // Opens WhatsApp, SMS or email on the user's own phone with the
+  // message filled in, then records it in the client's reminder
+  // history, so the stage moves on (first -> follow-up -> final).
+  // Works for free users too (no AI needed).
+  // ============================================================
+  // ============================================================
+  // STALLED CLIENTS — reminders were ignored, so more reminders won't help.
+  // They get their own "Stalled" card (not the Today list), with no
+  // normal reminder buttons, and show up once a week, not every 2 days.
+  // ============================================================
+  const STALLED_EVERY_DAYS = 7;
+
+  // Days since a saved date (Firestore date or text). null = never.
+  const daysSinceDate = (raw: any): number | null => {
+    if (!raw) return null;
+    const time = typeof raw.toDate === 'function' ? raw.toDate().getTime() : new Date(raw).getTime();
+    if (!Number.isFinite(time)) return null;
+    return Math.floor((Date.now() - time) / (1000 * 60 * 60 * 24));
+  };
+
+  const agoText = (days: number) =>
+    days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+
+  const isStalledClient = (c: any) => getTodayStage(c, getDaysOverdue(c.dueDate)).label === 'Stalled';
+
+  // The split-payment offer and the formal final notice are sent once
+  // each. Returns how many days ago it was sent, or null if not sent yet.
+  const getStalledStepSentDays = (c: any, step: 'split' | 'final'): number | null => {
+    const history = Array.isArray(c.reminderHistory) ? c.reminderHistory : [];
+    let best: number | null = null;
+    for (const r of history) {
+      const match =
+        step === 'final'
+          ? r?.kind === 'final_notice' || String(r?.label || '').startsWith('Formal final notice')
+          : r?.kind === 'split_offer';
+      if (!match) continue;
+      const d = daysSinceDate(r?.sentAt);
+      if (d !== null && (best === null || d < best)) best = d;
+    }
+    return best;
+  };
+
+  // "Done for this week": hides the client from the Stalled card for 7 days.
+  const markStalledDoneThisWeek = async (c: any) => {
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        stalledCheckedAt: new Date().toISOString(),
+        activity: arrayUnion({ type: 'stalled_week_done', at: new Date().toISOString() }),
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      setErrorMessage('Could not update the client. Please try again.');
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
+
+  // ============================================================
+  // CLIENT HISTORY — every step for one client, start to end:
+  // added, due date, each reminder (automatic or sent by you), split
+  // offer, final notice, calls, "done for this week", written off, paid.
+  // ============================================================
+  const [historyMsgOpen, setHistoryMsgOpen] = useState<string | null>(null);
+
+  // Saves a small action (like a call) in the client's history.
+  const logClientActivity = async (c: any, type: string) => {
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        activity: arrayUnion({ type, at: new Date().toISOString() }),
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      // Not important enough to show an error.
+    }
+  };
+
+  const toTime = (raw: any): number | null => {
+    if (!raw) return null;
+    const t = typeof raw.toDate === 'function' ? raw.toDate().getTime() : new Date(raw).getTime();
+    return Number.isFinite(t) ? t : null;
+  };
+
+  type HistoryItem = {
+    key: string;
+    at: number;
+    title: string;
+    sub?: string;
+    message?: string;
+    dateOnly?: boolean;
+    dot: string;
+    done: boolean;
+    icon?: 'check' | 'off';
+  };
+
+  const getClientHistory = (c: any): HistoryItem[] => {
+    const items: HistoryItem[] = [];
+    const now = Date.now();
+    const name = String(c.name || 'client').trim().split(' ')[0] || 'client';
+
+    const created = toTime(c.createdAt);
+    if (created) items.push({ key: 'created', at: created, title: 'Client added to DueBlink', dot: 'bg-[#2BB6A8]', done: true });
+
+    const [dy, dm, dd] = String(c.dueDate || '').substring(0, 10).split('-').map(Number);
+    if (dy && dm && dd) {
+      const dueAt = new Date(dy, dm - 1, dd, 23, 59).getTime();
+      items.push({
+        key: 'due',
+        at: dueAt,
+        title: `Payment due (${formatAmountWithCurrency(c.amount, c.currency)})`,
+        dateOnly: true,
+        dot: 'bg-amber-600',
+        done: dueAt <= now || c.status !== 'Pending',
+      });
+    }
+
+    const stageName: Record<string, string> = { first: 'first reminder', 'follow-up': 'follow-up', final: 'final reminder' };
+    (Array.isArray(c.reminderHistory) ? c.reminderHistory : []).forEach((r: any, i: number) => {
+      const at = toTime(r?.sentAt);
+      if (!at) return;
+      const automatic = r?.type === 'automated';
+      const isFinal = r?.kind === 'final_notice' || String(r?.label || '').startsWith('Formal final notice');
+      const isSplit = r?.kind === 'split_offer';
+      items.push({
+        key: `r${i}`,
+        at,
+        title: r?.label || r?.title || (automatic ? `Automatic ${stageName[r?.stage] || 'reminder'} email sent` : 'Reminder sent'),
+        sub: automatic ? 'Sent automatically by DueBlink' : 'Sent by you',
+        message: r?.email_body || r?.message || '',
+        dot: isFinal ? 'bg-[#0F172A]' : isSplit ? 'bg-orange-600' : 'bg-[#245B92]',
+        done: true,
+      });
+    });
+
+    const activityTitle: Record<string, string> = {
+      call: `You tapped Call ${name}`,
+      stalled_week_done: 'Marked done for this week (Stalled)',
+      written_off: 'Marked as written off',
+      written_off_undo: 'Written off undone, back to pending',
+      paid: 'Payment received. Marked as paid',
+    };
+    const activity = Array.isArray(c.activity) ? c.activity : [];
+    activity.forEach((a: any, i: number) => {
+      const at = toTime(a?.at);
+      if (!at || !activityTitle[a?.type]) return;
+      items.push({
+        key: `a${i}`,
+        at,
+        title: activityTitle[a.type],
+        dot: a.type === 'paid' ? 'bg-emerald-600' : a.type === 'written_off' ? 'bg-slate-400' : a.type === 'call' ? 'bg-[#245B92]' : 'bg-orange-600',
+        done: true,
+        icon: a.type === 'written_off' ? 'off' : 'check',
+      });
+    });
+
+    // Older clients (before history was saved): use the saved dates.
+    const paid = toTime(c.paidAt);
+    if (c.status === 'Paid' && paid && !activity.some((a: any) => a?.type === 'paid')) {
+      items.push({ key: 'paid', at: paid, title: 'Payment received. Marked as paid', dot: 'bg-emerald-600', done: true });
+    }
+    const off = toTime(c.writtenOffAt);
+    if (off && !activity.some((a: any) => a?.type === 'written_off')) {
+      items.push({ key: 'off', at: off, title: 'Marked as written off', dot: 'bg-slate-400', done: true, icon: 'off' });
+    }
+
+    items.sort((a, b) => a.at - b.at);
+
+    // Still waiting: show the next steps as empty circles at the end.
+    if (c.status === 'Pending') {
+      const next = getNextAutoReminder(c);
+      if (next.startsWith('Next automatic reminder')) {
+        items.push({ key: 'next', at: Number.MAX_SAFE_INTEGER - 1, title: next, dot: '', done: false });
+      }
+      items.push({ key: 'goal', at: Number.MAX_SAFE_INTEGER, title: 'Payment received', dot: '', done: false });
+    }
+
+    return items;
+  };
+
+  // One line on top of the journey: where this client is now.
+  const getHistorySummary = (c: any): { text: string; tone: string } => {
+    if (c.status === 'Paid') {
+      const paid = toTime(c.paidAt);
+      const [dy, dm, dd] = String(c.dueDate || '').substring(0, 10).split('-').map(Number);
+      if (paid && dy && dm && dd) {
+        const late = Math.floor((paid - new Date(dy, dm - 1, dd, 23, 59).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        return { text: late <= 0 ? 'Paid on time' : `Paid ${late} ${late === 1 ? 'day' : 'days'} after the due date`, tone: 'text-emerald-600' };
+      }
+      return { text: 'Paid', tone: 'text-emerald-600' };
+    }
+    if (c.status === 'Written off') return { text: 'Written off', tone: 'text-slate-500' };
+    const days = getDaysOverdue(c.dueDate);
+    if (days > 0 && isStalledClient(c)) return { text: `Stalled · ${days} days overdue`, tone: 'text-orange-600' };
+    if (days > 0) return { text: `Waiting for payment · ${days} ${days === 1 ? 'day' : 'days'} overdue`, tone: 'text-rose-600' };
+    return { text: 'Waiting for payment', tone: 'text-amber-600' };
+  };
+
+  // Written off: the user has given up on this payment. The client leaves
+  // the Today list and the totals; "Undo" puts it back to pending.
+  const markWrittenOff = async (c: any) => {
+    const ok = window.confirm(`Mark ${c.name || 'this client'} as written off? It leaves your Today list and totals. You can undo this from the client list.`);
+    if (!ok) return;
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        status: 'Written off',
+        writtenOffAt: new Date().toISOString(),
+        automatedReminders: false,
+        automationStatus: 'off',
+        activity: arrayUnion({ type: 'written_off', at: new Date().toISOString() }),
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      setErrorMessage('Could not update the client. Please try again.');
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
+
+  const undoWrittenOff = async (c: any) => {
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        status: 'Pending',
+        writtenOffAt: null,
+        activity: arrayUnion({ type: 'written_off_undo', at: new Date().toISOString() }),
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      setErrorMessage('Could not update the client. Please try again.');
+      setTimeout(() => setErrorMessage(null), 4000);
+    }
+  };
+
+  // The "You can pay here" line, in the client's language.
+  const tapLinkLine = (c: any) => {
+    if (!c.paymentLink) return '';
+    const label: Record<string, string> = {
+      english: 'You can pay here:',
+      hinglish: 'Yahan pay kar sakte hain:',
+      hindi: 'यहाँ भुगतान कर सकते हैं:',
+      marathi: 'येथे पेमेंट करू शकता:',
+    };
+    return `\n\n${label[normalizeLanguage(c.language)]} ${c.paymentLink}`;
+  };
+
+  const buildTapMessage = (c: any, days: number, forceStage?: string) => {
+    const stage = forceStage || getTodayStage(c, days).label;
+    // Firm final reminder extras (set per client in Add/Edit Client).
+    const invoice = String(c.invoiceNumber || c.invoiceRef || '').trim();
+    const lateFee = String(c.lateFee || '').trim();
+    const msme = msmeApplies(c);
+    const language = normalizeLanguage(c.language);
+    const firstName = String(c.name || '').trim().split(' ')[0];
+    const amount = formatAmountWithCurrency(c.amount, c.currency);
+    const ownerName = String(user?.displayName || '').trim();
+    const link = tapLinkLine(c);
+
+    // Deadline 3 days from today, written for the client's language
+    // (Marathi with normal 0-9 digits, to match the amount).
+    const dateLocale = language === 'hindi' ? 'hi-IN' : language === 'marathi' ? 'mr-IN-u-nu-latn' : 'en-IN';
+    const deadline = new Intl.DateTimeFormat(dateLocale, {
+      timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long',
+    }).format(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+
+    // ---------- Hinglish ----------
+    if (language === 'hinglish') {
+      const hi = firstName ? `Hi ${firstName}` : 'Hi';
+      const late = days <= 0 ? 'aaj due hai' : `ab ${days} din se overdue hai`;
+      const sign = ownerName ? `\n\nThanks,\n${ownerName}` : '\n\nThanks!';
+      if (stage === 'Stalled') {
+        return {
+          subject: 'Pending payment ke baare mein baat karein?',
+          text: `${hi}, ${amount} ke pending payment ke baare mein check karna tha. Agar ek saath dena mushkil ho, toh do hisson mein bhi de sakte hain. Is hafte ek chhoti si call kar lein?${link}${sign}`,
+        };
+      }
+      if (stage === 'Final reminder') {
+        const fee = lateFee ? ` Agreement ke hisaab se ${lateFee} late fee lagegi.` : '';
+        const msmeLine = msme ? ' Udyam (MSME) registered supplier hone ke naate, MSMED Act, 2006 ke tahat late payment par interest lagta hai.' : '';
+        return {
+          subject: `Final reminder: ${amount} ka payment overdue`,
+          text: `${hi}, ${amount}${invoice ? ` (invoice ${invoice})` : ''} ka payment ${late}, aur pichhle reminders ke baad bhi abhi tak nahi mila hai. Yeh final reminder hai. Please ${deadline} tak payment clear kar dijiye. Tab tak payment nahi aaya toh formal recovery shuru karni padegi, jismein legal notice bhi ho sakta hai.${fee}${msmeLine} Invoice mein koi problem ho toh reply karke bata dijiye.${link}${sign}`,
+        };
+      }
+      if (stage === 'Follow-up') {
+        return {
+          subject: `Follow-up: ${amount} ka payment`,
+          text: `${hi}, ${amount} ka payment ${late}. Kab tak bhej payenge? Please ek date bata dijiye.${link}${sign}`,
+        };
+      }
+      return {
+        subject: days <= 0 ? `${amount} ka payment aaj due hai` : `Reminder: ${amount} ka payment`,
+        text: `${hi}, umeed hai sab badhiya hai! Bas ek chhota sa reminder: ${amount} ka payment ${late}. Ho jaaye toh please bata dijiye.${link}${sign}`,
+      };
+    }
+
+    // ---------- Hindi ----------
+    if (language === 'hindi') {
+      const hi = firstName ? `नमस्ते ${firstName} जी` : 'नमस्ते';
+      const late = days <= 0 ? 'आज देय है' : `अब ${days} दिन से बकाया है`;
+      const sign = ownerName ? `\n\nधन्यवाद,\n${ownerName}` : '\n\nधन्यवाद!';
+      if (stage === 'Stalled') {
+        return {
+          subject: 'बकाया भुगतान के बारे में बात करें?',
+          text: `${hi}, ${amount} के बकाया भुगतान के बारे में पूछना था। अगर एक साथ देना मुश्किल हो, तो दो हिस्सों में भी दे सकते हैं। क्या इस हफ़्ते एक छोटी सी कॉल कर सकते हैं?${link}${sign}`,
+        };
+      }
+      if (stage === 'Final reminder') {
+        const fee = lateFee ? ` तय शर्तों के अनुसार ${lateFee} लेट फ़ीस लागू होगी।` : '';
+        const msmeLine = msme ? ' Udyam (MSME) पंजीकृत सप्लायर होने के नाते, MSMED Act, 2006 के तहत देर से भुगतान पर ब्याज लगता है।' : '';
+        return {
+          subject: `अंतिम रिमाइंडर: ${amount} का भुगतान बकाया`,
+          text: `${hi}, ${amount}${invoice ? ` (इनवॉइस ${invoice})` : ''} का भुगतान ${late}, और पिछले रिमाइंडर के बाद भी अभी तक नहीं मिला है। यह अंतिम रिमाइंडर है। कृपया ${deadline} तक भुगतान कर दीजिए। तब तक भुगतान नहीं हुआ, तो औपचारिक वसूली की कार्रवाई शुरू करनी पड़ेगी, जिसमें कानूनी नोटिस भी शामिल हो सकता है।${fee}${msmeLine} इनवॉइस में कोई समस्या हो तो कृपया जवाब देकर बताइए।${link}${sign}`,
+        };
+      }
+      if (stage === 'Follow-up') {
+        return {
+          subject: `फ़ॉलो-अप: ${amount} का भुगतान`,
+          text: `${hi}, ${amount} का भुगतान ${late}। कृपया बता दीजिए कि भुगतान कब तक हो जाएगा?${link}${sign}`,
+        };
+      }
+      return {
+        subject: days <= 0 ? `${amount} का भुगतान आज देय है` : `रिमाइंडर: ${amount} का भुगतान`,
+        text: `${hi}, आशा है आप ठीक हैं! बस एक छोटा सा रिमाइंडर: ${amount} का भुगतान ${late}। भुगतान हो जाए तो कृपया बता दीजिए।${link}${sign}`,
+      };
+    }
+
+    // ---------- Marathi ----------
+    if (language === 'marathi') {
+      const hi = firstName ? `नमस्कार ${firstName}` : 'नमस्कार';
+      const late = days <= 0 ? 'आज देय आहे' : `आता ${days} ${days === 1 ? 'दिवसापासून' : 'दिवसांपासून'} थकित आहे`;
+      const sign = ownerName ? `\n\nधन्यवाद,\n${ownerName}` : '\n\nधन्यवाद!';
+      if (stage === 'Stalled') {
+        return {
+          subject: 'थकित पेमेंटबद्दल बोलूया का?',
+          text: `${hi}, ${amount} च्या थकित पेमेंटबद्दल विचारायचे होते. एकदम पूर्ण रक्कम देणे अवघड असेल, तर दोन भागांतही देऊ शकता. या आठवड्यात एक छोटा कॉल करूया का?${link}${sign}`,
+        };
+      }
+      if (stage === 'Final reminder') {
+        const fee = lateFee ? ` ठरल्याप्रमाणे ${lateFee} लेट फी लागू होईल.` : '';
+        const msmeLine = msme ? ' Udyam (MSME) नोंदणीकृत पुरवठादार म्हणून, MSMED Act, 2006 नुसार उशिरा पेमेंटवर व्याज लागू होते.' : '';
+        return {
+          subject: `अंतिम रिमाइंडर: ${amount} चे पेमेंट थकित`,
+          text: `${hi}, ${amount}${invoice ? ` (इनव्हॉइस ${invoice})` : ''} चे पेमेंट ${late}, आणि आधीच्या रिमाइंडरनंतरही अजून मिळालेले नाही. हे अंतिम रिमाइंडर आहे. कृपया ${deadline} पर्यंत पेमेंट करा. तोपर्यंत पेमेंट न झाल्यास औपचारिक वसुलीची कारवाई सुरू करावी लागेल, ज्यात कायदेशीर नोटीसही असू शकते.${fee}${msmeLine} इनव्हॉइसमध्ये काही अडचण असल्यास कृपया उत्तर देऊन कळवा.${link}${sign}`,
+        };
+      }
+      if (stage === 'Follow-up') {
+        return {
+          subject: `फॉलो-अप: ${amount} चे पेमेंट`,
+          text: `${hi}, ${amount} चे पेमेंट ${late}. कृपया पेमेंट कधीपर्यंत होईल ते कळवाल का?${link}${sign}`,
+        };
+      }
+      return {
+        subject: days <= 0 ? `${amount} चे पेमेंट आज देय आहे` : `रिमाइंडर: ${amount} चे पेमेंट`,
+        text: `${hi}, आशा आहे तुम्ही बरे आहात! फक्त एक छोटेसे रिमाइंडर: ${amount} चे पेमेंट ${late}. पेमेंट झाल्यावर कृपया कळवा.${link}${sign}`,
+      };
+    }
+
+    // ---------- English ----------
+    const name = firstName || 'there';
+    const late = days <= 0 ? 'due today' : `now ${days} ${days === 1 ? 'day' : 'days'} overdue`;
+    const sign = ownerName ? `\n\nThanks,\n${ownerName}` : '\n\nThanks!';
+
+    if (stage === 'Stalled') {
+      return {
+        subject: 'Can we sort out the pending payment?',
+        text: `Hi ${name}, I wanted to check in about the pending payment of ${amount}. If paying it all at once is difficult, I'm happy to split it into two parts. Could we have a quick call this week to sort it out?${link}${sign}`,
+      };
+    }
+    if (stage === 'Final reminder') {
+      const fee = lateFee ? ` As agreed, a late fee of ${lateFee} applies.` : '';
+      const msmeLine = msme ? ' As a Udyam (MSME) registered supplier, delayed payments carry interest under the MSMED Act, 2006.' : '';
+      return {
+        subject: `Final reminder: payment of ${amount} overdue`,
+        text: `Hi ${name}, this is my final reminder about the payment of ${amount}${invoice ? ` for invoice ${invoice}` : ''}, which is ${late}. Please clear it by ${deadline}. If it isn't paid by then, I'll have to move to formal recovery, which may include a legal notice.${fee}${msmeLine} If there's an issue with the invoice, just reply and let me know.${link}${sign}`,
+      };
+    }
+    if (stage === 'Follow-up') {
+      return {
+        subject: `Following up: payment of ${amount}`,
+        text: `Hi ${name}, following up on the payment of ${amount}, which is ${late}. Could you let me know the date I can expect it?${link}${sign}`,
+      };
+    }
+    return {
+      subject: days <= 0 ? `Payment of ${amount} due today` : `Reminder: payment of ${amount}`,
+      text: `Hi ${name}, hope you're doing well! Just a quick reminder that the payment of ${amount} is ${late}. Could you let me know once it's done?${link}${sign}`,
+    };
+  };
+
+  const getClientPhone = (c: any): string => {
+    let phone = String(c.whatsapp || c.phone || '').replace(/\D/g, '');
+    if (phone.length === 10) phone = `91${phone}`; // 10 digits = Indian number
+    return phone;
+  };
+
+  // Which button is busy writing an AI message, e.g. "abc123-whatsapp".
+  const [tapWriting, setTapWriting] = useState<string | null>(null);
+
+  // Pro users: Blink AI writes a fresh message for this client and stage.
+  // Free users (or if the AI fails): the ready-made template above.
+  const getAiTapMessage = async (c: any, days: number, channel: 'whatsapp' | 'sms' | 'email', forceStage?: string) => {
+    const stage = forceStage || getTodayStage(c, days).label;
+    const stageGuide: Record<string, { tone: string; note: string }> = {
+      'First reminder': { tone: 'gentle', note: 'This is the FIRST reminder. Friendly, assume they forgot.' },
+      'Follow-up': { tone: 'professional', note: 'This is a FOLLOW-UP. One reminder was already sent. Be direct and ask for a payment date.' },
+      'Final reminder': { tone: 'firm', note: 'This is the FINAL reminder. Two reminders were ignored. Be firm, give a clear deadline 3 days from today, stay respectful.' },
+      'Stalled': { tone: 'professional', note: 'Reminders are being ignored. Do not demand the full amount again. Offer to split the payment, ask what is blocking it, and suggest a short call.' },
+    };
+    const guide = stageGuide[stage] || stageGuide['First reminder'];
+
+    const idToken = await user?.getIdToken();
+    if (!idToken) throw new Error('Not signed in');
+
+    // Earlier messages to this client, so the new one is worded differently.
+    const previousReminders = (Array.isArray(c.reminderHistory) ? c.reminderHistory : [])
+      .filter((r: any) => r && (r.message || r.email_body))
+      .slice(-5)
+      .map((r: any) => ({
+        email_subject: r.email_subject || '',
+        email_body: r.email_body || (r.channel === 'email' ? r.message : '') || '',
+        whatsapp_message: r.channel === 'whatsapp' ? r.message || '' : '',
+        sms_text: r.channel === 'sms' ? r.message || '' : '',
+      }));
+
+    const response = await fetch('/api/generate-reminder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({
+        clientName: String(c.name || '').trim(),
+        amount: c.amount,
+        currency: c.currency,
+        daysOverdue: Math.max(0, days),
+        invoiceRef: c.invoiceNumber || c.invoiceRef || '',
+        tone: guide.tone,
+        language: normalizeLanguage(c.language),
+        variationInstruction: `${guide.note} The payment is ${days <= 0 ? 'due today' : `${days} days overdue`}.${stage === 'Final reminder' ? finalReminderNote(c) : ''}`,
+        previousReminders,
+      }),
+    });
+    if (!response.ok) throw new Error('AI message failed');
+
+    const data = await response.json();
+    const link = tapLinkLine(c);
 
     if (channel === 'email') {
-      window.location.href =
-        `mailto:?subject=${encodeURIComponent(result.email_subject)}&body=${encodeURIComponent(result.email_body)}`;
-    } else if (channel === 'whatsapp') {
-      window.open(
-        `https://wa.me/?text=${encodeURIComponent(result.whatsapp_message)}`,
-        '_blank',
-        'noopener,noreferrer'
-      );
+      if (!data.email_body) throw new Error('Empty email');
+      return { subject: data.email_subject || buildTapMessage(c, days, forceStage).subject, text: `${data.email_body}${link}` };
+    }
+    const text = channel === 'sms' ? data.sms_text : data.whatsapp_message;
+    if (!text) throw new Error('Empty message');
+    return { subject: '', text: `${text}${link}` };
+  };
+
+  // forceStage: 'Final reminder' sends the formal final notice (from the
+  // "What to do next" card), whatever stage the client is at.
+  const sendTapReminder = async (c: any, channel: 'whatsapp' | 'sms' | 'email', forceStage?: string) => {
+    if (tapWriting) return;
+
+    const days = getDaysOverdue(c.dueDate);
+    const phone = getClientPhone(c);
+
+    // Open the WhatsApp tab straight away (phones block tabs opened
+    // after waiting), then fill in the address once the message is ready.
+    const whatsappTab = channel === 'whatsapp' ? window.open('', '_blank') : null;
+    if (whatsappTab) whatsappTab.opener = null;
+
+    let message = buildTapMessage(c, days, forceStage);
+    let usedAi = false;
+
+    if (isPro) {
+      setTapWriting(`${c.id}-${channel}${forceStage ? '-final' : ''}`);
+      try {
+        message = await getAiTapMessage(c, days, channel, forceStage);
+        usedAi = true;
+      } catch {
+        // Keep the ready-made template so the user can still send.
+      } finally {
+        setTapWriting(null);
+      }
+    }
+
+    const { subject, text } = message;
+    track('send_reminder', {
+      channel,
+      written_by: usedAi ? 'ai' : 'template',
+      final_notice: forceStage === 'Final reminder',
+    });
+
+    if (channel === 'whatsapp') {
+      const url = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+      if (whatsappTab) whatsappTab.location.href = url;
+      else window.open(url, '_blank', 'noopener,noreferrer');
+    } else if (channel === 'sms') {
+      // "sms:+number?&body=" works on both Android and iPhone.
+      window.location.href = `sms:+${phone}?&body=${encodeURIComponent(text)}`;
     } else {
-      // "sms:?&body=" opens the messages app on both Android and iPhone.
-      window.location.href = `sms:?&body=${encodeURIComponent(result.sms_text)}`;
+      window.location.href = `mailto:${String(c.email || '').trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    }
+
+    const channelName = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'email';
+    const kind =
+      forceStage === 'Final reminder'
+        ? 'final_notice'
+        : getTodayStage(c, days).label === 'Stalled'
+          ? 'split_offer'
+          : 'reminder';
+
+    try {
+      await updateDoc(doc(db, 'clients', c.id), {
+        reminderHistory: arrayUnion({
+          type: 'manual',
+          kind,
+          channel,
+          sentAt: new Date().toISOString(),
+          label: kind === 'final_notice'
+            ? `Formal final notice sent (${channelName})`
+            : kind === 'split_offer'
+              ? `Split-payment offer sent (${channelName})`
+              : channel === 'whatsapp' ? 'Manual WhatsApp sent' : channel === 'sms' ? 'Manual SMS sent' : 'Manual email sent',
+          message: text,
+          ...(channel === 'email' ? { email_subject: subject, email_body: text } : {}),
+          writtenBy: usedAi ? 'ai' : 'template',
+        }),
+      });
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch {
+      // If saving fails, the message still opened; the user can send again later.
     }
   };
-  const handleScrollToGenerator = () => { generatorSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
-  const handleOpenActionModal = (title: string) => { setModalTitle(title); setIsModalOpen(true); };
 
-  const scrollToSection = (id: string) => {
-    setActiveSection(id);
-    setMobileMenuOpen(false);
+  const todayClients = clients
+    .filter((c) => {
+      if (c.status !== 'Pending' || !c.dueDate) return false;
+      const dueText = String(c.dueDate).substring(0, 10);
+      const todayText = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+      if (dueText > todayText) return false; // not due yet
+      if (isStalledClient(c)) return false; // shown in the Stalled card instead
+      const last = getLastReminderDaysAgo(c);
+      return last === null || last >= 2;
+    })
+    .sort((a, b) => getDaysOverdue(b.dueDate) - getDaysOverdue(a.dueDate))
+    .slice(0, 5);
 
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (pathname !== '/') {
-          router.push(`/#${id}`);
-          return;
-        }
-        const element = document.getElementById(id);
-        if (element) {
-          const yOffset = -90;
-          const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-          window.scrollTo({ top: y, behavior: 'smooth' });
-        }
-      }, 50);
-    });
+  // Stalled card: once a week. A client comes back 7 days after the last
+  // message sent to them or after "Done for this week", whichever is later.
+  const stalledClients = clients
+    .filter((c) => {
+      if (c.status !== 'Pending' || !c.dueDate) return false;
+      if (getDaysOverdue(c.dueDate) <= 0) return false;
+      if (!isStalledClient(c)) return false;
+      const recent = [getLastReminderDaysAgo(c), daysSinceDate(c.stalledCheckedAt)].filter(
+        (n): n is number => n !== null
+      );
+      return recent.length === 0 || Math.min(...recent) >= STALLED_EVERY_DAYS;
+    })
+    .sort((a, b) => getDaysOverdue(b.dueDate) - getDaysOverdue(a.dueDate));
+
+  const filteredAndSortedClients = clients.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        (c.company && c.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                        (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    if (!matchesSearch) return false;
+
+    if (statusFilter === 'All') return true;
+    
+    const isOverdue = c.status === 'Pending' && getDaysOverdue(c.dueDate) > 0;
+
+    if (statusFilter === 'Paid') return c.status === 'Paid';
+    if (statusFilter === 'Pending') return c.status === 'Pending' && !isOverdue;
+    if (statusFilter === 'Overdue') return c.status === 'Pending' && isOverdue;
+
+    return true;
+  }).sort((a, b) => {
+    // Most urgent first: overdue (most days late first), then unpaid by
+    // nearest due date, then paid clients last.
+    const group = (c: any) =>
+      c.status === 'Paid' ? 2 : getDaysOverdue(c.dueDate) > 0 ? 0 : 1;
+    const ga = group(a);
+    const gb = group(b);
+    if (ga !== gb) return ga - gb;
+    if (ga === 0) return getDaysOverdue(b.dueDate) - getDaysOverdue(a.dueDate);
+    if (ga === 1) return String(a.dueDate || '').localeCompare(String(b.dueDate || ''));
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+
+  // Saves the first late invoice in 3 fields. Email, phone, invoice
+  // number and payment link can be added later with Edit.
+  const handleAddFirstInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || firstSaving) return;
+
+    if (!firstName.trim() || !firstAmount.trim() || !firstDueDate) {
+      setFirstError('Please fill in the client, amount and due date.');
+      return;
+    }
+
+    setFirstError('');
+    setFirstSaving(true);
+    try {
+      await addDoc(collection(db, 'clients'), {
+        userId: user.uid,
+        name: firstName.trim(),
+        company: '',
+        email: '',
+        whatsapp: '',
+        amount: firstAmount,
+        dueDate: firstDueDate,
+        invoiceNumber: '',
+        paymentLink: '',
+        currency: firstCurrency,
+        automatedReminders: false,
+        automationStatus: 'off',
+        status: 'Pending',
+        createdAt: serverTimestamp(),
+        reminderHistory: [],
+      });
+      track('add_client', { from: 'first_invoice_form' });
+      setFirstName('');
+      setFirstAmount('');
+      setFirstDueDate('');
+      window.dispatchEvent(new Event('clients-updated'));
+    } catch (error) {
+      console.error('Could not add first invoice:', error);
+      setFirstError('Could not save. Please try again.');
+    } finally {
+      setFirstSaving(false);
+    }
   };
 
+  // Premium loading screen: three brand-coloured dots rising and
+  // falling in a smooth wave. No images, no spinner.
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-6" suppressHydrationWarning={true}>
+      <div className="flex items-end gap-2.5 h-8" suppressHydrationWarning={true}>
+        {['#245B92', '#2289A8', '#20B8BE'].map((color, i) => (
+          <motion.span
+            key={color}
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: color, boxShadow: `0 6px 14px -4px ${color}99` }}
+            animate={{ y: [0, -12, 0], scale: [1, 1.15, 1], opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.16 }}
+          />
+        ))}
+      </div>
+
+      <p className="mt-5 text-sm font-semibold text-slate-400" suppressHydrationWarning={true}>
+        Loading your dashboard
+      </p>
+    </div>
+  );
+
   return (
-    <MotionConfig reducedMotion="user">
-    <div ref={pageRef} className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
-        
-      {/* --- EARLY OFFER STRIP (only while spots are left) --- */}
-      {showEarlyStrip && earlyOffer && (
-        <button
-          type="button"
-          onClick={() => scrollToSection('pricing')}
-          className="w-full h-9 px-4 flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-xs sm:text-sm cursor-pointer hover:opacity-95 transition"
-          suppressHydrationWarning={true}
-        >
-          <span aria-hidden="true">🎉</span>
-          <span className="truncate">
-            <span className="font-bold">Early offer:</span> Pro at ₹{EARLY_OFFER.monthly} for the first month
-            {earlyOffer.spotsLeft >= EARLY_OFFER.totalSpots ? (
-              <>
-                <span className="hidden sm:inline"> · first {EARLY_OFFER.totalSpots} users only</span>
-                <span className="sm:hidden"> · first {EARLY_OFFER.totalSpots} only</span>
-              </>
-            ) : (
-              <>
-                <span className="hidden sm:inline"> · only {earlyOffer.spotsLeft} of {EARLY_OFFER.totalSpots} {earlyOffer.spotsLeft === 1 ? 'spot' : 'spots'} left</span>
-                <span className="sm:hidden"> · {earlyOffer.spotsLeft} {earlyOffer.spotsLeft === 1 ? 'spot' : 'spots'} left</span>
-              </>
-            )}
-          </span>
-          <span className="font-bold underline underline-offset-2 whitespace-nowrap">Claim →</span>
-        </button>
-      )}
+    <motion.div 
+      initial={{ opacity: 0, y: -5 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className="min-h-screen bg-white text-[#0F172A] antialiased selection:bg-[#20B8BE]/25 transition-colors duration-150" 
+      suppressHydrationWarning={true}
+    >
+      <AddClientModal 
+        isOpen={isModalOpen} 
+        onClose={() => { 
+          setIsModalOpen(false); 
+          setClientToEdit(null); 
+        }} 
+        user={user}
+        isPro={isPro}
+        clientToEdit={clientToEdit}
+      />
+      
+      <AnimatePresence>
+        {upgradeModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 15 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6 relative text-slate-900"
+              suppressHydrationWarning={true}
+            >
+              <motion.button 
+                whileHover={{ rotate: 90, scale: 1.08 }}
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                onClick={() => setUpgradeModalOpen(false)} 
+                className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-full bg-slate-50 transition-colors"
+              >
+                <X size={20} />
+              </motion.button>
 
-      {/* --- FESTIVAL OFFER STRIP (when no early offer is showing) --- */}
-      {festivalStripOffer && (
-        <button
-          type="button"
-          onClick={() => scrollToSection('pricing')}
-          className="w-full h-9 px-4 flex items-center justify-center gap-1.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-xs sm:text-sm cursor-pointer hover:opacity-95 transition"
-          suppressHydrationWarning={true}
-        >
-          <span aria-hidden="true">{FESTIVAL_STRIP_EMOJI[festivalStripOffer.id] || '🎉'}</span>
-          <span className="truncate">
-            <span className="font-bold">{festivalStripOffer.name}:</span> Pro at ₹{festivalStripOffer.monthlyPrice}/month
-            <span className="hidden sm:inline"> · ends {festivalStripEnds}</span>
-            <span className="sm:hidden"> · till {festivalStripEnds}</span>
-          </span>
-          <span className="font-bold underline underline-offset-2 whitespace-nowrap">Claim →</span>
-        </button>
-      )}
+              <div className="w-16 h-16 bg-blue-50 text-[#245B92] rounded-2xl flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
+                <Sparkles size={32} />
+              </div>
 
-      {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
-      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
+              <div className="space-y-2" suppressHydrationWarning={true}>
+                <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>{wasPro ? 'Renew DueBlink Pro' : 'Upgrade to DueBlink Pro'}</h3>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
+                  {wasPro
+                    ? <>Your Pro plan has ended. Renew to get the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and your recovery tools back.</>
+                    : <>Upgrade to DueBlink Pro to unlock the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and accelerate your cash collection.</>}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2" suppressHydrationWarning={true}>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setUpgradeModalOpen(false)} 
+                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-3xs"
+                  suppressHydrationWarning={true}
+                >
+                  Maybe Later
+                </motion.button>
+                <motion.button 
+                  whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(36,91,146,0.25)' }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setUpgradeModalOpen(false);
+                    router.push('/pricing');
+                  }} 
+                  className="flex-1 py-3.5 rounded-xl text-white font-bold text-xs shadow-md transition-shadow cursor-pointer flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                  suppressHydrationWarning={true}
+                >
+                  {wasPro ? 'Renew Now 🚀' : 'Upgrade Now 🚀'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cancelModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs" suppressHydrationWarning={true}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 15 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-6"
+              suppressHydrationWarning={true}
+            >
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
+                <AlertTriangle size={32} />
+              </div>
+
+              <div className="space-y-2" suppressHydrationWarning={true}>
+                <h3 className="text-xl font-black text-slate-900" suppressHydrationWarning={true}>Cancel Pro Subscription?</h3>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed" suppressHydrationWarning={true}>
+                  Are you sure you want to cancel? You will lose access to the <span className="font-bold text-slate-700">Pro Recovery Assistant</span> and unlimited client recovery tools.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2" suppressHydrationWarning={true}>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setCancelModalOpen(false)} 
+                  className="flex-1 py-3.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-3xs"
+                  suppressHydrationWarning={true}
+                >
+                  Keep Pro Plan ✨
+                </motion.button>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleCancelSubscription} 
+                  disabled={loading}
+                  className="flex-1 py-3.5 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition-colors cursor-pointer flex items-center justify-center gap-2"
+                  suppressHydrationWarning={true}
+                >
+                  {loading ? <Loader2 className="animate-spin" size={14} /> : 'Yes, Cancel Plan'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {clientToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[1100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs" suppressHydrationWarning={true}>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 15 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4"
+              suppressHydrationWarning={true}
+            >
+              <div className="w-14 h-14 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto shadow-inner" suppressHydrationWarning={true}>
+                <AlertTriangle size={28} />
+              </div>
+              <div suppressHydrationWarning={true}>
+                <h3 className="text-lg font-black text-slate-900" suppressHydrationWarning={true}>Delete Client</h3>
+                <p className="text-xs text-slate-500 mt-1" suppressHydrationWarning={true}>Are you sure you want to delete <span className="font-bold text-slate-700" suppressHydrationWarning={true}>{clientToDelete.name}</span>? This action cannot be undone.</p>
+              </div>
+              <div className="flex gap-3 pt-2" suppressHydrationWarning={true}>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setClientToDelete(null)} 
+                  className="flex-1 py-3 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                  suppressHydrationWarning={true}
+                >
+                  Cancel
+                </motion.button>
+                <motion.button 
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={confirmDeleteClient} 
+                  className="flex-1 py-3 rounded-xl bg-red-600 text-white font-bold text-xs shadow-md hover:bg-red-700 transition-colors cursor-pointer"
+                  suppressHydrationWarning={true}
+                >
+                  Yes, Delete
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      <FloatingRobot 
+        clients={clients}
+        isPro={isPro}
+        externalAction={robotAction}
+        externalActionClientId={robotActionClientId}
+        externalActionNonce={robotActionNonce}
+        onProcessingChange={setIsRobotProcessing}
+        recommendation={recommendation ? { id: recommendation.id, name: recommendation.name, amount: recommendation.amount, currency: recommendation.currency, daysOverdue: getRecommendationDaysOverdue(recommendation) } : null} 
+        onOpenAddClient={() => { setClientToEdit(null); setIsModalOpen(true); }}
+      />
+
+      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
-            
-          {/* LOGO */}
+          
           <motion.div 
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
@@ -885,2091 +1410,1225 @@ export default function LandingPage() {
             <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
           </motion.div>
 
-          {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
           <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
-            <div className="flex items-center gap-6 text-sm font-bold" suppressHydrationWarning={true}>
-                
-              {/* Features Link */}
+            <div className="flex items-center gap-6 text-sm font-bold text-slate-600" suppressHydrationWarning={true}>
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => scrollToSection('dashboard-preview')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeSection === 'dashboard-preview' && pathname === '/' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
+                onClick={() => setActiveTab('overview')} 
+                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeTab === 'overview' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
                 suppressHydrationWarning={true}
               >
-                <span suppressHydrationWarning={true}>Features</span>
-                {activeSection === 'dashboard-preview' && pathname === '/' ? (
+                <span suppressHydrationWarning={true}>Dashboard</span>
+                {activeTab === 'overview' && (
                   <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
-                ) : (
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-150 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
                 )}
               </motion.button>
 
-              {/* FAQ Link */}
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => scrollToSection('faq')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeSection === 'faq' && pathname === '/' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
-                suppressHydrationWarning={true}
-              >
-                <span suppressHydrationWarning={true}>FAQ</span>
-                {activeSection === 'faq' && pathname === '/' ? (
-                  <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
-                ) : (
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-150 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
-                )}
-              </motion.button>
-
-              {/* Pricing Link */}
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => router.push('/pricing')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${pathname === '/pricing' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
+                className="relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold text-slate-600 hover:text-[#245B92]"
                 suppressHydrationWarning={true}
               >
                 <span suppressHydrationWarning={true}>Pricing</span>
-                {pathname === '/pricing' ? (
-                  <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
-                ) : (
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-150 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
-                )}
               </motion.button>
 
-              {/* Contact Link */}
               <motion.button 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => router.push('/contact')} 
-                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${pathname === '/contact' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
+                onClick={() => setActiveTab('settings')} 
+                className={`relative py-2 px-3 transition-colors duration-150 cursor-pointer font-bold group ${activeTab === 'settings' ? 'text-[#245B92]' : 'text-slate-600 hover:text-[#245B92]'}`}
                 suppressHydrationWarning={true}
               >
-                <span suppressHydrationWarning={true}>Contact</span>
-                {pathname === '/contact' ? (
+                <span suppressHydrationWarning={true}>Account & Settings</span>
+                {activeTab === 'settings' && (
                   <motion.div layoutId="navIndicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-full" transition={{ duration: 0.2, ease: "easeOut" }} suppressHydrationWarning={true} />
-                ) : (
-                  <span className="absolute bottom-0 left-1/2 w-0 h-0.5 bg-[#245B92] rounded-full transition-all duration-150 group-hover:w-[calc(100%-24px)] group-hover:left-3" />
                 )}
               </motion.button>
             </div>
 
             <div className="flex items-center gap-4" suppressHydrationWarning={true}>
-              {pathname === '/login' ? (
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => goToSignUp('header')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
-              ) : !mounted ? (
-                <div className="h-9 w-32" suppressHydrationWarning={true} />
-              ) : user ? (
-                <div className="flex items-center gap-4">
-                  <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                    onClick={() => router.push('/dashboard')} 
-                    className="relative px-4 py-2 text-sm font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center gap-2 text-white hover:opacity-95"
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.15 }}
+                onClick={handleLogout} 
+                className="text-sm font-bold text-slate-600 hover:text-red-600 cursor-pointer transition py-2 px-3 rounded-xl hover:bg-slate-50" 
+                suppressHydrationWarning={true}
+              >
+                Logout
+              </motion.button>
+            </div>
+          </div>
+
+          <div className="flex md:hidden items-center" suppressHydrationWarning={true}>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#245B92]/40"
+              aria-label="Toggle Menu"
+              suppressHydrationWarning={true}
+            >
+              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </motion.button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
+              suppressHydrationWarning={true}
+            >
+              <div className="flex flex-col space-y-3 font-bold text-slate-700">
+                <button onClick={() => { setActiveTab('overview'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg transition font-bold text-slate-700 hover:bg-slate-50">Dashboard</button>
+                <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg transition font-bold text-slate-700 hover:bg-slate-50">Pricing</button>
+                <button onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg transition font-bold text-slate-700 hover:bg-slate-50">Account & Settings</button>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
+                <button onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition">Logout</button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8" suppressHydrationWarning={true}>
+        
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl flex items-center justify-between shadow-xs"
+              suppressHydrationWarning={true}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">✓</div>
+                <p className="text-xs font-bold tracking-wide">{successMessage}</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setSuccessMessage(null)} className="text-emerald-500 hover:text-emerald-700 p-1 cursor-pointer">
+                <X size={16} />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {errorMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.98 }}
+              className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl flex items-center justify-between shadow-xs"
+              suppressHydrationWarning={true}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                  <AlertTriangle size={16} />
+                </div>
+                <p className="text-xs font-bold tracking-wide">{errorMessage}</p>
+              </div>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setErrorMessage(null)} className="text-red-500 hover:text-red-700 p-1 cursor-pointer">
+                <X size={16} />
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {activeTab === 'overview' ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6 sm:space-y-8"
+          >
+            {!isPro && <SeasonalBanner />}
+
+            {/* Pro ends within 3 days: remind them to renew */}
+            {isPro && proExpiresAt && proExpiresAt.getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000 && proExpiresAt.getTime() > Date.now() && (
+              <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
+                <div className="space-y-1" suppressHydrationWarning={true}>
+                  <h2 className="text-base sm:text-lg font-black text-amber-900" suppressHydrationWarning={true}>
+                    Your Pro ends on {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-amber-800 font-medium" suppressHydrationWarning={true}>
+                    After that, automatic reminders and Blink stop. Renew now; the new time is added on top, so you lose no days.
+                  </p>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => router.push('/pricing')}
+                  className="w-full sm:w-auto shrink-0 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition cursor-pointer whitespace-nowrap"
+                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                  suppressHydrationWarning={true}
+                >
+                  Renew Pro
+                </motion.button>
+              </div>
+            )}
+
+            {!isPro && (
+              <div className="bg-gradient-to-r from-[#245B92] to-[#20B8BE] rounded-3xl p-6 text-white flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4" suppressHydrationWarning={true}>
+                <div className="space-y-1 text-center sm:text-left" suppressHydrationWarning={true}>
+                  <h2 className="text-lg font-black tracking-tight" suppressHydrationWarning={true}>{wasPro ? 'Your Pro Plan Has Ended' : 'Unlock Pro Recovery Assistant'}</h2>
+                  <p className="text-xs text-white/90 font-medium" suppressHydrationWarning={true}>
+                    {wasPro
+                      ? 'Renew to get automated follow-ups, the AI Recovery Assistant, and your other Pro tools back.'
+                      : 'Automate follow-ups, analyze payment trends, and recover money faster.'}
+                  </p>
+                </div>
+                <motion.button 
+                  whileHover={{ scale: 1.03, y: -1 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setUpgradeModalOpen(true)}
+                  className="bg-white text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-md hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap"
+                  suppressHydrationWarning={true}
+                >
+                  {wasPro ? 'Renew Pro 🚀' : 'Upgrade to Pro 🚀'}
+                </motion.button>
+              </div>
+            )}
+
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
+              <div className="space-y-1.5" suppressHydrationWarning={true}>
+                <h1 className="text-3xl sm:text-4xl font-black text-slate-900" suppressHydrationWarning={true}>
+                  {getGreeting()}, {getUserDisplayName()} 👋
+                  {isPro && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('settings')}
+                      title="You're on DueBlink Pro. Tap to see your plan."
+                      className="ml-2 sm:ml-3 align-middle inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full bg-[#245B92] text-white whitespace-nowrap cursor-pointer hover:opacity-90 transition"
+                      suppressHydrationWarning={true}
+                    >
+                      <Crown size={12} suppressHydrationWarning={true} /> PRO
+                    </button>
+                  )}
+                </h1>
+                <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
+                  Here's what needs your attention today.
+                </p>
+                
+              </div>
+
+            </header>
+
+            {/* Install DueBlink like an app (phones only, once they have a client) */}
+            {clients.length > 0 && <InstallAppCard />}
+
+            {/* Mobile Quick Add Client */}
+            {clients.length > 0 && (
+            <div className="sm:hidden">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setClientToEdit(null);
+                  setIsModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 text-white px-5 py-4 rounded-2xl text-sm font-bold shadow-md transition"
+                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+              >
+                <Plus size={18} />
+                Add Client
+              </motion.button>
+            </div>
+            )}
+
+            {/* TODAY — who to chase today, with the stage, advice and quick actions */}
+            {clients.some((c) => c.status === 'Pending') && (
+              <section className="p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-4" suppressHydrationWarning={true}>
+                <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
+                  <h2 className="text-[10px] font-black text-[#2BB6A8] uppercase tracking-widest" suppressHydrationWarning={true}>Today</h2>
+                  <span className="text-[11px] font-bold text-slate-500" suppressHydrationWarning={true}>
+                    {todayClients.length === 0
+                      ? 'All caught up'
+                      : `${todayClients.length} ${todayClients.length === 1 ? 'client' : 'clients'} to chase`}
+                  </span>
+                </div>
+
+                {todayClients.length === 0 ? (
+                  <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
+                    Nobody needs a reminder today. DueBlink will show clients here when they are due.
+                  </p>
+                ) : (
+                  <div className="space-y-3" suppressHydrationWarning={true}>
+                    {todayClients.map((c) => {
+                      const days = getDaysOverdue(c.dueDate);
+                      const stage = getTodayStage(c, days);
+                      const lastDays = getLastReminderDaysAgo(c);
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="p-4 sm:p-5 border border-slate-100 bg-slate-50/50 rounded-2xl space-y-3"
+                          suppressHydrationWarning={true}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2" suppressHydrationWarning={true}>
+                            <div className="space-y-1" suppressHydrationWarning={true}>
+                              <div className="flex items-center gap-2 flex-wrap" suppressHydrationWarning={true}>
+                                <p className="font-bold text-base text-slate-900" suppressHydrationWarning={true}>{c.name}</p>
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
+                                  stage.label === 'Stalled'
+                                    ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                                    : days > 0
+                                      ? 'bg-rose-50 text-rose-600'
+                                      : 'bg-amber-50 text-amber-600'
+                                }`} suppressHydrationWarning={true}>
+                                  {stage.label}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>
+                                {formatAmountWithCurrency(c.amount, c.currency)} · {days === 0 ? 'Due today' : `${days} ${days === 1 ? 'day' : 'days'} overdue`} · {lastDays === null ? 'No reminder sent yet' : `Last reminder ${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="text-sm text-slate-700 font-medium" suppressHydrationWarning={true}>{stage.advice}</p>
+
+                          {/* Tap to send: a ready message, opened on the user's own phone */}
+                          {(getClientPhone(c) || c.email) ? (
+                            <div className="grid grid-cols-3 gap-2" suppressHydrationWarning={true}>
+                              {getClientPhone(c) && (
+                                <motion.button
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => sendTapReminder(c, 'whatsapp')}
+                                  disabled={tapWriting !== null}
+                                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                                  suppressHydrationWarning={true}
+                                >
+                                  {tapWriting === `${c.id}-whatsapp` ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+                                  {tapWriting === `${c.id}-whatsapp` ? 'Writing…' : 'WhatsApp'}
+                                </motion.button>
+                              )}
+                              {getClientPhone(c) && (
+                                <motion.button
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => sendTapReminder(c, 'sms')}
+                                  disabled={tapWriting !== null}
+                                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                                  suppressHydrationWarning={true}
+                                >
+                                  {tapWriting === `${c.id}-sms` ? <Loader2 size={14} className="animate-spin" /> : <MessageSquare size={14} />}
+                                  {tapWriting === `${c.id}-sms` ? 'Writing…' : 'SMS'}
+                                </motion.button>
+                              )}
+                              {c.email && (
+                                <motion.button
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => sendTapReminder(c, 'email')}
+                                  disabled={tapWriting !== null}
+                                  className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                                  suppressHydrationWarning={true}
+                                >
+                                  {tapWriting === `${c.id}-email` ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                                  {tapWriting === `${c.id}-email` ? 'Writing…' : 'Email'}
+                                </motion.button>
+                              )}
+                              <p className="col-span-3 text-[11px] text-slate-400 font-medium" suppressHydrationWarning={true}>
+                                {isPro ? '✨ Blink AI writes a fresh message for this stage.' : 'Ready-made message. Pro: Blink AI writes a fresh one each time.'}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>
+                              Add this client&apos;s WhatsApp number or email to send a reminder in one tap.
+                            </p>
+                          )}
+
+                          <div className="flex flex-col sm:flex-row gap-2" suppressHydrationWarning={true}>
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                if (!isPro) {
+                                  setUpgradeModalOpen(true);
+                                  return;
+                                }
+                                setRobotActionClientId(c.id);
+                                setRobotAction('recommend');
+                                setRobotActionNonce((n) => n + 1);
+                              }}
+                              className="w-full sm:w-auto bg-[#0F172A] text-white px-6 py-3 rounded-xl font-bold text-sm shadow-xs hover:opacity-90 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                              suppressHydrationWarning={true}
+                            >
+                              <Sparkles size={14} suppressHydrationWarning={true} /> Write reminder
+                            </motion.button>
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              onClick={async () => {
+                                await updateDoc(doc(db, 'clients', c.id), { status: 'Paid', paidAt: new Date().toISOString(), activity: arrayUnion({ type: 'paid', at: new Date().toISOString() }) });
+                                window.dispatchEvent(new Event('clients-updated'));
+                              }}
+                              className="w-full sm:w-auto text-sm font-bold text-white px-6 py-3 rounded-xl shadow-xs transition-shadow cursor-pointer flex items-center justify-center gap-1.5"
+                              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                              suppressHydrationWarning={true}
+                            >
+                              <CheckCircle2 size={14} suppressHydrationWarning={true} /> Mark paid
+                            </motion.button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* STALLED — reminders ignored. Own card, no normal reminder buttons, once a week */}
+            {stalledClients.length > 0 && (
+              <section className="p-5 sm:p-8 bg-white border border-orange-200 rounded-3xl shadow-xs border-l-8 border-l-orange-600 space-y-4" suppressHydrationWarning={true}>
+                <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
+                  <h2 className="text-[10px] font-black text-orange-600 uppercase tracking-widest" suppressHydrationWarning={true}>Stalled</h2>
+                  <span className="text-[11px] font-bold text-slate-500" suppressHydrationWarning={true}>
+                    {stalledClients.length} {stalledClients.length === 1 ? 'client' : 'clients'} · shown once a week
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600 font-medium" suppressHydrationWarning={true}>
+                  These clients ignored your reminders. More reminders won&apos;t help, so try these steps instead.
+                </p>
+
+                <div className="space-y-3" suppressHydrationWarning={true}>
+                  {stalledClients.map((c) => {
+                    const days = getDaysOverdue(c.dueDate);
+                    const lastDays = getLastReminderDaysAgo(c);
+                    const phone = getClientPhone(c);
+                    const callName = String(c.name || '').trim().split(' ')[0] || 'client';
+                    const splitSent = getStalledStepSentDays(c, 'split');
+                    const finalSent = getStalledStepSentDays(c, 'final');
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="p-4 sm:p-5 border border-orange-200 bg-orange-50/50 rounded-2xl space-y-4"
+                        suppressHydrationWarning={true}
+                      >
+                        <div className="space-y-1" suppressHydrationWarning={true}>
+                          <div className="flex items-center gap-2 flex-wrap" suppressHydrationWarning={true}>
+                            <p className="font-bold text-base text-slate-900" suppressHydrationWarning={true}>{c.name}</p>
+                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase bg-orange-50 text-orange-600 border border-orange-200" suppressHydrationWarning={true}>
+                              Stalled
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>
+                            {formatAmountWithCurrency(c.amount, c.currency)} · {days} {days === 1 ? 'day' : 'days'} overdue · {lastDays === null ? 'No reminder sent yet' : `Last message ${agoText(lastDays)}`}
+                          </p>
+                        </div>
+
+                        <ol className="space-y-4 text-xs text-slate-600 font-medium list-decimal list-inside" suppressHydrationWarning={true}>
+                          {/* 1. Call */}
+                          <li>
+                            <span className="font-bold text-slate-800">Call them.</span>{' '}
+                            A call often works when messages don&apos;t. If the person you work with doesn&apos;t pay the invoices, ask for their accounts team.
+                            {phone ? (
+                              <a href={`tel:+${phone}`} onClick={() => logClientActivity(c, 'call')} className="mt-2 flex w-full sm:w-auto sm:inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition">
+                                <PhoneCall size={14} /> Call {callName}
+                              </a>
+                            ) : (
+                              <span className="block mt-1.5 text-[11px] text-slate-400">Add their number in Edit client to call them.</span>
+                            )}
+                          </li>
+
+                          {/* 2. Split the payment (sent once) */}
+                          <li>
+                            <span className="font-bold text-slate-800">Offer to split the payment.</span>{' '}
+                            One message asking what&apos;s blocking it and offering to pay in parts.
+                            {splitSent !== null ? (
+                              <span className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-[#2BB6A8]">
+                                <Check size={14} /> Offer sent {agoText(splitSent)}. Give them a few days to reply.
+                              </span>
+                            ) : (phone || c.email) ? (
+                              <div className="mt-2 grid grid-cols-2 sm:flex gap-2">
+                                {phone && (
+                                  <motion.button
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => sendTapReminder(c, 'whatsapp')}
+                                    disabled={tapWriting !== null}
+                                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F172A] hover:opacity-90 transition cursor-pointer"
+                                  >
+                                    {tapWriting === `${c.id}-whatsapp` ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+                                    {tapWriting === `${c.id}-whatsapp` ? 'Writing…' : 'On WhatsApp'}
+                                  </motion.button>
+                                )}
+                                {c.email && (
+                                  <motion.button
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => sendTapReminder(c, 'email')}
+                                    disabled={tapWriting !== null}
+                                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F172A] hover:opacity-90 transition cursor-pointer"
+                                  >
+                                    {tapWriting === `${c.id}-email` ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                                    {tapWriting === `${c.id}-email` ? 'Writing…' : 'By email'}
+                                  </motion.button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="block mt-1.5 text-[11px] text-slate-400">Add their WhatsApp number or email in Edit client.</span>
+                            )}
+                          </li>
+
+                          {/* 3. Formal final notice (sent once) */}
+                          <li>
+                            <span className="font-bold text-slate-800">Send the formal final notice.</span>{' '}
+                            Amount, a deadline in 3 days, and the next step (formal recovery). Pause any ongoing work until it&apos;s paid.
+                            {finalSent !== null ? (
+                              <span className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-[#2BB6A8]">
+                                <Check size={14} /> Final notice sent {agoText(finalSent)}.
+                              </span>
+                            ) : (phone || c.email) ? (
+                              <>
+                                <div className="mt-2 grid grid-cols-2 sm:flex gap-2">
+                                  {phone && (
+                                    <motion.button
+                                      whileTap={{ scale: 0.97 }}
+                                      onClick={() => sendTapReminder(c, 'whatsapp', 'Final reminder')}
+                                      disabled={tapWriting !== null}
+                                      className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F172A] hover:opacity-90 transition cursor-pointer"
+                                    >
+                                      {tapWriting === `${c.id}-whatsapp-final` ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />}
+                                      {tapWriting === `${c.id}-whatsapp-final` ? 'Writing…' : 'On WhatsApp'}
+                                    </motion.button>
+                                  )}
+                                  {c.email && (
+                                    <motion.button
+                                      whileTap={{ scale: 0.97 }}
+                                      onClick={() => sendTapReminder(c, 'email', 'Final reminder')}
+                                      disabled={tapWriting !== null}
+                                      className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#0F172A] hover:opacity-90 transition cursor-pointer"
+                                    >
+                                      {tapWriting === `${c.id}-email-final` ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />}
+                                      {tapWriting === `${c.id}-email-final` ? 'Writing…' : 'By email'}
+                                    </motion.button>
+                                  )}
+                                </div>
+                                <span className="block mt-1.5 text-[11px] text-slate-400">
+                                  Late fee and MSME lines are added only if you set them in Edit client.
+                                </span>
+                              </>
+                            ) : null}
+                            <span className="block mt-2">
+                              <span className="font-bold text-slate-800">If it&apos;s still not paid:</span>{' '}
+                                  {!isIndianCurrency(c.currency)
+                                    ? "A legal notice through a lawyer, a small-claims court, or a collection agency in the client's country."
+                                    : msmeApplies(c)
+                                      ? 'A legal notice through a lawyer, or a complaint on MSME Samadhaan (samadhaan.msme.gov.in).'
+                                      : 'A legal notice through a lawyer, then a recovery case in civil court if needed.'}
+                                  {/* Not Udyam registered: tell them it's free, for future invoices */}
+                                  {isIndianCurrency(c.currency) && !msmeApplies(c) && (
+                                    <span className="block mt-1 text-[11px] text-slate-500">
+                                      Tip: Udyam (MSME) registration is free and online for freelancers too (udyamregistration.gov.in). It usually protects only work done after you register, not this invoice.
+                                    </span>
+                                  )}
+                                  <span className="block mt-1 text-[11px] text-slate-400">
+                                    Check with a lawyer or CA before taking formal steps. Not legal advice.
+                                  </span>
+                            </span>
+                          </li>
+
+                          {/* 4. Write off */}
+                          <li>
+                            <span className="font-bold text-slate-800">Or let it go.</span>{' '}
+                            Mark it as written off so it stops showing here.
+                            <button
+                              type="button"
+                              onClick={() => markWrittenOff(c)}
+                              className="mt-2 flex w-full sm:w-auto sm:inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 border border-slate-200 hover:bg-slate-50 transition cursor-pointer"
+                            >
+                              <Ban size={14} /> Mark as written off
+                            </button>
+                          </li>
+                        </ol>
+
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1" suppressHydrationWarning={true}>
+                          <motion.button
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => markStalledDoneThisWeek(c)}
+                            className="w-full sm:w-auto bg-white text-slate-700 border border-slate-200 px-6 py-3 rounded-xl font-bold text-sm shadow-xs hover:bg-slate-50 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                            suppressHydrationWarning={true}
+                          >
+                            <Check size={14} suppressHydrationWarning={true} /> Done for this week
+                          </motion.button>
+                          <motion.button
+                            whileTap={{ scale: 0.98 }}
+                            onClick={async () => {
+                              await updateDoc(doc(db, 'clients', c.id), { status: 'Paid', paidAt: new Date().toISOString(), activity: arrayUnion({ type: 'paid', at: new Date().toISOString() }) });
+                              window.dispatchEvent(new Event('clients-updated'));
+                            }}
+                            className="w-full sm:w-auto text-sm font-bold text-white px-6 py-3 rounded-xl shadow-xs transition-shadow cursor-pointer flex items-center justify-center gap-1.5"
+                            style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                            suppressHydrationWarning={true}
+                          >
+                            <CheckCircle2 size={14} suppressHydrationWarning={true} /> Mark paid
+                          </motion.button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* NEW USER — add the first late invoice in 3 fields */}
+            {clients.length === 0 && (
+              <section className="p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-5" suppressHydrationWarning={true}>
+                <div className="space-y-1" suppressHydrationWarning={true}>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900" suppressHydrationWarning={true}>Add your first late invoice</h2>
+                  <p className="text-sm text-slate-500 font-medium" suppressHydrationWarning={true}>
+                    Just 3 details. DueBlink tells you when to follow up and writes the reminder.
+                  </p>
+                </div>
+
+                <form onSubmit={handleAddFirstInvoice} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end gap-3" suppressHydrationWarning={true}>
+                  <div className="space-y-1.5" suppressHydrationWarning={true}>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Client</label>
+                    <input
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Rahul Mehta"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-900"
+                      suppressHydrationWarning={true}
+                    />
+                  </div>
+                  <div className="space-y-1.5" suppressHydrationWarning={true}>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Amount ({getCurrencySymbol(firstCurrency).trim()})</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={firstAmount ? Number(firstAmount).toLocaleString(firstCurrency === 'INR' ? 'en-IN' : 'en-US') : ''}
+                      onChange={(e) => setFirstAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="25,000"
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-900"
+                      suppressHydrationWarning={true}
+                    />
+                  </div>
+                  <div className="space-y-1.5" suppressHydrationWarning={true}>
+                    <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>Due date</label>
+                    <input
+                      type="date"
+                      value={firstDueDate}
+                      onChange={(e) => setFirstDueDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition text-slate-700"
+                      suppressHydrationWarning={true}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={firstSaving}
+                    className="sm:col-span-3 lg:col-span-1 w-full lg:w-auto py-3.5 lg:py-3 px-6 rounded-xl font-bold text-white text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 whitespace-nowrap"
                     style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
                     suppressHydrationWarning={true}
                   >
-                    Open Dashboard 
-                    {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider ml-1">PRO</span>}
+                    {firstSaving ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+                    {firstSaving ? 'Saving...' : 'Add invoice'}
+                  </button>
+
+                  {firstError && (
+                    <p className="sm:col-span-3 lg:col-span-4 text-[11px] font-bold text-red-500" suppressHydrationWarning={true}>{firstError}</p>
+                  )}
+                </form>
+
+                <p className="text-xs text-slate-400 font-medium" suppressHydrationWarning={true}>
+                  Email, WhatsApp number and invoice number are optional. Add them later with Edit.
+                </p>
+              </section>
+            )}
+
+            {clients.length > 0 && (
+            <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6" suppressHydrationWarning={true}>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#245B92]" suppressHydrationWarning={true}>
+                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><Layers size={14} suppressHydrationWarning={true}/> Total Outstanding</div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{formatTotalsByCurrency(clients.filter((c) => c.status === 'Pending'))}</p>
+                <p className="text-xs font-medium text-slate-500">Outstanding across {pendingCount} {pendingCount === 1 ? 'invoice' : 'invoices'}.</p>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#20B8BE]" suppressHydrationWarning={true}>
+                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><AlertTriangle size={14} suppressHydrationWarning={true}/> Overdue</div>
+                <p className="text-2xl sm:text-3xl font-black text-slate-900 mb-1" suppressHydrationWarning={true}>{formatTotalsByCurrency(overdueClients)}</p>
+                <p className="text-xs font-medium text-slate-500">{overdueCount === 0 ? 'Nothing overdue right now.' : `${overdueCount} overdue ${overdueCount === 1 ? 'invoice' : 'invoices'}.`}</p>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} whileHover={{ y: -2 }} className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs border-t-4 border-t-[#2BB6A8]" suppressHydrationWarning={true}>
+                <div className="flex items-center gap-2 text-slate-400 font-bold uppercase text-[10px] mb-2" suppressHydrationWarning={true}><TrendingUp size={14} suppressHydrationWarning={true}/> Recovered this month</div>
+                <p className="text-2xl sm:text-3xl font-black text-[#2BB6A8] mb-1" suppressHydrationWarning={true}>{formatTotalsByCurrency(paidThisMonth)}</p>
+                <p className="text-xs font-medium text-slate-500">{paidCount === 0 ? 'No payments recovered yet.' : `${formatTotalsByCurrency(clients.filter((c) => c.status === 'Paid'))} recovered in total.`}</p>
+              </motion.div>
+            </section>
+            )}
+
+            {clients.length > 0 && (
+            <section className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6" suppressHydrationWarning={true}>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4" suppressHydrationWarning={true}>
+                <h3 className="font-black uppercase text-xs tracking-widest text-slate-400" suppressHydrationWarning={true}>Client Management</h3>
+                
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="absolute left-3 top-3 text-slate-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search clients..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/20 transition text-slate-900"
+                    />
+                  </div>
+
+                  <motion.button 
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { setClientToEdit(null); setIsModalOpen(true); }} 
+                    className="hidden sm:flex items-center justify-center gap-2 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md transition cursor-pointer" 
+                    style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
+                    suppressHydrationWarning={true}
+                  >
+                    <Plus size={16} suppressHydrationWarning={true} /> Add Client
                   </motion.button>
-                  <div className="relative group py-2">
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} className={`flex items-center gap-1.5 text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/account' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-700 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>
-                      Account <ChevronDown size={14} />
-                      {pathname === '/account' && (
-                        <div className="absolute bottom-1 left-3 right-3 h-0.5 bg-[#245B92] rounded-full" />
-                      )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-100 text-xs font-bold">
+                {(['All', 'Pending', 'Overdue', 'Paid'] as const).map((tab) => {
+                  const count = clients.filter(c => {
+                    if (tab === 'All') return true;
+                    const isOverdue = c.status === 'Pending' && getDaysOverdue(c.dueDate) > 0;
+                    if (tab === 'Paid') return c.status === 'Paid';
+                    if (tab === 'Pending') return c.status === 'Pending' && !isOverdue;
+                    if (tab === 'Overdue') return c.status === 'Pending' && isOverdue;
+                    return false;
+                  }).length;
+
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setStatusFilter(tab)}
+                      className={`px-4 py-2 rounded-xl transition cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                        statusFilter === tab 
+                          ? 'bg-[#0F172A] text-white shadow-xs' 
+                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>{tab}</span>
+                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${statusFilter === tab ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <div className="space-y-4" suppressHydrationWarning={true}>
+                <AnimatePresence mode="popLayout">
+                {filteredAndSortedClients.length === 0 ? (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="py-16 text-center space-y-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 p-6 sm:p-12" 
+                    suppressHydrationWarning={true}
+                  >
+                    <div className="w-16 h-16 bg-teal-50 text-[#20B8BE] rounded-full flex items-center justify-center mx-auto shadow-inner">
+                      <Sparkles size={32} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-lg font-black text-slate-900" suppressHydrationWarning={true}>No clients found.</p>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto font-medium leading-relaxed" suppressHydrationWarning={true}>
+                        {clients.length === 0 ? "Add your first client to start tracking invoices, monitor payments, and unlock your dashboard insights." : "No clients match your search or filter criteria."}
+                      </p>
+                    </div>
+                    {clients.length === 0 && (
+                      <motion.button 
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => { setClientToEdit(null); setIsModalOpen(true); }} 
+                        className="inline-flex items-center gap-2 text-white px-8 py-3.5 rounded-xl text-xs font-bold shadow-md transition cursor-pointer" 
+                        style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                        suppressHydrationWarning={true}
+                      >
+                        <Plus size={14} suppressHydrationWarning={true} /> Add Your First Client
+                      </motion.button>
+                    )}
+                  </motion.div>
+                ) : (
+                  filteredAndSortedClients.map((c) => {
+                    const daysOverdue = getDaysOverdue(c.dueDate);
+                    const isOverdue = daysOverdue > 0 && c.status === 'Pending';
+
+                    const isExpanded = expandedClientId === c.id;
+
+                    // Same escalation logic as the Pro Recovery Assistant's
+                    // getEscalationStage: 3+ reminders sent and still unpaid
+                    // (or 2 sent and 21+ days overdue) means reminders alone
+                    // aren't working — flag it visibly instead of burying
+                    // that signal inside the AI panel.
+                    const reminderCount = Array.isArray(c.reminderHistory) ? c.reminderHistory.length : 0;
+                    const isWrittenOff = c.status === 'Written off';
+                    const isStalled = c.status === 'Pending' && (
+                      reminderCount >= 3 || (reminderCount === 2 && daysOverdue >= 21)
+                    );
+
+                    return (
+                      <motion.div 
+                        key={c.id} 
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.97 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className={`p-6 border rounded-2xl transition-colors duration-150 space-y-4 cursor-pointer ${
+                          isStalled
+                            ? 'border-orange-200 border-l-4 border-l-orange-400 bg-orange-50/30 hover:bg-orange-50/50'
+                            : 'border-slate-100 bg-slate-50/50 hover:bg-[#245B92]/5 hover:border-[#245B92]/30'
+                        }`} suppressHydrationWarning={true}>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
+                          <div className="space-y-1" suppressHydrationWarning={true}>
+                            <div className="flex items-center gap-3 flex-wrap" suppressHydrationWarning={true}>
+                              <p className="font-bold text-base text-slate-900" suppressHydrationWarning={true}>{c.name}</p>
+                              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${
+                                c.status === 'Paid' 
+                                  ? 'bg-emerald-50 text-emerald-600' 
+                                  : isWrittenOff
+                                    ? 'bg-slate-100 text-slate-500'
+                                    : isOverdue 
+                                      ? 'bg-rose-50 text-rose-600' 
+                                      : 'bg-amber-50 text-amber-600'
+                              }`} suppressHydrationWarning={true}>
+                                {c.status === 'Paid' ? 'Paid' : isWrittenOff ? 'Written off' : isOverdue ? 'Overdue' : 'Pending'}
+                              </span>
+
+                              {isStalled && (
+                                <motion.span
+                                  initial={{ opacity: 0, scale: 0.8 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase bg-orange-50 text-orange-600 border border-orange-200 flex items-center gap-1"
+                                  title="Reminders haven't worked — try a different approach (call, payment plan, or ask what's blocking payment)"
+                                  suppressHydrationWarning={true}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                  Needs Attention
+                                </motion.span>
+                              )}
+
+                              {c.automatedReminders === true && c.status === 'Pending' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E8F8F8] text-[#159A9F]">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[#20B8BE]" />
+                                  Auto Reminder ON
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>{c.company || c.email || 'No company'}</p>
+                            {c.status === 'Pending' && (() => {
+                              const lastDays = getLastReminderDaysAgo(c);
+                              const nextAuto = getNextAutoReminder(c);
+                              return (
+                                <p className="text-xs text-slate-600 font-medium" suppressHydrationWarning={true}>
+                                  <span className="font-bold text-slate-700">{getTodayStage(c, daysOverdue).label}</span>
+                                  {' · '}
+                                  {lastDays === null ? 'No reminder sent yet' : `Last reminder ${lastDays === 0 ? 'today' : `${lastDays} ${lastDays === 1 ? 'day' : 'days'} ago`}`}
+                                  {nextAuto ? ` · ${nextAuto}` : ''}
+                                </p>
+                              );
+                            })()}
+                          </div>
+
+                          <div className="flex items-center gap-3 w-full sm:w-auto" suppressHydrationWarning={true}>
+                            <motion.button 
+                              whileHover={{ y: -1 }}
+                              whileTap={{ scale: 0.96 }}
+                              onClick={() => setExpandedClientId(isExpanded ? null : c.id)} 
+                              className="flex-1 sm:flex-none text-xs font-bold bg-white border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 shadow-xs transition-colors cursor-pointer text-slate-700 flex items-center justify-center gap-1.5"
+                              suppressHydrationWarning={true}
+                            >
+                              <Eye size={14} suppressHydrationWarning={true} /> {isExpanded ? 'Hide Details' : 'View'}
+                              <ChevronDown size={14} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
+                            </motion.button>
+
+                            {c.status === 'Pending' ? (
+                              <motion.button 
+                                whileHover={{ y: -1, boxShadow: '0 4px 10px rgba(36,91,146,0.25)' }}
+                                whileTap={{ scale: 0.96 }}
+                                onClick={async (e) => { 
+                                  e.stopPropagation(); 
+                                  await updateDoc(doc(db, 'clients', c.id), { status: 'Paid', paidAt: new Date().toISOString(), activity: arrayUnion({ type: 'paid', at: new Date().toISOString() }) }); 
+                                  window.dispatchEvent(new Event('clients-updated'));
+                                }} 
+                                className="flex-1 sm:flex-none text-xs font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition-shadow cursor-pointer flex items-center justify-center gap-1.5" 
+                                style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+                                suppressHydrationWarning={true}
+                              >
+                                <CheckCircle2 size={14} suppressHydrationWarning={true} /> Mark Paid
+                              </motion.button>
+                            ) : isWrittenOff ? (
+                              <motion.button
+                                whileTap={{ scale: 0.96 }}
+                                onClick={(e) => { e.stopPropagation(); undoWrittenOff(c); }}
+                                className="flex-1 sm:flex-none text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                title="Move back to pending"
+                                suppressHydrationWarning={true}
+                              >
+                                <Undo2 size={14} suppressHydrationWarning={true} /> Undo write-off
+                              </motion.button>
+                            ) : (
+                              <span className="text-[11px] font-bold text-[#2BB6A8] bg-[#2BB6A8]/10 px-4 py-2.5 rounded-xl flex items-center gap-2" suppressHydrationWarning={true}>
+                                <CheckCircle2 size={14} suppressHydrationWarning={true} /> Paid
+                              </span>
+                            )}
+                            
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => { e.stopPropagation(); setClientToEdit(c); setIsModalOpen(true); }} 
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-[#245B92] hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="Edit Client"
+                              suppressHydrationWarning={true}
+                            >
+                              <Edit3 size={16} suppressHydrationWarning={true} />
+                            </motion.button>
+
+                            <motion.button 
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => { e.stopPropagation(); setClientToDelete(c); }} 
+                              className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                              title="Delete Client"
+                              suppressHydrationWarning={true}
+                            >
+                              <Trash2 size={16} suppressHydrationWarning={true} />
+                            </motion.button>
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.15 }}
+                              className="overflow-hidden pt-3 border-t border-slate-200/60 space-y-3"
+                              suppressHydrationWarning={true}
+                            >
+                              <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-slate-700 bg-white p-4 rounded-xl border border-slate-200 shadow-3xs" suppressHydrationWarning={true}>
+                                <span suppressHydrationWarning={true}>
+                                  Amount Due: <strong className="text-slate-900 font-black text-sm ml-1" suppressHydrationWarning={true}>{formatAmountWithCurrency(c.amount, c.currency)}</strong>
+                                </span>
+                                <span suppressHydrationWarning={true}>
+                                  Due Date: <strong className="text-slate-900 ml-1" suppressHydrationWarning={true}>{c.dueDate || 'N/A'}</strong>
+                                </span>
+                                <span suppressHydrationWarning={true}>
+                                  Status: <strong className={c.status === 'Paid' ? 'text-emerald-600' : isWrittenOff ? 'text-slate-500' : isOverdue ? 'text-rose-600' : 'text-amber-600'} suppressHydrationWarning={true}>{c.status === 'Paid' ? 'Paid' : isWrittenOff ? 'Written off' : isOverdue ? `Overdue by ${daysOverdue} days` : 'Pending'}</strong>
+                                </span>
+                                {c.invoiceNumber && (
+                                  <span suppressHydrationWarning={true}>
+                                    Invoice: <strong className="text-slate-900 ml-1">{c.invoiceNumber}</strong>
+                                  </span>
+                                )}
+                                {c.paymentLink && (
+                                  <span suppressHydrationWarning={true}>
+                                    Payment Link: <a href={c.paymentLink} target="_blank" rel="noopener noreferrer" className="text-[#245B92] underline ml-1">{c.paymentLink}</a>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* History — this client's journey, start to end */}
+                              <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-3xs" suppressHydrationWarning={true}>
+                                {(() => {
+                                  const history = getClientHistory(c);
+                                  const summary = getHistorySummary(c);
+                                  const doneCount = history.filter((h) => h.done).length;
+                                  return (
+                                    <>
+                                      <div className="flex items-start justify-between gap-3 mb-4">
+                                        <div>
+                                          <h4 className="text-sm font-black text-slate-900">History</h4>
+                                          <p className={`text-[11px] font-bold mt-0.5 ${summary.tone}`}>{summary.text}</p>
+                                        </div>
+                                        <span className="text-[11px] font-bold text-slate-400 whitespace-nowrap">
+                                          {doneCount} {doneCount === 1 ? 'step' : 'steps'} done
+                                        </span>
+                                      </div>
+
+                                      <ol suppressHydrationWarning={true}>
+                                        {history.map((h, i) => {
+                                          const msgKey = `${c.id}-${h.key}`;
+                                          const nextItem = history[i + 1];
+                                          return (
+                                            <li key={h.key} className="relative flex gap-3 pb-5 last:pb-0" suppressHydrationWarning={true}>
+                                              {nextItem && (
+                                                <span
+                                                  className={`absolute left-[11px] top-6 bottom-0 w-0.5 ${nextItem.done ? 'bg-[#2BB6A8]' : 'bg-slate-200'}`}
+                                                  aria-hidden="true"
+                                                />
+                                              )}
+                                              <span
+                                                className={`relative w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${
+                                                  h.done ? `${h.dot} text-white shadow-xs` : 'bg-white border-2 border-dashed border-slate-300'
+                                                }`}
+                                              >
+                                                {h.done ? (
+                                                  h.icon === 'off' ? <Ban size={12} strokeWidth={3} /> : <Check size={13} strokeWidth={3} />
+                                                ) : (
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                )}
+                                              </span>
+
+                                              <div className="min-w-0 pt-0.5">
+                                                <p className={`text-xs font-bold ${h.done ? 'text-slate-900' : 'text-slate-400'}`}>{h.title}</p>
+                                                {h.done || h.key === 'due' ? (
+                                                  <p className="text-[11px] text-slate-500 mt-0.5">
+                                                    {new Date(h.at).toLocaleString('en-IN', h.dateOnly
+                                                      ? { day: '2-digit', month: 'short', year: 'numeric' }
+                                                      : { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                                    {!h.done ? ' (upcoming)' : ''}
+                                                    {h.sub ? ` · ${h.sub}` : ''}
+                                                  </p>
+                                                ) : (
+                                                  <p className="text-[11px] text-slate-400 mt-0.5">Next step</p>
+                                                )}
+                                                {h.message ? (
+                                                  <>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setHistoryMsgOpen(historyMsgOpen === msgKey ? null : msgKey)}
+                                                      className="mt-1 text-[11px] font-bold text-[#245B92] hover:underline cursor-pointer"
+                                                    >
+                                                      {historyMsgOpen === msgKey ? 'Hide message' : 'See message'}
+                                                    </button>
+                                                    {historyMsgOpen === msgKey && (
+                                                      <p className="mt-1.5 p-3 rounded-lg bg-slate-50 border border-slate-100 text-[11px] text-slate-600 whitespace-pre-line">
+                                                        {h.message}
+                                                      </p>
+                                                    )}
+                                                  </>
+                                                ) : null}
+                                              </div>
+                                            </li>
+                                          );
+                                        })}
+                                      </ol>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+
+                              {isPro && (
+                                <div className="mt-3 flex justify-end" suppressHydrationWarning={true}>
+                                  <button 
+                                    onClick={() => { setRobotActionClientId(c.id); setRobotAction('recommend'); setRobotActionNonce((n) => n + 1); }} 
+                                    className="text-xs font-bold text-[#245B92] bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                                    suppressHydrationWarning={true}
+                                  >
+                                    <Sparkles size={14} className="text-[#20B8BE]" suppressHydrationWarning={true} /> Generate AI Reminder
+                                  </button>
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    );
+                  })
+                )}
+                </AnimatePresence>
+              </div>
+            </section>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="max-w-4xl mx-auto space-y-8"
+          >
+            <div>
+              <h1 className="text-3xl font-black text-slate-900">Account & Settings</h1>
+              <p className="text-sm text-slate-500 font-medium mt-1">Manage your profile, billing plan and security settings.</p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <User className="text-[#245B92]" size={20} />
+                <h3 className="text-lg font-black text-slate-900">Profile</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Email Address</label>
+                  <input type="email" disabled value={user?.email || ''} className="w-full px-4 py-3 border border-slate-200 bg-slate-50 rounded-xl text-sm text-slate-600 cursor-not-allowed" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <Crown className="text-amber-500" size={20} />
+                <h3 className="text-lg font-black text-slate-900">Billing & Subscription</h3>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Current Plan</p>
+                  <p className="text-xl font-black text-slate-900">{isPro ? 'DueBlink Pro 🚀' : wasPro ? 'Pro Plan Ended' : 'Free Plan'}</p>
+                  <p className="text-xs text-slate-500 font-medium">
+                    {isPro
+                      ? 'All Pro recovery tools and AI assistant are fully unlocked.'
+                      : wasPro
+                        ? 'Your Pro access has ended. Renew to get your recovery tools back.'
+                        : 'Upgrade to Pro to unlock unlimited AI features.'}
+                  </p>
+                  {isPro && proExpiresAt && (
+                    <p className="text-xs font-bold text-slate-700 pt-1">
+                      Active until {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {billingCycle ? ` · Billed ${billingCycle}` : ''}
+                    </p>
+                  )}
+                  {!isPro && wasPro && proExpiresAt && (
+                    <p className="text-xs font-bold text-slate-500 pt-1">
+                      Ended {proExpiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                {isPro ? (
+                  <div className="flex items-center gap-3">
+                    <span className="bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-full">Active Pro</span>
+                    <motion.button 
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => setCancelModalOpen(true)} 
+                      className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-xl font-bold text-xs hover:bg-red-50 transition-colors cursor-pointer"
+                    >
+                      Cancel Subscription
                     </motion.button>
-                    <div className="absolute right-0 top-full w-40 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 z-50 opacity-0 invisible translate-y-1 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-200 ease-out">
-                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer" suppressHydrationWarning={true}>Logout</button>
+                  </div>
+                ) : (
+                  <motion.button 
+                    whileHover={{ y: -1, scale: 1.02 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => router.push('/pricing')} 
+                    className="px-6 py-3 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white rounded-xl font-bold text-xs shadow-xs transition-shadow cursor-pointer"
+                  >
+                    {wasPro ? 'Renew Pro ✨' : 'Upgrade to Pro ✨'}
+                  </motion.button>
+                )}
+              </div>
+              
+              <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs font-semibold text-slate-500 px-2 gap-2">
+                <span>
+                  {isPro
+                    ? 'Manage Billing: You can cancel anytime before your renewal date.'
+                    : wasPro
+                      ? 'Renew anytime to pick up right where you left off.'
+                      : 'Upgrade anytime — no long-term commitment.'}
+                </span>
+                <button onClick={() => router.push('/pricing')} className="text-[#245B92] font-bold hover:underline cursor-pointer">
+                  View Pricing & Plans →
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <Shield className="text-[#245B92]" size={20} />
+                <h3 className="text-lg font-black text-slate-900">Security & Password</h3>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Password Reset</p>
+                <p className="text-xs text-slate-500 mb-4">Send a password reset secure link to your registered email.</p>
+                
+                <button 
+                  onClick={async () => {
+                    try {
+                      if (!user?.email) {
+                        setErrorMessage("No registered email address found.");
+                        return;
+                      }
+
+                      const response = await fetch("/api/auth/password-reset", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          email: user.email,
+                        }),
+                      });
+
+                      const data = await response.json();
+
+                      if (!response.ok || !data.success) {
+                        throw new Error(
+                          data?.error || "Failed to send password reset email."
+                        );
+                      }
+
+                      setSuccessMessage(
+                        "Password reset email sent! Check your inbox for the reset link."
+                      );
+
+                      setTimeout(() => {
+                        setSuccessMessage(null);
+                      }, 4000);
+                    } catch (err) {
+                      console.error("Password reset error:", err);
+                      setErrorMessage("Failed to send password reset email. Please try again.");
+                      setTimeout(() => setErrorMessage(null), 4000);
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Send Reset Email
+                </button>
+
+                {successMessage && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 font-bold">
+                        ✓
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-bold text-emerald-700">
+                          Password reset email sent!
+                        </p>
+
+                        <p className="mt-0.5 text-xs text-emerald-600">
+                          Check your inbox for the reset link.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => router.push('/login')} className={`text-sm font-bold transition cursor-pointer px-3 py-2 rounded-xl ${pathname === '/login' ? 'bg-[#245B92]/10 text-[#245B92]' : 'text-slate-600 hover:text-[#245B92] hover:bg-slate-50'}`} suppressHydrationWarning={true}>Login</motion.button>
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={{ duration: 0.15 }} onClick={() => goToSignUp('header')} className="text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>Create Account</motion.button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* MOBILE HAMBURGER TOGGLE BUTTON */}
-        <div className="flex md:hidden items-center">
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1C2E8F]/40"
-            aria-label="Toggle Menu"
-            suppressHydrationWarning={true}
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </motion.button>
-        </div>
-
-      </div>
-
-      {/* MOBILE DROPDOWN MENU */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
-            suppressHydrationWarning={true}
-          >
-            <div className="flex flex-col space-y-3 font-bold text-slate-700">
-              <button 
-                onClick={() => scrollToSection('dashboard-preview')}
-                className="text-left py-2 px-3 rounded-lg transition hover:bg-slate-50 font-bold text-[#1E293B]"
-              >
-                Features
-              </button>
-              <button 
-                onClick={() => scrollToSection('faq')}
-                className="text-left py-2 px-3 rounded-lg transition hover:bg-slate-50 font-bold text-[#1E293B]"
-              >
-                FAQ
-              </button>
-              <button 
-                onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }}
-                className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/pricing' ? 'bg-slate-50 text-[#1C2E8F]' : 'text-[#1E293B] hover:bg-slate-50'}`}
-              >
-                Pricing
-              </button>
-              <button 
-                onClick={() => { router.push('/contact'); setMobileMenuOpen(false); }}
-                className={`text-left py-2 px-3 rounded-lg transition font-bold ${pathname === '/contact' ? 'bg-slate-50 text-[#1C2E8F]' : 'text-[#1E293B] hover:bg-slate-50'}`}
-              >
-                Contact
-              </button>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
-            {user ? (
-              <>
-                <button 
-                  onClick={() => { router.push('/dashboard'); setMobileMenuOpen(false); }}
-                  className="w-full py-3 text-center font-bold text-white bg-[#0F172A] rounded-xl shadow-xs hover:bg-[#245B92] transition flex items-center justify-center gap-2"
-                >
-                  Open Dashboard {isPro && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-extrabold tracking-wider">PRO</span>}
-                </button>
-                <button 
-                  onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
-                  className="w-full py-3 text-center font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
-              >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <button 
-                  onClick={() => { router.push('/login'); setMobileMenuOpen(false); }}
-                  className="w-full py-3 text-center font-bold text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition"
-              >
-                  Login
-                </button>
-                <button 
-                  onClick={() => { goToSignUp('mobile_menu'); setMobileMenuOpen(false); }}
-                  className="w-full py-3 text-center font-bold text-white rounded-xl shadow-xs transition"
-                  style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
-              >
-                  Create Account
-                </button>
-              </>
-          )}
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-    </nav>
-
-    {/* --- SECTION 1: HERO ZONE WITH SMOOTH REVEAL --- */}
-<motion.section
-  id="hero"
-  initial="hidden"
-  animate="visible"
-  variants={{
-    visible: { transition: { staggerChildren: 0.12 } }
-  }}
-  className={`relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 ${showOfferStrip ? 'min-h-[calc(100svh-10.25rem)]' : 'min-h-[calc(100svh-8rem)]'} sm:portrait:min-h-0 flex flex-col justify-center`}
-  suppressHydrationWarning={true}
->
-  <div
-    className="w-full max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
-    suppressHydrationWarning={true}
-  >
-
-    {/* SEASONAL LANDING ACCENT */}
-    {showFestivalGreeting && <SeasonalLandingAccent />}
-
-    {/* PROBLEM BADGE (changes every 3s; hidden when a festival greeting shows) */}
-    {!showFestivalGreeting && (
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="flex justify-center"
-      suppressHydrationWarning={true}
-    >
-      {/* Gradient border: a 1.5px blue-to-teal ring around a white pill.
-          It grows and shrinks smoothly to fit each line. */}
-      <motion.span
-        layout
-        transition={{ layout: { duration: 0.3, ease: "easeOut" } }}
-        className="inline-flex rounded-full p-[1.5px] bg-gradient-to-r from-[#245B92] via-[#2A8FB0] to-[#20B8BE] shadow-[0_6px_20px_-6px_rgba(32,184,190,0.45)]"
-        style={{ borderRadius: 9999 }}
-        suppressHydrationWarning={true}
-      >
-        <motion.span
-          layout="position"
-          className="inline-flex items-center gap-2.5 rounded-full bg-white pl-1 pr-4 py-1"
-          style={{ borderRadius: 9999 }}
-        >
-          {/* Icon bubble: gradient circle with a soft inner shine */}
-          <span className="relative flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#245B92] to-[#20B8BE] shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),0_2px_6px_rgba(36,91,146,0.35)] overflow-hidden">
-            <span className="absolute inset-x-1 top-0.5 h-1/2 rounded-full bg-white/20 blur-[1px]" aria-hidden="true" />
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={problemIndex}
-                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: -30 }}
-                animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5, rotate: 30 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                className="relative flex"
-              >
-                {(() => {
-                  const ProblemIcon = HERO_PROBLEM_ICONS[problemIndex] || FileText;
-                  return <ProblemIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" strokeWidth={2.25} aria-hidden="true" />;
-                })()}
-              </motion.span>
-            </AnimatePresence>
-          </span>
-
-          <span className="relative flex items-center overflow-hidden h-5 sm:h-6" aria-live="polite">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={HERO_PROBLEMS[problemIndex]}
-                initial={{ y: 12, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -12, opacity: 0 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                className="whitespace-nowrap text-[13px] sm:text-sm font-semibold text-[#0F172A]"
-              >
-                {HERO_PROBLEMS[problemIndex]}
-              </motion.span>
-            </AnimatePresence>
-          </span>
-        </motion.span>
-      </motion.span>
-    </motion.div>
-    )}
-
-    {/* HERO HEADING */}
-    <motion.h1
-      variants={{ hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="text-[1.9rem] sm:text-5xl lg:text-7xl font-[800] tracking-[-0.025em] text-[#0F172A] uppercase leading-[1.05] sm:leading-[0.98]"
-      suppressHydrationWarning={true}
-    >
-      STOP CHASING CLIENTS.
-      <br />
-
-      <span
-        className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent"
-        suppressHydrationWarning={true}
-      >
-        GET PAID FASTER.
-      </span>
-    </motion.h1>
-
-    {/* DESCRIPTION */}
-    <motion.p
-      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="text-[15px] sm:text-xl text-[#475569] font-medium max-w-xl mx-auto leading-relaxed px-2"
-      suppressHydrationWarning={true}
-    >
-      DueBlink remembers every follow-up you&apos;ve sent and tells you the next step.
-      <br className="hidden sm:block" />
-      {" "}Works with invoices you already send.
-    </motion.p>
-
-    {/* CTA */}
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="pt-2 sm:pt-4 flex flex-col items-center justify-center gap-4 px-4"
-      suppressHydrationWarning={true}
-    >
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() =>
-          (isPro || user)
-            ? router.push("/dashboard")
-            : handleScrollToGenerator()
-        }
-        style={{
-          background: "linear-gradient(to right, #245B92, #20B8BE)",
-        }}
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 hover:opacity-95 text-white font-bold text-base sm:text-lg px-6 sm:px-10 py-3.5 sm:py-4 rounded-2xl transition shadow-md cursor-pointer"
-        suppressHydrationWarning={true}
-      >
-        {isPro ? (
-          <>
-            Open Dashboard
-
-            <span className="bg-white/20 px-1.5 py-0.5 rounded text-xs uppercase font-extrabold tracking-wider ml-1">
-              PRO
-            </span>
-          </>
-        ) : user ? (
-          "Open Dashboard"
-        ) : (
-          "Generate a free reminder"
-        )}
-      </motion.button>
-
-      {/* TRUST POINTS */}
-      {!user && (
-        <div
-          className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2 sm:gap-8 pt-2 text-xs sm:text-sm font-bold text-[#475569] uppercase tracking-wider"
-          suppressHydrationWarning={true}
-        >
-          <span
-            className="flex items-center gap-1.5"
-            suppressHydrationWarning={true}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]"
-              suppressHydrationWarning={true}
-            />
-            No Credit Card Required
-          </span>
-
-          <span
-            className="flex items-center gap-1.5"
-            suppressHydrationWarning={true}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]"
-              suppressHydrationWarning={true}
-            />
-            5 Free AI Reminders
-          </span>
-
-          <span
-            className="flex items-center gap-1.5"
-            suppressHydrationWarning={true}
-          >
-            <span
-              className="h-1.5 w-1.5 rounded-full bg-[#2BB6A8]"
-              suppressHydrationWarning={true}
-            />
-            Email + WhatsApp
-          </span>
-        </div>
-      )}
-  </motion.div>
-
-    {/* HERO PREVIEW — an email and a WhatsApp message DueBlink writes, staggered and
-        slightly tilted (no movement), so visitors see the product at a glance */}
-    <motion.div
-      variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="relative max-w-2xl mx-auto w-full pt-2 sm:pt-4 grid grid-cols-1 sm:grid-cols-2 gap-0 sm:gap-6 text-left 2xl:absolute 2xl:inset-0 2xl:block 2xl:max-w-none 2xl:pt-0 2xl:pointer-events-none"
-      suppressHydrationWarning={true}
-    >
-      {/* Curved dashed arrows from the headline to each card (wide screens only) */}
-      <svg aria-hidden="true" className="hidden 2xl:block absolute pointer-events-none" style={{ left: 'calc(50% - 610px)', top: 'calc(44% - 92px)' }} width="150" height="88" viewBox="0 0 150 88" fill="none">
-        <defs>
-          <marker id="hero-arrow-left" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
-            <path d="M0,0 L8,4 L0,8 Z" fill="#20B8BE" />
-          </marker>
-        </defs>
-        <path d="M142 6 C 110 10, 72 26, 58 76" stroke="#20B8BE" strokeWidth="2" strokeDasharray="5 6" strokeLinecap="round" markerEnd="url(#hero-arrow-left)" />
-      </svg>
-      <svg aria-hidden="true" className="hidden 2xl:block absolute pointer-events-none" style={{ left: 'calc(50% + 395px)', top: 'calc(54% - 140px)' }} width="160" height="134" viewBox="0 0 160 134" fill="none">
-        <defs>
-          <marker id="hero-arrow-right" markerWidth="8" markerHeight="8" refX="5" refY="4" orient="auto">
-            <path d="M0,0 L8,4 L0,8 Z" fill="#20B8BE" />
-          </marker>
-        </defs>
-        <path d="M8 6 C 70 12, 118 50, 122 120" stroke="#20B8BE" strokeWidth="2" strokeDasharray="5 6" strokeLinecap="round" markerEnd="url(#hero-arrow-right)" />
-      </svg>
-
-      {/* Email: tilted left, sits a little higher */}
-      <motion.div
-        style={{ rotate: -2 }}
-        animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
-        transition={{ duration: 6, ease: "easeInOut", repeat: Infinity }}
-        className="relative z-10 mr-10 sm:mr-0 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2 2xl:absolute 2xl:w-[260px] 2xl:left-[calc(50%-670px)] 2xl:top-[44%]"
-        suppressHydrationWarning={true}
-      >
-        <div className="flex items-center justify-between gap-2" suppressHydrationWarning={true}>
-          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#245B92]" suppressHydrationWarning={true}>
-            <Mail className="w-3.5 h-3.5" suppressHydrationWarning={true} /> Email
-          </span>
-          <span className="text-[10px] font-bold text-[#245B92] bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full" suppressHydrationWarning={true}>
-            Ready to send
-          </span>
-        </div>
-        <p className="text-[11px] sm:text-xs font-bold text-[#0F172A]" suppressHydrationWarning={true}>Subject: Payment for the logo design</p>
-        <p className="text-xs sm:text-[13px] text-slate-600 font-medium leading-relaxed" suppressHydrationWarning={true}>
-          {"Hi Priya, just a quick note that the ₹18,000 for the logo design was due today. Could you let me know when you plan to pay?"}
-        </p>
-        <p className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400" suppressHydrationWarning={true}>
-          <Sparkles className="w-3 h-3 text-[#20B8BE]" suppressHydrationWarning={true} /> Written by DueBlink · Due date
-        </p>
-      </motion.div>
-
-      {/* WhatsApp: tilted right, sits lower and overlaps on phones */}
-      <motion.div
-        style={{ rotate: 2 }}
-        animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
-        transition={{ duration: 7, ease: "easeInOut", repeat: Infinity, delay: 1.5 }}
-        className="relative z-20 ml-10 sm:ml-0 -mt-3 sm:mt-10 bg-white border border-slate-200 rounded-2xl shadow-md p-3.5 sm:p-4 space-y-2 2xl:absolute 2xl:w-[260px] 2xl:right-[calc(50%-670px)] 2xl:top-[54%] 2xl:mt-0"
-        suppressHydrationWarning={true}
-      >
-        <div className="flex items-center justify-between gap-2" suppressHydrationWarning={true}>
-          <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#159A9F]" suppressHydrationWarning={true}>
-            <MessageCircle className="w-3.5 h-3.5" suppressHydrationWarning={true} /> WhatsApp
-          </span>
-          <span className="text-[10px] font-bold text-[#159A9F] bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full" suppressHydrationWarning={true}>
-            Ready to send
-          </span>
-        </div>
-        <p className="text-xs sm:text-[13px] text-slate-700 font-medium leading-relaxed bg-teal-50/50 border border-teal-100/70 rounded-xl rounded-tl-sm px-3 py-2.5" suppressHydrationWarning={true}>
-          {"Hi Rahul, the ₹25,000 for the website is now 5 days overdue. When will you be able to pay?"}
-        </p>
-        <p className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400" suppressHydrationWarning={true}>
-          <Sparkles className="w-3 h-3 text-[#20B8BE]" suppressHydrationWarning={true} /> Written by DueBlink · Day 3 follow-up
-        </p>
-      </motion.div>
-    </motion.div>
-
-  </div>
-</motion.section>
-
-    {/* --- SECTION 5: SPLIT APP GENERATOR CONSOLE WITH ANIMATION --- */}
-    <motion.section 
-    id="reminder-generator"
-    ref={generatorSectionRef}
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white pt-10 sm:pt-12 pb-16 sm:pb-20 scroll-mt-24 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-7xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
-      <div className="space-y-2" suppressHydrationWarning={true}>
-        <Sparkles className="w-8 h-8 text-[#20B8BE] mx-auto mb-1" suppressHydrationWarning={true} />
-        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-          {isPro ? 'Generate AI Reminders — Pro Unlimited' : user ? 'Generate AI Reminders — 15 Free Every Month' : 'Generate Your First AI Reminder — Free'}
-        </h2>
-        <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Create professional Email & WhatsApp payment reminders in seconds.</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-6xl mx-auto text-left" suppressHydrationWarning={true}>
-         
-      {/* Left Form */}
-      <motion.div 
-        initial={{ opacity: 0, x: -10 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true, margin: "-50px" }}
-        transition={{ duration: 0.3, delay: 0.05 }}
-        className="lg:col-span-5 bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-6 flex flex-col justify-between"
-        suppressHydrationWarning={true}
-    >
-        <div suppressHydrationWarning={true}>
-          {limitReached ? (
-          <div className="bg-gradient-to-b from-slate-900 to-[#1E293B] text-white border border-slate-800 rounded-2xl p-6 sm:p-8 text-center space-y-6 my-auto shadow-2xl relative overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-[#20B8BE]/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#20B8BE] bg-[#20B8BE]/10 px-3 py-1 rounded-full">
-               {user ? 'Monthly Limit Reached' : 'Free Trial Limit Reached'}
-            </span>
-            <h4 className="text-lg font-black tracking-tight text-white pt-2">
-               {user ? 'You have used all 15 free reminders this month.' : "You've used all 5 free AI reminders."}
-            </h4>
-            <p className="text-xs text-slate-300 font-medium leading-relaxed">
-               {user ? 'Your reminders automatically refill every month. Want unlimited reminders and advanced recovery tools right now?' : "Create a free account to unlock 15 monthly free reminders or upgrade to Pro for unlimited AI generation."}
-            </p>
-          </div>
-          <div className="space-y-3 pt-2">
-            <button 
-              onClick={() => router.push('/pricing')}
-              className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white font-bold rounded-xl text-xs hover:opacity-95 transition cursor-pointer shadow-md flex items-center justify-center gap-2 uppercase tracking-wider"
-            >
-              <Zap className="w-4 h-4" /> Upgrade to Pro
-            </button>
-            {!user && (
-              <button 
-                onClick={() => goToSignUp('generator_limit')}
-                className="w-full py-3 bg-slate-800 text-slate-200 font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer border border-slate-700"
-              >
-                Create Free Account
-              </button>
-            )}
-          </div>
-          </div>
-               ) : (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
-              <div suppressHydrationWarning={true}>
-                <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-[#2BB6A8]" suppressHydrationWarning={true} /> Generate Your Reminder</h3>
-                <p className="text-[11px] text-slate-400 font-medium mt-0.5" suppressHydrationWarning={true}>
-                  {isPro ? 'Pro Plan — Unlimited Generations' : user ? `${reminderCount}/15 Used (Monthly Refill)` : `${reminderCount}/5 Free Reminders Used`}
-                </p>
-              </div>
-              <span className="self-start sm:self-center text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-full" suppressHydrationWarning={true}>{getStageLabel()}</span>
-            </div>
-
-            <form onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
-              <div suppressHydrationWarning={true}>
-                <motion.label
-                  animate={{ color: focusedField === 'clientName' ? '#20B8BE' : '#334155', y: focusedField === 'clientName' ? -1 : 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="block text-xs font-bold mb-1.5"
-                >
-                  Client Name *
-                </motion.label>
-                <div className="relative" suppressHydrationWarning={true}>
-                  <motion.input
-                    type="text"
-                    required
-                    placeholder="e.g. ABC Agency"
-                    value={clientName}
-                    onChange={e => setClientName(e.target.value)}
-                    onFocus={() => setFocusedField('clientName')}
-                    onBlur={() => setFocusedField((f) => (f === 'clientName' ? null : f))}
-                    whileFocus={{ scale: 1.012 }}
-                    animate={{ x: shakeFields.includes('clientName') ? [0, -6, 6, -4, 4, 0] : 0 }}
-                    transition={{ duration: 0.4 }}
-                    className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 ${shakeFields.includes('clientName') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
-                    suppressHydrationWarning={true}
-                  />
-                  <AnimatePresence>
-                    {clientName && focusedField !== 'clientName' && !shakeFields.includes('clientName') && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.5 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
-                      >
-                        <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'currency' ? '#20B8BE' : '#334155', y: focusedField === 'currency' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Currency
-              </motion.label>
-              <motion.select
-                value={currency}
-                onChange={e => setCurrency(e.target.value)}
-                onFocus={() => setFocusedField('currency')}
-                onBlur={() => setFocusedField((f) => (f === 'currency' ? null : f))}
-                whileFocus={{ scale: 1.012 }}
-                transition={{ duration: 0.15 }}
-                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 appearance-none"
-                suppressHydrationWarning={true}
-              >
-                <option value="₹ INR" suppressHydrationWarning={true}>₹ INR</option><option value="$ USD" suppressHydrationWarning={true}>$ USD</option><option value="€ EUR" suppressHydrationWarning={true}>€ EUR</option>
-              </motion.select>
-                </div>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'amount' ? '#20B8BE' : '#334155', y: focusedField === 'amount' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Amount Due *
-              </motion.label>
-              <div className="relative" suppressHydrationWarning={true}>
-                <motion.input
-                  type="text"
-                  inputMode="decimal"
-                  required
-                  placeholder="25,000"
-                  value={formatWithCommas(amount)}
-                  onChange={e => setAmount(stripToDigits(e.target.value))}
-                  onFocus={() => setFocusedField('amount')}
-                  onBlur={() => setFocusedField((f) => (f === 'amount' ? null : f))}
-                  whileFocus={{ scale: 1.012 }}
-                  animate={{ x: shakeFields.includes('amount') ? [0, -6, 6, -4, 4, 0] : 0 }}
-                  transition={{ duration: 0.4 }}
-                  className={`w-full text-sm px-3.5 py-2.5 pr-9 bg-white border rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300 ${shakeFields.includes('amount') ? 'border-red-300 ring-2 ring-red-100' : 'border-slate-200'}`}
-                  suppressHydrationWarning={true}
-                />
-                <AnimatePresence>
-                  {amount && focusedField !== 'amount' && !shakeFields.includes('amount') && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 pointer-events-none"
-                    >
-                      <CheckCircle className="w-4 h-4" suppressHydrationWarning={true} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3" suppressHydrationWarning={true}>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'daysOverdue' ? '#20B8BE' : '#334155', y: focusedField === 'daysOverdue' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Days Overdue
-              </motion.label>
-              <motion.input
-                type="number"
-                value={daysOverdue}
-                onChange={e => setDaysOverdue(e.target.value)}
-                onFocus={() => setFocusedField('daysOverdue')}
-                onBlur={() => setFocusedField((f) => (f === 'daysOverdue' ? null : f))}
-                whileFocus={{ scale: 1.012 }}
-                transition={{ duration: 0.15 }}
-                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20"
-                suppressHydrationWarning={true}
-              />
-              </div>
-                <div suppressHydrationWarning={true}>
-              <motion.label
-                animate={{ color: focusedField === 'invoiceRef' ? '#20B8BE' : '#334155', y: focusedField === 'invoiceRef' ? -1 : 0 }}
-                transition={{ duration: 0.15 }}
-                className="block text-xs font-bold mb-1.5"
-              >
-                Invoice #
-              </motion.label>
-              <motion.input
-                type="text"
-                placeholder="INV-2025-042"
-                value={invoiceRef}
-                onChange={e => setInvoiceRef(e.target.value)}
-                onFocus={() => setFocusedField('invoiceRef')}
-                onBlur={() => setFocusedField((f) => (f === 'invoiceRef' ? null : f))}
-                whileFocus={{ scale: 1.012 }}
-                transition={{ duration: 0.15 }}
-                className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300"
-                suppressHydrationWarning={true}
-              />
-              </div>
-              </div>
-              <div suppressHydrationWarning={true}>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Tone</label>
-                <div className="relative grid grid-cols-3 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
-              {['gentle', 'professional', 'firm'].map((t) => (
-                <button key={t} type="button" onClick={() => handleToneChange(t)} className={`relative z-10 capitalize h-full cursor-pointer transition-colors duration-150 ${tone === t ? 'text-white' : 'text-slate-500'}`} suppressHydrationWarning={true}>
-                  {tone === t && (
-                    <motion.div
-                      layoutId="landing-tone-pill"
-                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                      className="absolute inset-0 -z-10 bg-[#0F172A]"
-                    />
-                  )}
-                  {t}
-                </button>
-              ))}
-                </div>
-              </div>
-              <div suppressHydrationWarning={true}>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5" suppressHydrationWarning={true}>Language</label>
-                <div className="relative grid grid-cols-4 border border-slate-200 rounded-lg overflow-hidden text-center text-xs font-bold h-10" suppressHydrationWarning={true}>
-              {REMINDER_LANGUAGES.map((l) => (
-                <button key={l.id} type="button" onClick={() => setLanguage(l.id)} aria-pressed={language === l.id} className={`relative z-10 h-full cursor-pointer transition-colors duration-150 ${language === l.id ? 'text-white' : 'text-slate-500'}`} suppressHydrationWarning={true}>
-                  {language === l.id && (
-                    <motion.div
-                      layoutId="landing-language-pill"
-                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                      className="absolute inset-0 -z-10 bg-[#0F172A]"
-                    />
-                  )}
-                  {/* Short label so all four fit on a phone: "हिंदी (Hindi)" -> "हिंदी" */}
-                  {l.label.split(' (')[0]}
-                </button>
-              ))}
-                </div>
-              </div>
-              <motion.button 
-                whileHover={!isGenerating ? { scale: 1.02 } : {}}
-                whileTap={!isGenerating ? { scale: 0.98 } : {}}
-                type="submit" 
-                disabled={isGenerating || limitReached} 
-                style={{ background: 'linear-gradient(to right, #7D9BBB, #5FA8A6)' }} 
-                className="relative overflow-hidden w-full text-white font-bold text-xs uppercase tracking-wider py-3 sm:py-3.5 rounded-lg transition-opacity flex items-center justify-center gap-2 cursor-pointer mt-4"
-              >
-                {isGenerating && (
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent"
-                    initial={{ x: '-100%' }}
-                    animate={{ x: '100%' }}
-                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-                  />
                 )}
-                <span className="relative z-10 flex items-center gap-2">
-                  <motion.span
-                    animate={isGenerating ? { rotate: 360 } : { rotate: 0 }}
-                    transition={isGenerating ? { repeat: Infinity, duration: 1, ease: 'linear' } : { duration: 0.2 }}
-                    className="flex"
-                  >
-                    {isGenerating ? <RefreshCw className="w-4 h-4" suppressHydrationWarning={true} /> : <Sparkles className="w-4 h-4" suppressHydrationWarning={true} />}
-                  </motion.span>
-                  <AnimatePresence mode="wait">
-                    <motion.span
-                      key={isGenerating ? `loading-${loadingPhaseIndex}` : 'idle'}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.22 }}
-                    >
-                      {isGenerating ? loadingPhrases[loadingPhaseIndex] : 'Generate Reminder'}
-                    </motion.span>
-                  </AnimatePresence>
-                </span>
-              </motion.button>
-            </form>
-          </div>
-               )}
-      </div>
-      </motion.div>
-
-      {/* Right Result Window */}
-      <motion.div 
-        initial={{ opacity: 0, x: 10 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true, margin: "-50px" }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-6 shadow-xl flex flex-col justify-between"
-        suppressHydrationWarning={true}
-    >
-        <div className="space-y-4 h-full flex flex-col justify-start" suppressHydrationWarning={true}>
-          <div suppressHydrationWarning={true}>
-            <h3 className="text-sm font-bold text-slate-800 tracking-tight flex items-center gap-2" suppressHydrationWarning={true}><Brain className="w-4 h-4 text-[#1C2E8F]" suppressHydrationWarning={true} /> AI Generated Reminders</h3>
-            <p className="text-xs text-slate-400 font-semibold mt-1" suppressHydrationWarning={true}>Email • WhatsApp • SMS</p>
-          </div>
-              
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center w-full min-h-[400px]" suppressHydrationWarning={true}>
-            {isGenerating ? (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }} 
-                animate={{ opacity: 1, scale: 1 }} 
-                exit={{ opacity: 0, scale: 0.95 }} 
-                className="py-12 flex flex-col items-center justify-center space-y-5 w-full"
-              >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={`icon-${loadingPhaseIndex % resultLoadingPhases.length}`}
-                    initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0.7, rotate: 8 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="w-14 h-14 bg-gradient-to-br from-[#1C2E8F]/10 to-[#20B8BE]/10 text-[#1C2E8F] rounded-2xl flex items-center justify-center shadow-inner mx-auto"
-                  >
-                    {(() => {
-                      const CurrentIcon = resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].icon;
-                      return <CurrentIcon className="w-7 h-7" />;
-                    })()}
-                  </motion.div>
-                </AnimatePresence>
-
-                <div className="space-y-1 min-h-[34px]">
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={`label-${loadingPhaseIndex % resultLoadingPhases.length}`}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.25 }}
-                      className="text-xs font-black text-slate-900 uppercase tracking-widest"
-                    >
-                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].label}
-                    </motion.p>
-                  </AnimatePresence>
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={`sub-${loadingPhaseIndex % resultLoadingPhases.length}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.25, delay: 0.05 }}
-                      className="text-[11px] text-slate-500 font-medium"
-                    >
-                      {resultLoadingPhases[loadingPhaseIndex % resultLoadingPhases.length].sub}
-                    </motion.p>
-                  </AnimatePresence>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {resultLoadingPhases.map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="h-1.5 rounded-full bg-[#1C2E8F]"
-                      animate={{
-                        width: i === loadingPhaseIndex % resultLoadingPhases.length ? 18 : 6,
-                        opacity: i === loadingPhaseIndex % resultLoadingPhases.length ? 1 : 0.25,
-                      }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  ))}
-                </div>
-              </motion.div>
-            ) : showSuccessAnimation ? (
-              <motion.div
-                key="success"
-                initial={{
-                  opacity: 0,
-                  scale: 0.94,
-                  y: 8
-                }}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  y: 0
-                }}
-                exit={{
-                  opacity: 0,
-                  scale: 1.02,
-                  y: -6
-                }}
-                transition={{
-                  duration: 0.45,
-                  ease: [0.22, 1, 0.36, 1]
-                }}
-                className="relative mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50/70 p-8 sm:p-10 text-center shadow-sm w-full"
-              >
-                {/* Animated light sweep */}
-                <motion.div
-                  initial={{
-                    x: "-120%",
-                    opacity: 0
-                  }}
-                  animate={{
-                    x: "120%",
-                    opacity: [0, 0.55, 0]
-                  }}
-                  transition={{
-                    duration: 1,
-                    ease: "easeInOut"
-                  }}
-                  className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-[-18deg] pointer-events-none"
-                />
-
-                {/* Sparkle burst */}
-                {[
-                  { x: -58, y: -32, r: 18, d: 0.05 },
-                  { x: 58, y: -30, r: -18, d: 0.12 },
-                  { x: -70, y: 22, r: -12, d: 0.18 },
-                  { x: 70, y: 24, r: 14, d: 0.22 },
-                  { x: 0, y: -58, r: 0, d: 0.08 }
-                ].map((spark, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{
-                      opacity: 0,
-                      scale: 0,
-                      x: 0,
-                      y: 0,
-                      rotate: 0
-                    }}
-                    animate={{
-                      opacity: [0, 1, 0],
-                      scale: [0, 1, 0.7],
-                      x: spark.x,
-                      y: spark.y,
-                      rotate: spark.r
-                    }}
-                    transition={{
-                      duration: 0.85,
-                      delay: spark.d,
-                      ease: "easeOut"
-                    }}
-                    className="absolute left-1/2 top-[46%] text-[#2BB6A8] pointer-events-none"
-                  >
-                    <Sparkles size={index === 4 ? 18 : 13} />
-                  </motion.div>
-                ))}
-
-                {/* Success icon */}
-                <motion.div
-                  initial={{
-                    scale: 0,
-                    rotate: -25
-                  }}
-                  animate={{
-                    scale: [0, 1.12, 1],
-                    rotate: [-25, 8, 0]
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    ease: [0.34, 1.56, 0.64, 1]
-                  }}
-                  className="relative mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1C2E8F] to-[#2BB6A8] text-white shadow-lg"
-                >
-                  <CheckCircle2 className="h-8 w-8" />
-                </motion.div>
-
-                <motion.div
-                  initial={{
-                    opacity: 0,
-                    y: 8
-                  }}
-                  animate={{
-                    opacity: 1,
-                    y: 0
-                  }}
-                  transition={{
-                    delay: 0.22,
-                    duration: 0.35
-                  }}
-                  className="relative"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#1C2E8F]">
-                    Blink AI
-                  </p>
-
-                  <h3 className="mt-1 text-lg sm:text-xl font-black text-slate-900">
-                    Recovery Reminder Ready
-                  </h3>
-
-                  <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-500">
-                    Fresh Email, WhatsApp & SMS reminders generated.
-                  </p>
-                </motion.div>
-              </motion.div>
-            ) : result ? (
-              <motion.div 
-          key={result.email_subject}
-          initial={{ opacity: 0, scale: 0.99 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full space-y-4 text-left"
-          suppressHydrationWarning={true}
-        >
-          <div className="flex flex-wrap gap-2 border-b pb-2 mb-4 items-center justify-between" suppressHydrationWarning={true}>
-            <div className="flex flex-wrap gap-1 sm:gap-2">
-              {[
-                { id: 'email', label: 'Email' },
-                { id: 'whatsapp', label: 'WhatsApp' },
-                { id: 'sms', label: 'SMS' }
-              ].map((tab) => (
-                <button 
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wider transition cursor-pointer shadow-3xs ${activeTab === tab.id ? 'bg-[#1C2E8F] text-white ring-2 ring-[#1C2E8F]/20 scale-102' : 'bg-slate-200 text-slate-600 hover:bg-slate-350'}`}
-                suppressHydrationWarning={true}
-                >
-                {tab.label}
-                </button>
-              ))}
-            </div>
-            <button 
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="text-[10px] font-bold text-[#245B92] hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50 mt-1 sm:mt-0"
-            >
-              <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} /> 
-              {isGenerating ? 'Rewriting...' : 'Regenerate'}
-            </button>
-          </div>
-                 
-          <div className="bg-white p-4 rounded-lg border border-slate-100 text-xs text-slate-700 h-64 overflow-y-auto whitespace-pre-line font-mono leading-relaxed" suppressHydrationWarning={true}>
-              {activeTab === 'email' && `Subject: ${result.email_subject}\n\n${result.email_body}`}
-              {activeTab === 'whatsapp' && result.whatsapp_message}
-              {activeTab === 'sms' && result.sms_text}
-          </div>
-
-          <div className="flex gap-2" suppressHydrationWarning={true}>
-          <button 
-            onClick={() => handleCopy(activeTab === 'email' ? `${result.email_subject}\n\n${result.email_body}` : activeTab === 'whatsapp' ? result.whatsapp_message : result.sms_text)}
-            className="flex-1 py-2.5 bg-[#2BB6A8] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
-            suppressHydrationWarning={true}
-        >
-            {copied ? (
-              <>
-                <Check className="w-3.5 h-3.5" /> Copied to Clipboard
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" /> Copy
-              </>
-          )}
-          </button>
-
-          {(
-            <button
-              onClick={() => handleSend(activeTab)}
-              className="flex-1 py-2.5 bg-[#245B92] text-white font-bold rounded-lg text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-2"
-              suppressHydrationWarning={true}
-            >
-              {activeTab === 'email' && (<><Mail className="w-3.5 h-3.5" /> Send email</>)}
-              {activeTab === 'whatsapp' && (<><MessageCircle className="w-3.5 h-3.5" /> Send on WhatsApp</>)}
-              {activeTab === 'sms' && (<><Send className="w-3.5 h-3.5" /> Send SMS</>)}
-            </button>
-          )}
-          </div>
-              </motion.div>
-            ) : generationError ? (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.25 }}
-                className="my-auto py-12 flex flex-col items-center text-center"
-                suppressHydrationWarning={true}
-              >
-                <div className="w-11 h-11 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-500 mb-3" suppressHydrationWarning={true}>
-                  <AlertTriangle className="w-5 h-5" suppressHydrationWarning={true} />
-                </div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Couldn't generate that reminder</h4>
-                <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>{generationError}</p>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={(e) => handleGenerate(e as unknown as React.FormEvent)}
-                  className="mt-4 text-xs font-bold text-white px-4 py-2 rounded-lg bg-[#1C2E8F] hover:bg-[#1C2E8F]/90 transition-colors cursor-pointer"
-                >
-                  Try Again
-                </motion.button>
-              </motion.div>
-            ) : (
-              <div className="my-auto py-12" suppressHydrationWarning={true}>
-       <div style={{ background: 'linear-gradient(to bottom right, #245B92, #20B8BE)' }} className="w-11 h-11 rounded-full flex items-center justify-center text-white mb-3 shadow-xs mx-auto" suppressHydrationWarning={true}><Sparkles className="w-4 h-4 text-white/90" suppressHydrationWarning={true} /></div>
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide" suppressHydrationWarning={true}>Your AI-generated reminder will appear here.</h4>
-          <p className="text-xs font-medium text-slate-400 mt-1 max-w-xs mx-auto leading-relaxed" suppressHydrationWarning={true}>Generate a reminder to see both Email and WhatsApp versions instantly.</p>
-          </div>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  </div>
-  </motion.section>
-
-    {/* --- SECTION 2: EXPLAINER PAIN POINTS WITH PREMIUM ANIMATION --- */}
-<motion.section 
-  id="late-payments"
-  initial={{ opacity: 0, y: 15 }}
-  whileInView={{ opacity: 1, y: 0 }}
-  viewport={{ once: true, margin: "-50px" }}
-  transition={{ duration: 0.3, ease: "easeOut" }}
-  className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4"
-  suppressHydrationWarning={true}
->
-  <div className="max-w-4xl mx-auto text-center space-y-8 sm:space-y-10" suppressHydrationWarning={true}>
-     
-    <div className="space-y-3" suppressHydrationWarning={true}>
-      <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" suppressHydrationWarning={true} />
-
-      <h2
-        className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight"
-        suppressHydrationWarning={true}
-      >
-        Late Payments{' '}
-        <span
-          className="bg-gradient-to-r from-red-600 to-amber-600 bg-clip-text text-transparent"
-          suppressHydrationWarning={true}
-        >
-          Kill Cash Flow.
-        </span>
-      </h2>
-
-      <p className="text-sm sm:text-base text-slate-500 font-medium max-w-2xl mx-auto px-2" suppressHydrationWarning={true}>
-        You finished the work. You delivered the project. You sent the invoice. Now you're wondering...
-      </p>
-    </div>
-
-    <div
-      className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto text-left"
-      suppressHydrationWarning={true}
-    >
-      {[
-        "Did I already follow up?", 
-        "Which clients haven't paid?", 
-        "How much am I still owed?", 
-        "What should I do next?"
-      ].map((question, qIdx) => (
-        <div
-          key={qIdx}
-          className="flex items-center gap-3.5 bg-white border border-slate-200/85 rounded-2xl p-4 shadow-3xs transition hover:border-amber-300 hover:shadow-xs group"
-          suppressHydrationWarning={true}
-        >
-          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0 group-hover:bg-amber-100/60 transition" suppressHydrationWarning={true}>
-            <AlertTriangle className="w-4 h-4" suppressHydrationWarning={true} />
-          </div>
-          <span className="text-sm font-semibold text-slate-700 tracking-wide" suppressHydrationWarning={true}>{question}</span>
-        </div>
-      ))}
-    </div>
-
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.99 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.3, delay: 0.1 }}
-      className="max-w-3xl mx-auto border border-slate-100 rounded-3xl p-6 sm:p-8 bg-slate-50/40 space-y-6"
-      suppressHydrationWarning={true}
-    >
-      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest" suppressHydrationWarning={true}>
-        Most Freelancers and Agencies Manage This With:
-      </p>
-         
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3" suppressHydrationWarning={true}>
-        {["Excel", "WhatsApp", "Email", "Memory"].map((tool, i) => (
-          <motion.span 
-            key={tool}
-            whileHover={{ scale: 1.02 }}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-3xs text-xs font-bold text-slate-600 flex items-center gap-2 cursor-default"
-            suppressHydrationWarning={true}
-          >
-            {i === 0 && <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} />}
-            {i === 1 && <MessageCircle className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} />}
-            {i === 2 && <Mail className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} />}
-            {i === 3 && <Brain className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} />}
-            {tool}
-          </motion.span>
-        ))}
-      </div>
-         
-      <div className="space-y-3 pt-4 text-sm font-semibold text-slate-600 border-t border-slate-200/60 max-w-xl mx-auto" suppressHydrationWarning={true}>
-        <p className="text-slate-700 font-medium" suppressHydrationWarning={true}>
-          Small follow-up mistakes become big cash flow problems.
-        </p>
-        <p className="text-[#0F172A] font-medium leading-relaxed" suppressHydrationWarning={true}>
-          DueBlink keeps every payment organized, every reminder on time, and every client accounted for.
-        </p>
-      </div>
-    </motion.div>
-      
-  </div>
-</motion.section>
-
-
-    {/* --- SECTION 8: HOW IT WORKS --- */}
-    <motion.section 
-    id="how-it-works"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-slate-50/60 py-20 sm:py-24 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-6xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
-      <div className="space-y-12" suppressHydrationWarning={true}>
-        <div className="space-y-2" suppressHydrationWarning={true}>
-          <Zap className="w-10 h-10 text-[#20B8BE] mx-auto fill-[#20B8BE]" suppressHydrationWarning={true} />
-          <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>How It Works</h2>
-          <p className="text-sm sm:text-base text-slate-400 font-medium" suppressHydrationWarning={true}>Three simple steps from invoice to paid.</p>
-        </div>
-
-        <motion.div 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-50px" }}
-          variants={{
-          visible: { transition: { staggerChildren: 0.05 } }
-        }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-5xl mx-auto pt-2"
-          suppressHydrationWarning={true}
-        >
-          {[
-        { icon: <Users className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "01", label: "Add the invoice", desc: "Client, amount and due date. Works with invoices you already send, made anywhere." },
-        { icon: <Sparkles className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "02", label: "Send the reminder", desc: "DueBlink writes it. Send by Email, WhatsApp or SMS in one tap." },
-        { icon: <Target className="w-5 h-5 text-white" suppressHydrationWarning={true} />, step: "03", label: "DueBlink follows up", desc: "It remembers every follow-up, gets firmer when a client goes quiet, and you mark it paid in one click." }
-          ].map((item, idx) => (
-        <motion.div 
-          key={idx}
-          variants={{
-            hidden: { opacity: 0, y: 10 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          whileHover={{ y: -2 }}
-          className="bg-white border border-slate-100 p-8 rounded-3xl shadow-3xs text-center flex flex-col items-center space-y-4 hover:border-blue-100 transition-all duration-150"
-          suppressHydrationWarning={true}
-        >
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2 shadow-3xs" style={{ background: 'linear-gradient(135deg, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
-            {item.icon}
-          </div>
-          <div className="text-[11px] font-black text-slate-400 tracking-widest uppercase" suppressHydrationWarning={true}>{item.step}</div>
-          <h4 className="text-base sm:text-lg font-black text-[#0F172A] uppercase" suppressHydrationWarning={true}>{item.label}</h4>
-          <p className="text-sm text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>{item.desc}</p>
-        </motion.div>
-          ))}
-        </motion.div>
-
-        <div className="pt-2 text-center px-4" suppressHydrationWarning={true}>
-          <span className="text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200/60 px-4 py-2 rounded-full uppercase tracking-wider shadow-3xs inline-block">
-        ⚡ Takes less than 2 minutes to send your first reminder.
-          </span>
-
-        </div>
-      </div>
-  </div>
-  </motion.section>
-
-    {/* --- AUTOMATED REMINDERS GUIDE SECTION --- */}
-    <section id="automated-reminders" className="py-16 sm:py-20 bg-white border-b border-slate-100" suppressHydrationWarning={true}>
-      <div className="max-w-5xl mx-auto px-4 text-center space-y-10" suppressHydrationWarning={true}>
-        <div className="space-y-3" suppressHydrationWarning={true}>
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
-            <Clock size={14} />
-            AUTOMATED REMINDERS
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-            What Happens When a Client Ignores You
-          </h2>
-
-          <p className="mx-auto max-w-xl text-sm sm:text-base text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>
-            DueBlink follows up for you, a little firmer each time.
-          </p>
-        </div>
-
-        {/* Timeline: a row on bigger screens, a vertical line on phones */}
-        <ol className="relative grid grid-cols-1 sm:grid-cols-4 gap-7 sm:gap-4 max-w-4xl mx-auto text-left sm:text-center" suppressHydrationWarning={true}>
-          <span aria-hidden="true" className="hidden sm:block absolute top-4 left-[12.5%] right-[12.5%] h-px bg-slate-200" />
-          <span aria-hidden="true" className="sm:hidden absolute left-4 top-4 bottom-4 w-px bg-slate-200" />
-          {[
-            { when: "Due date", title: "Friendly reminder", desc: "A polite nudge." },
-            { when: "Day 3", title: "Direct follow-up", desc: "Asks for a payment date." },
-            { when: "Day 7", title: "Firm final reminder", desc: "Clear, with the next step." },
-            { when: "After that", title: "What to do next", desc: "Call, pause work or a formal notice." }
-          ].map((step, sIdx) => (
-            <li key={sIdx} className="relative flex sm:flex-col items-start sm:items-center gap-4 sm:gap-3" suppressHydrationWarning={true}>
-              <div className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0 ring-4 ring-white" style={{ background: 'linear-gradient(135deg, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>
-                {sIdx + 1}
               </div>
-              <div className="space-y-0.5" suppressHydrationWarning={true}>
-                <p className="text-[11px] font-black text-slate-400 tracking-widest uppercase" suppressHydrationWarning={true}>{step.when}</p>
-                <p className="text-sm font-black text-[#0F172A]" suppressHydrationWarning={true}>{step.title}</p>
-                <p className="text-xs text-slate-500 font-medium" suppressHydrationWarning={true}>{step.desc}</p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <HelpCircle className="text-[#245B92]" size={20} />
+                <h3 className="text-lg font-black text-slate-900">Help & Support</h3>
               </div>
-            </li>
-          ))}
-        </ol>
-
-        <button
-          onClick={() => router.push('/help/automated-reminders')}
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#245B92] to-[#20B8BE] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:shadow-md cursor-pointer"
-          suppressHydrationWarning={true}
-        >
-          See How It Works
-          <ArrowRight size={16} />
-        </button>
-      </div>
-    </section>
-
-    {/* --- SECTION 4: WORKSPACE DASHBOARD VIEW WITH ANIMATION --- */}
-    <motion.section 
-    id="dashboard-preview"
-    initial={{ opacity: 0 }}
-    whileInView={{ opacity: 1 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3 }}
-    className="bg-slate-50/40 py-16 sm:py-20 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-6xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
-      <div className="space-y-2" suppressHydrationWarning={true}>
-        <BarChart3 className="w-8 h-8 text-[#245B92] mx-auto mb-1" suppressHydrationWarning={true} />
-        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Everything You Need to Recover Payments</h2>
-        <p className="text-sm sm:text-base text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Track clients, generate reminders, monitor payments, and recover money faster—all from one dashboard.</p>
-      </div>
-
-      <div className="max-w-5xl mx-auto space-y-6" suppressHydrationWarning={true}>
-        <motion.div 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-50px" }}
-          variants={{
-          visible: { transition: { staggerChildren: 0.05 } }
-          }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left"
-          suppressHydrationWarning={true}
-      >
-          {[
-        { label: "Total Outstanding", val: "₹40,000", note: "Across 2 invoices.", border: "#245B92", color: "#0F172A", icon: <Layers className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Overdue", val: "₹25,000", note: "1 overdue invoice.", border: "#20B8BE", color: "#0F172A", icon: <AlertTriangle className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> },
-        { label: "Recovered This Month", val: "₹45,000", note: "1 invoice paid.", border: "#2BB6A8", color: "#2BB6A8", icon: <TrendingUp className="w-3.5 h-3.5 text-slate-400" suppressHydrationWarning={true} /> }
-          ].map((stat, i) => (
-        <motion.div 
-          key={i}
-          variants={{
-            hidden: { opacity: 0, y: 10 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-          }}
-          style={{ borderTop: `4px solid ${stat.border}` }} 
-          className="bg-white border-x border-b border-slate-200/80 rounded-2xl p-6 shadow-3xs"
-          suppressHydrationWarning={true}
-      >
-          <div className="flex items-center gap-2 text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-1" suppressHydrationWarning={true}>
-            {stat.icon} {stat.label}
-          </div>
-          <p className="text-3xl font-black tracking-tight" style={{ color: stat.color }} suppressHydrationWarning={true}>{stat.val}</p>
-          <p className="text-xs font-medium text-slate-500 mt-1" suppressHydrationWarning={true}>{stat.note}</p>
-        </motion.div>
-          ))}
-      </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, y: 15 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-50px" }}
-          transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
-          className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-3xs text-left overflow-x-auto"
-          suppressHydrationWarning={true}
-      >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4" suppressHydrationWarning={true}>
-        <h3 className="text-sm font-bold text-slate-800 tracking-tight" suppressHydrationWarning={true}>Client List</h3>
-        <motion.button 
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => user ? router.push('/dashboard') : handleScrollToGenerator()} 
-          style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
-          className="text-xs font-bold text-white px-3.5 py-2 rounded-lg flex items-center justify-center gap-2 hover:opacity-95 transition cursor-pointer shadow-3xs"
-          suppressHydrationWarning={true}
-      >
-          <Sparkles className="w-3.5 h-3.5" suppressHydrationWarning={true} /> 
-          <span>Open Dashboard</span>
-        </motion.button>
-        </div>
-             
-        {/* Same client cards as the real dashboard */}
-        <div className="space-y-3 min-w-[260px]" suppressHydrationWarning={true}>
-        {[
-          { name: "ABC Agency", status: "Pending", badge: "bg-amber-50 text-amber-600", auto: true, info: "₹15,000 · First reminder · Due in 5 days" },
-          { name: "Growthify Solutions", status: "Overdue", badge: "bg-rose-50 text-rose-600", auto: true, info: "₹25,000 · Follow-up · Last reminder 3 days ago" },
-          { name: "BrightLabs", status: "Paid", badge: "bg-emerald-50 text-emerald-600", auto: false, info: "₹45,000 · Paid this month" }
-        ].map((client, cIdx) => (
-          <div key={cIdx} className="p-4 sm:p-5 border border-slate-100 bg-slate-50/50 rounded-2xl space-y-1" suppressHydrationWarning={true}>
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap" suppressHydrationWarning={true}>
-              <p className="font-bold text-sm sm:text-base text-slate-900" suppressHydrationWarning={true}>{client.name}</p>
-              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${client.badge}`} suppressHydrationWarning={true}>{client.status}</span>
-              {client.auto && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#E8F8F8] text-[#159A9F]" suppressHydrationWarning={true}>
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#20B8BE]" /> Auto Reminder ON
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-600 font-medium" suppressHydrationWarning={true}>{client.info}</p>
-          </div>
-        ))}
-        </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 text-center text-xs font-bold text-slate-500" suppressHydrationWarning={true}>
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No spreadsheets.</div>
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No confusion.</div>
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-center gap-2" suppressHydrationWarning={true}><Check className="w-4 h-4 text-teal-500" suppressHydrationWarning={true} /> No forgotten follow-ups.</div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 text-left" suppressHydrationWarning={true}>
-        {[
-          { title: "Automatic reminders (Pro)", desc: "Sent on the due date, day 3 and day 7.", icon: <Clock className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
-          { title: "Blink assistant (Pro)", desc: "Tells you who to contact today and writes the message.", icon: <Bot className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
-          { title: "Paid in one click (Pro)", desc: "Mark a payment as paid straight from your email.", icon: <CheckCircle className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
-          { title: "Hindi, Marathi & Hinglish", desc: "Reminders in your client's language, or in English.", icon: <Languages className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
-          { title: "Clients anywhere", desc: "₹, $, €, £, AED and more. Totals are never mixed.", icon: <Globe className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> },
-          { title: "Install on your phone", desc: "Open your Today list in one tap, like an app.", icon: <Smartphone className="w-4 h-4 text-[#245B92]" suppressHydrationWarning={true} /> }
-        ].map((point, pIdx) => (
-          <div key={pIdx} className="bg-white border border-slate-200/60 rounded-xl p-4 flex items-start gap-3" suppressHydrationWarning={true}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[#245B92]/10" suppressHydrationWarning={true}>{point.icon}</div>
-            <div className="space-y-0.5" suppressHydrationWarning={true}>
-              <p className="text-sm font-bold text-[#0F172A]" suppressHydrationWarning={true}>{point.title}</p>
-              <p className="text-xs text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>{point.desc}</p>
-            </div>
-          </div>
-        ))}
-            </div>
-        </motion.div>
-      </div>
-  </div>
-  </motion.section>
-
-    {/* --- SECTION 7: REAL REMINDER EXAMPLES WITH PREMIUM ANIMATION --- */}
-    <motion.section 
-    id="reminder-examples"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-[#FAFBFD] py-16 sm:py-20 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-6xl mx-auto text-center space-y-10 sm:space-y-12" suppressHydrationWarning={true}>
-      <div className="space-y-2.5" suppressHydrationWarning={true}>
-        <div className="flex justify-center select-none" suppressHydrationWarning={true}><Clipboard className="w-10 h-10 text-slate-600" suppressHydrationWarning={true} /></div>
-        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Real Reminder Examples</h2>
-        <p className="text-sm text-slate-500 font-medium px-2" suppressHydrationWarning={true}>Each follow-up gets a little firmer, in English, Hinglish, Hindi or Marathi.</p>
-      </div>
-
-      <motion.div 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-50px" }}
-        variants={{
-          visible: { transition: { staggerChildren: 0.05 } }
-        }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left max-w-5xl mx-auto"
-       suppressHydrationWarning={true}
-      >
-      {/* CARD 1: GENTLE */}
-      <motion.div 
-        variants={{
-          hidden: { opacity: 0, y: 10 },
-          visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-        }}
-        whileHover={{ y: -2 }}
-        className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
-        suppressHydrationWarning={true}
-      >
-        <div style={{ height: '4px', background: '#2BB6A8' }} suppressHydrationWarning={true} />
-        <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
-          <div suppressHydrationWarning={true}>
-            <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-              <span className="text-[10px] font-bold text-[#147D75] bg-[#E6F7F5] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Friendly</span>
-              <span className="text-[11px] font-semibold text-slate-500" suppressHydrationWarning={true}>Due today · Email</span>
-            </div>
-            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Rahul Mehta</h4>
-            <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-              <p suppressHydrationWarning={true}>Hi Rahul,</p>
-              <p suppressHydrationWarning={true}>Quick reminder that invoice #1042 for ₹25,000 is due today.</p>
-              <p suppressHydrationWarning={true}>You can pay using the link below. Thanks!</p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* CARD 2: PROFESSIONAL */}
-      <motion.div 
-        variants={{
-          hidden: { opacity: 0, y: 10 },
-          visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-        }}
-        whileHover={{ y: -2 }}
-        className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
-        suppressHydrationWarning={true}
-      >
-        <div style={{ height: '4px', background: '#245B92' }} suppressHydrationWarning={true} />
-        <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
-          <div suppressHydrationWarning={true}>
-            <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-              <span className="text-[10px] font-bold text-[#1E4A75] bg-[#EEF4FA] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Follow-up</span>
-              <span className="text-[11px] font-semibold text-slate-500" suppressHydrationWarning={true}>3 days overdue · WhatsApp</span>
-            </div>
-            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Priya Sharma <span className="text-xs font-bold text-slate-500">(Hinglish)</span></h4>
-            <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-              <p suppressHydrationWarning={true}>Hi Priya,</p>
-              <p suppressHydrationWarning={true}>Invoice #1038 (₹18,500) 3 din se pending hai.</p>
-              <p suppressHydrationWarning={true}>Payment kab tak ho payega? Ek date bata dijiye, thanks!</p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* CARD 3: FIRM */}
-      <motion.div 
-        variants={{
-          hidden: { opacity: 0, y: 10 },
-          visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } }
-        }}
-        whileHover={{ y: -2 }}
-        className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden flex flex-col justify-between"
-        suppressHydrationWarning={true}
-      >
-        <div style={{ height: '4px', background: '#FF6A5A' }} suppressHydrationWarning={true} />
-        <div className="p-6 space-y-4 flex-1 flex flex-col justify-between" suppressHydrationWarning={true}>
-          <div suppressHydrationWarning={true}>
-            <div className="flex items-center justify-between gap-2 mb-4" suppressHydrationWarning={true}>
-              <span className="text-[10px] font-bold text-[#C24133] bg-[#FFF0EF] px-2.5 py-1 rounded-md uppercase tracking-wider" suppressHydrationWarning={true}>Final</span>
-              <span className="text-[11px] font-semibold text-slate-500" suppressHydrationWarning={true}>7 days overdue · Email</span>
-            </div>
-            <h4 className="text-base font-black text-slate-800 mb-3" suppressHydrationWarning={true}>Amit Verma</h4>
-            <div className="rounded-xl bg-[#F8FAFC] p-4 font-sans text-[13px] sm:text-[13.5px] text-slate-600 space-y-3 leading-relaxed border border-slate-100/60" suppressHydrationWarning={true}>
-              <p suppressHydrationWarning={true}>Hi Amit,</p>
-              <p suppressHydrationWarning={true}>Invoice #1027 for ₹40,000 is now 7 days overdue, after two reminders.</p>
-              <p className="font-bold text-[#99261A] bg-[#FFE4E2] p-2 rounded-lg text-[13px]" suppressHydrationWarning={true}>Please pay within 3 days, by Friday.</p>
-              <p suppressHydrationWarning={true}>{"If I don't hear back by then, I'll move to formal recovery, which may include a legal notice."}</p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  </div>
-  </motion.section>
-
-
-    {/* --- WHO IT'S FOR (AFTER THE EXAMPLES) --- */}
-    <motion.section 
-    id="built-for"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-slate-50/50 py-16 sm:py-20 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-6xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
-      <div className="space-y-2" suppressHydrationWarning={true}>
-        <div className="flex justify-center select-none" suppressHydrationWarning={true}>
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#245B92]" suppressHydrationWarning={true}>
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" suppressHydrationWarning={true} />
-          <circle cx="9" cy="7" r="4" suppressHydrationWarning={true} />
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87" suppressHydrationWarning={true} />
-          <path d="M16 3.13a4 4 0 0 1 0 7.75" suppressHydrationWarning={true} />
-        </svg>
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Built For</h2>
-        <p className="text-sm sm:text-base text-slate-500 font-medium" suppressHydrationWarning={true}>If clients owe you money, DueBlink is built for you.</p>
-      </div>
-
-      <motion.div 
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-50px" }}
-        variants={{
-        visible: { transition: { staggerChildren: 0.03 } }
-        }}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 max-w-5xl mx-auto pt-2 text-left"
-        suppressHydrationWarning={true}
-      >
-        {[
-        { label: "Freelancers", desc: "Designers, developers and writers waiting on project payments.", icon: <Laptop className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { label: "Agencies & studios", desc: "Many clients, many invoices, and no one to chase them.", icon: <Building2 className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { label: "Consultants & coaches", desc: "Retainers and sessions billed every month.", icon: <Users className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { label: "Video editors & photographers", desc: "Final files delivered, payment still pending.", icon: <Camera className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { label: "Tutors & trainers", desc: "Monthly fees from many students and parents.", icon: <GraduationCap className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> },
-        { label: "Small service businesses", desc: "Any business that sends invoices and waits to be paid.", icon: <Store className="w-5 h-5 text-[#245B92]" suppressHydrationWarning={true} /> }
-        ].map((persona, pIdx) => (
-        <motion.div 
-          key={pIdx}
-          variants={{
-            hidden: { opacity: 0, scale: 0.95 },
-            visible: { opacity: 1, scale: 1, transition: { duration: 0.2 } }
-          }}
-          whileHover={{ y: -2 }}
-          className="p-5 bg-white border border-slate-200 rounded-2xl shadow-3xs flex items-start gap-4 transition-colors hover:border-[#245B92]/30 cursor-default"
-          suppressHydrationWarning={true}
-        >
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-[#245B92]/10" suppressHydrationWarning={true}>
-            {persona.icon}
-          </div>
-          <div className="space-y-1" suppressHydrationWarning={true}>
-            <p className="text-sm sm:text-base font-bold text-[#0F172A]" suppressHydrationWarning={true}>{persona.label}</p>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>{persona.desc}</p>
-          </div>
-        </motion.div>
-        ))}
-      </motion.div>
-  </div>
-    </motion.section>
-
-    {/* --- COMPARISON: DUEBLINK VS INVOICING TOOLS VS CHATGPT ---
-         Phones: one card per row (no sideways scrolling). Computers: a table. */}
-    <section id="comparison" className="bg-white py-16 sm:py-20 border-b border-slate-100 px-4" suppressHydrationWarning={true}>
-      <div className="max-w-5xl mx-auto text-center space-y-10" suppressHydrationWarning={true}>
-        <div className="space-y-2" suppressHydrationWarning={true}>
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-100 text-[#2BB6A8] text-xs font-bold uppercase tracking-wider" suppressHydrationWarning={true}>
-            <Layers size={14} />
-            DueBlink vs invoicing tools vs ChatGPT
-          </div>
-          <h2 className="text-2xl sm:text-3xl pt-2 font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>
-            More Than an Invoice Tool.{' '}
-            <span className="bg-gradient-to-r from-[#1C2E8F] to-[#2BB6A8] bg-clip-text text-transparent" suppressHydrationWarning={true}>
-              Smarter Than ChatGPT.
-            </span>
-          </h2>
-          <p className="text-sm sm:text-base text-slate-500 font-medium max-w-2xl mx-auto px-2" suppressHydrationWarning={true}>
-            DueBlink remembers every follow-up and tells you the next right step: who to chase, how firmly, and on which channel.
-          </p>
-        </div>
-
-        <div className="sm:hidden space-y-3 text-left" suppressHydrationWarning={true}>
-          {COMPARISON_ROWS.map((row, rIdx) => (
-            <div key={rIdx} className="bg-white border border-slate-200 rounded-2xl shadow-3xs p-4 space-y-3" suppressHydrationWarning={true}>
-              <p className="text-sm font-bold text-[#0F172A]" suppressHydrationWarning={true}>{row.label}</p>
-              <div className="flex items-start gap-2 rounded-xl bg-teal-50/40 border border-teal-100 px-3 py-2" suppressHydrationWarning={true}>
-                <Check className="w-4 h-4 text-teal-500 shrink-0 mt-0.5" suppressHydrationWarning={true} />
-                <p className="text-sm" suppressHydrationWarning={true}><span className="font-black text-[#245B92]">DueBlink:</span> <span className="font-bold text-[#147D75]">{row.us}</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
+                <a href="/contact" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+                  <span>Contact Support</span>
+                  <span className="text-[#245B92]">→</span>
+                </a>
+                <a href="/#faq" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+                  <span>FAQ</span>
+                  <span className="text-[#245B92]">→</span>
+                </a>
+                <a href="/pricing" className="px-5 py-4 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition flex items-center justify-between">
+                  <span>Pricing & Plans</span>
+                  <span className="text-[#245B92]">→</span>
+                </a>
               </div>
-              <p className="text-xs text-slate-500 font-medium px-1" suppressHydrationWarning={true}><span className="font-bold text-slate-600">Invoicing tools:</span> {row.tools}</p>
-              <p className="text-xs text-slate-500 font-medium px-1" suppressHydrationWarning={true}><span className="font-bold text-slate-600">ChatGPT:</span> {row.gpt}</p>
             </div>
-          ))}
-        </div>
-
-        <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl shadow-3xs overflow-x-auto text-left" suppressHydrationWarning={true}>
-          <table className="w-full text-sm" suppressHydrationWarning={true}>
-            <thead suppressHydrationWarning={true}>
-              <tr className="border-b border-slate-100" suppressHydrationWarning={true}>
-                <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-[34%]" suppressHydrationWarning={true}></th>
-                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-white text-center" style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} suppressHydrationWarning={true}>DueBlink</th>
-                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-slate-500 text-center" suppressHydrationWarning={true}>Invoicing tools</th>
-                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-slate-500 text-center" suppressHydrationWarning={true}>ChatGPT</th>
-              </tr>
-            </thead>
-            <tbody suppressHydrationWarning={true}>
-              {COMPARISON_ROWS.map((row, rIdx) => (
-                <tr key={rIdx} className="border-b border-slate-100 last:border-b-0" suppressHydrationWarning={true}>
-                  <td className="p-4 font-bold text-[#0F172A]" suppressHydrationWarning={true}>{row.label}</td>
-                  <td className="p-4 text-center font-bold text-[#147D75] bg-teal-50/40" suppressHydrationWarning={true}>
-                    <span className="inline-flex items-center justify-center gap-1.5" suppressHydrationWarning={true}>
-                      <Check className="w-4 h-4 text-teal-500 shrink-0" suppressHydrationWarning={true} /> {row.us}
-                    </span>
-                  </td>
-                  <td className="p-4 text-center text-slate-500 font-medium" suppressHydrationWarning={true}>{row.tools}</td>
-                  <td className="p-4 text-center text-slate-500 font-medium" suppressHydrationWarning={true}>{row.gpt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-      </div>
-    </section>
-
-    {/* --- PRICING SECTION WITH PREMIUM ANIMATION --- */}
-    <motion.section 
-    id="pricing"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-20 sm:py-24 border-b border-slate-100 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-5xl mx-auto text-center space-y-12" suppressHydrationWarning={true}>
-      <div className="space-y-4" suppressHydrationWarning={true}>
-        <div className="mx-auto w-12 h-12 flex items-center justify-center" suppressHydrationWarning={true}>
-          <Sparkles className="w-8 h-8 text-[#20B8BE]" suppressHydrationWarning={true} />
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Simple Pricing</h2>
-        <p className="text-slate-500 font-medium" suppressHydrationWarning={true}>Choose the plan that fits your recovery needs.</p>
-      </div>
-
-      {isPro ? (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-xl mx-auto bg-gradient-to-br from-slate-900 to-[#1E293B] p-8 sm:p-12 rounded-3xl border border-slate-800 text-white text-center space-y-6 shadow-2xl"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#245B92] to-[#20B8BE] flex items-center justify-center mx-auto shadow-md">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-black tracking-tight">Your Pro Plan is Active</h3>
-            <p className="text-xs text-slate-300 font-medium">You have full access to unlimited AI reminders, the AI Recovery Assistant, and priority workflows.</p>
-        </div>
-        <button 
-          onClick={() => router.push('/dashboard')}
-          className="w-full py-3 sm:py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-md"
-        >
-          Open Dashboard
-        </button>
-        </motion.div>
-      ) : (
-        <motion.div 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-50px" }}
-          variants={{
-            visible: { transition: { staggerChildren: 0.1 } }
-          }}
-          className="grid md:grid-cols-2 gap-8 text-left items-stretch"
-          suppressHydrationWarning={true}
-        >
-          {/* Free Plan */}
-          <motion.div 
-            variants={{
-          hidden: { opacity: 0, scale: 0.99 },
-          visible: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: "easeOut" } }
-            }}
-            className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-3xs flex flex-col justify-between"
-            suppressHydrationWarning={true}
-          >
-            <div>
-          <h3 className="font-black text-lg" suppressHydrationWarning={true}>Free</h3>
-          <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Start recovering payments</p>
-          <div className="text-5xl font-black mb-8" suppressHydrationWarning={true}>₹0</div>
-          <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
-            {["15 Free Monthly Reminders (Auto-refills)", "Email Reminders", "WhatsApp Reminders", "Tone Selection", "Basic Tracking"].map(text => (
-              <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
-                <div className="w-5 h-5 rounded-full border border-slate-300 flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
-              <Check className="w-3 h-3 text-slate-400" strokeWidth={4} suppressHydrationWarning={true} />
-                </div>
-                {text}
-              </li>
-            ))}
-          </ul>
-            </div>
-            <button 
-          onClick={() => router.push('/pricing')} 
-          className="w-full py-3 sm:py-4 rounded-xl border border-slate-200 font-bold hover:bg-slate-50 transition cursor-pointer text-sm"
-          suppressHydrationWarning={true}
-            >
-          {user ? 'Current Plan' : 'Start Free'}
-            </button>
           </motion.div>
-
-          {/* Pro Plan */}
-          <motion.div 
-            variants={{
-          hidden: { opacity: 0, scale: 0.99 },
-          visible: { opacity: 1, scale: 1, transition: { duration: 0.3, ease: "easeOut" } }
-            }}
-            whileHover={{ scale: 1.01 }}
-            className="bg-white p-6 sm:p-8 rounded-3xl border-2 border-[#20B8BE] shadow-xl relative flex flex-col justify-between"
-            suppressHydrationWarning={true}
-          >
-            <div>
-          <div className="absolute top-4 right-4 bg-[#20B8BE] text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider" suppressHydrationWarning={true}>MOST POPULAR</div>
-          <h3 className="font-black text-lg" suppressHydrationWarning={true}>Pro</h3>
-          <p className="text-slate-400 text-sm mb-6" suppressHydrationWarning={true}>Everything you need to recover payments faster.</p>
-            
-          <div
-            className="text-4xl sm:text-5xl font-black mb-1"
-            suppressHydrationWarning={true}
-          >
-            {isIndia && (showEarlyOffer || seasonalPricing) && (
-              <span className="text-xl sm:text-2xl text-slate-300 line-through mr-2">
-                ₹{NORMAL_PRICES.monthly}
-              </span>
-            )}
-
-            {isIndia ? (
-              showEarlyOffer
-                ? `₹${EARLY_OFFER.monthly}`
-                : seasonalPricing
-                  ? `₹${seasonalPricing.monthlyPrice.toLocaleString('en-IN')}`
-                  : `₹${NORMAL_PRICES.monthly}`
-            ) : (
-              '$9'
-            )}
-
-            <span
-              className="text-xs sm:text-sm font-bold text-slate-400"
-              suppressHydrationWarning={true}
-            >
-              {showEarlyOffer ? ' first month' : ' / month'}
-            </span>
-          </div>
-
-          <p
-            className="text-xs font-bold text-slate-400 mb-2"
-            suppressHydrationWarning={true}
-          >
-            {isIndia ? (
-              showEarlyOffer ? (
-                `Then ₹${NORMAL_PRICES.monthly}/month · or ₹${EARLY_OFFER.yearly.toLocaleString('en-IN')} for the first year`
-              ) : seasonalPricing ? (
-                <>
-                  <span className="line-through text-slate-300 mr-1">
-                    ₹{NORMAL_PRICES.yearly.toLocaleString('en-IN')}
-                  </span>
-                  or ₹{seasonalPricing.yearlyPrice.toLocaleString('en-IN')} / year
-                </>
-              ) : (
-                `or ₹${NORMAL_PRICES.yearly.toLocaleString('en-IN')} / year`
-              )
-            ) : (
-              'or $89 / year'
-            )}
-          </p>
-
-          <p className="text-[11px] text-slate-400 font-medium mb-8">
-            {isIndia ? (
-              showEarlyOffer ? (
-                <span className="text-[#20B8BE] font-bold">
-                  Early offer · first {EARLY_OFFER.totalSpots} users · {earlyOffer?.spotsLeft} {earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left
-                </span>
-              ) : seasonalPricing ? (
-                <span className="text-[#20B8BE] font-bold">
-                  {seasonalPricing.name} • Limited time
-                </span>
-              ) : (
-                'Cancel anytime • Secure payments'
-              )
-            ) : (
-              'Cancel anytime • Secure payments'
-            )}
-          </p>
-
-          <ul className="space-y-4 mb-8" suppressHydrationWarning={true}>
-            {[
-              "Unlimited AI Reminders",
-              "Floating AI Recovery Assistant",
-              "One Click Payment Updates",
-              "AI Smart Recommendations",
-              "Automatic Payment Reminders",
-              "Payment Tracking & History",
-              "Unlimited Clients"
-            ].map(text => (
-              <li key={text} className="flex items-center gap-3 font-semibold text-slate-700 text-sm" suppressHydrationWarning={true}>
-                <div className="w-5 h-5 rounded-full bg-gradient-to-r from-[#245B92] to-[#20B8BE] flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
-              <Check className="w-3 h-3 text-white" strokeWidth={4} suppressHydrationWarning={true} />
-                </div>
-                {text}
-              </li>
-            ))}
-          </ul>
-            </div>
-            <button 
-          onClick={() => router.push('/pricing')} 
-          className="w-full py-3 sm:py-4 rounded-xl text-white font-bold bg-gradient-to-r from-[#245B92] to-[#20B8BE] hover:opacity-95 transition cursor-pointer text-sm shadow-3xs"
-          suppressHydrationWarning={true}
-            >
-          Upgrade to Pro
-            </button>
-          </motion.div>
-      </motion.div>
-    )}
-  </div>
-  </motion.section>
-
-    {/* --- FAQ SECTION WITH PREMIUM ANIMATION --- */}
-    <motion.section 
-    id="faq"
-    initial={{ opacity: 0, y: 15 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-slate-50 py-20 sm:py-24 border-b border-slate-100 px-4 scroll-mt-24"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-4xl mx-auto text-center space-y-20 sm:space-y-24" suppressHydrationWarning={true}>
-        
-      <div className="space-y-12" suppressHydrationWarning={true}>
-        <div className="space-y-2" suppressHydrationWarning={true}>
-          <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight" suppressHydrationWarning={true}>Frequently Asked Questions</h2>
-          <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto px-2" suppressHydrationWarning={true}>Common questions about DueBlink.</p>
-        </div>
-
-        <motion.div 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-50px" }}
-          variants={{
-          visible: { transition: { staggerChildren: 0.03 } }
-        }}
-          className="space-y-4 max-w-3xl mx-auto text-left"
-          suppressHydrationWarning={true}
-        >
-          {[
-        { q: "Do I need an account?", a: "No. You can try the reminder generator right away. A free account gives you the dashboard and 15 free AI reminders every month, refilled automatically." },
-        { q: "How is it different from ChatGPT?", a: "ChatGPT writes one message and forgets. DueBlink remembers every invoice and every follow-up, tells you who to chase today, and makes each reminder a little firmer when a client stays quiet." },
-        { q: "Does it work with WhatsApp?", a: "Yes. Tap \"Send on WhatsApp\" and WhatsApp opens on your phone with the reminder ready, sent from your own number. DueBlink never sends WhatsApp messages by itself." },
-        { q: "Does it work in other languages and currencies?", a: "Yes. Pick English, Hinglish, Hindi or Marathi for each client, and set their currency (₹, $, €, £, AED and more). Your totals are kept separate per currency." },
-        { q: "How long until I get paid?", a: "It depends on your client, and DueBlink can't guarantee payment. What it does is make sure every follow-up goes out on time and in the right tone, so your invoices don't get forgotten." },
-        { q: "Is it secure?", a: "Yes. DueBlink never accesses your bank account or payment processor. We only store the invoice and client details you enter." }
-          ].map((faq, index) => (
-        <motion.div 
-          key={index}
-          variants={{
-            hidden: { opacity: 0, y: 10 },
-            visible: { opacity: 1, y: 0 }
-          }}
-          className="border-b border-slate-200/60 pb-4"
-          suppressHydrationWarning={true}
-        >
-          <button 
-            onClick={() => toggleFaq(index)} 
-            className="w-full flex items-center justify-between gap-4 text-left font-bold text-sm sm:text-base text-[#0F172A] hover:text-[#245B92] transition-colors cursor-pointer py-2"
-            suppressHydrationWarning={true}
-          >
-            <span className="flex items-center gap-3" suppressHydrationWarning={true}>
-              <div className="w-5 flex items-center justify-center shrink-0" suppressHydrationWarning={true}>
-            <HelpCircle className="w-4 h-4 text-[#20B8BE]" suppressHydrationWarning={true} />
-              </div>
-              {faq.q}
-            </span>
-            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform shrink-0 ${openFaq === index ? 'rotate-180' : ''}`} suppressHydrationWarning={true} />
-          </button>
-               
-          <motion.div
-            initial={false}
-            animate={{ height: openFaq === index ? "auto" : 0, opacity: openFaq === index ? 1 : 0 }}
-            className="overflow-hidden"
-            suppressHydrationWarning={true}
-          >
-            <p className="pt-2 pb-2 text-sm sm:text-[15px] text-[#334155] font-medium leading-relaxed" suppressHydrationWarning={true}>
-              {faq.a}
-            </p>
-          </motion.div>
-        </motion.div>
-          ))}
-        </motion.div>
-      </div>
-  </div>
-  </motion.section>
-
-    {/* --- FINAL CTA CONVERSION CONTAINER WITH PREMIUM ANIMATION --- */}
-    <motion.section 
-    id="final-cta"
-    initial={{ opacity: 0, scale: 0.99 }}
-    whileInView={{ opacity: 1, scale: 1 }}
-    viewport={{ once: true, margin: "-50px" }}
-    transition={{ duration: 0.3, ease: "easeOut" }}
-    className="bg-white py-20 sm:py-24 px-4"
-    suppressHydrationWarning={true}
-    >
-    <div className="max-w-4xl mx-auto" suppressHydrationWarning={true}>
-      <div className="bg-gradient-to-br from-[#245B92] to-[#20B8BE] rounded-[32px] p-6 sm:p-12 text-center text-white relative shadow-lg overflow-hidden" suppressHydrationWarning={true}>
-        <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-6 sm:mb-8" suppressHydrationWarning={true}>
-          {isPro ? 'Welcome Back! Your Pro Features Are Ready.' : user ? 'Welcome Back. Ready to Recover More Payments?' : 'Stop Chasing Clients. Get Paid Faster.'}
-        </h2>
-          
-        <motion.div 
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          variants={{
-        visible: { transition: { staggerChildren: 0.05 } }
-          }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto mb-8"
-          suppressHydrationWarning={true}
-      >
-          {["Know who owes you money", "Never miss a follow-up", "Recover payments faster"].map((text, i) => (
-        <motion.div 
-          key={text}
-          variants={{
-            hidden: { opacity: 0, y: 5 },
-            visible: { opacity: 1, y: 0, transition: { duration: 0.2 } }
-          }}
-          className="bg-white/10 backdrop-blur-xs border border-white/20 p-3 sm:p-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2"
-          suppressHydrationWarning={true}
-      >
-          <Check className="w-4 h-4 shrink-0" suppressHydrationWarning={true} />
-          {text}
-        </motion.div>
-          ))}
-        </motion.div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <motion.button 
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => user ? router.push('/dashboard') : handleScrollToGenerator()} 
-        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-[#245B92] px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-black text-sm hover:bg-slate-50 transition cursor-pointer shadow-xs"
-        suppressHydrationWarning={true}
-          >
-        <Zap className="w-4 h-4" suppressHydrationWarning={true} /> 
-        {user ? 'Open Dashboard' : 'Generate Free Reminder'}
-          </motion.button>
-            
-          {user && !isPro && (
-        <motion.button 
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => router.push('/pricing')} 
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#0F172A] text-white px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl font-black text-sm hover:bg-slate-900 transition cursor-pointer border border-white/20 shadow-xs"
-          suppressHydrationWarning={true}
-        >
-          <Sparkles className="w-4 h-4 text-[#20B8BE]" suppressHydrationWarning={true} /> 
-          {wasPro ? 'Renew Pro' : 'Upgrade to Pro'}
-        </motion.button>
-          )}
-        </div>
-          
-        {!user && (
-          <p className="mt-3 text-xs font-medium text-white/80" suppressHydrationWarning={true}>No signup required • Generate your first AI reminder in seconds.</p>
         )}
-      </div>
-  </div>
-  </motion.section>
 
-    {/* --- GLOBAL FOOTER WITH ANIMATION --- */}
-    <SiteFooter />
-
-    {/* --- PREMIUM INTERCEPT MODAL WITH SPRING ANIMATION --- */}
-    <AnimatePresence>
-    {isModalOpen && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" suppressHydrationWarning={true}>
-        <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" 
-        onClick={() => setIsModalOpen(false)}
-        suppressHydrationWarning={true}
-       />
-        <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ duration: 0.15, ease: "easeOut" }}
-        className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4"
-        suppressHydrationWarning={true}
-        >
-        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors" suppressHydrationWarning={true}>
-          <X className="w-5 h-5" suppressHydrationWarning={true} />
-        </button>
-        <h3 className="text-lg font-black text-[#0F172A] uppercase tracking-tight" suppressHydrationWarning={true}>{modalTitle}</h3>
-        <p className="text-xs text-slate-600 font-medium">
-          {user ? 'You have reached your 15 monthly free reminders. Upgrade to Pro for unlimited AI generation.' : 'You have used your 5 free guest reminders. Create a free account for 15 monthly reminders or upgrade to Pro.'}
-        </p>
-        <div className="space-y-2 pt-2">
-          <button 
-        onClick={() => { setIsModalOpen(false); router.push('/pricing'); }} 
-        style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
-        className="w-full py-3 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition hover:opacity-90 shadow-3xs cursor-pointer flex items-center justify-center gap-2" 
-        suppressHydrationWarning={true}
-          >
-        <Zap className="w-4 h-4" /> Upgrade to Pro
-          </button>
-          {!user && (
-          <button 
-            onClick={() => { setIsModalOpen(false); goToSignUp('limit_popup'); }} 
-           className="w-full py-3 bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl transition hover:bg-slate-200 cursor-pointer" 
-           suppressHydrationWarning={true}
-          >
-            Create Account Free
-          </button>
-          )}
-        </div>
-        </motion.div>
-      </div>
-    )}
-    </AnimatePresence>
-
-    {/* --- SMART SCROLL BUTTON (TOP <-> BOTTOM) --- */}
-    <button
-    onClick={() => {
-      if (isAtTop) {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }}
-      className="fixed bottom-6 right-6 z-[90] bg-[#0F172A] text-white p-3 rounded-full shadow-lg hover:bg-[#245B92] hover:scale-105 transition-all duration-150 cursor-pointer border border-white/10"
-      aria-label="Toggle scroll position"
-      suppressHydrationWarning={true}
-    >
-      <ChevronDown className={`w-5 h-5 transition-transform duration-200 ${isAtTop ? '' : 'rotate-180'}`} suppressHydrationWarning={true} />
-    </button>
-
-    <FloatingRobot />
-
-</div>
-    </MotionConfig>
+      </main>
+    </motion.div>
   );
 }
