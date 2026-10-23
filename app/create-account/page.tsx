@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -13,7 +13,7 @@ import { track } from '@vercel/analytics';
 
 export default function RegisterPage() {
   const router = useRouter();
-  
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +21,37 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Load the dashboard in the background while the user types, so it
+  // opens straight away after signing in.
+  useEffect(() => {
+    router.prefetch('/dashboard');
+  }, [router]);
+
+  // Welcome email: sent in the background. The user goes to the
+  // dashboard straight away instead of waiting for the email to send.
+  const sendWelcomeEmail = (user: any, name: string, fallbackEmail = '') => {
+    user
+      .getIdToken()
+      .then((idToken: string) =>
+        fetch('/api/send-welcome', {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            email: user.email || fallbackEmail,
+            userName: name || 'there',
+          }),
+        })
+      )
+      .then((res: Response) => {
+        if (!res.ok) console.error('Failed to send welcome email.');
+      })
+      .catch((emailErr: any) => console.error('Welcome email request failed:', emailErr));
+  };
 
   const handleGoogleSignup = async () => {
     setError('');
@@ -49,35 +80,13 @@ export default function RegisterPage() {
         });
 
         track('Signup', { method: 'google' });
-
-        try {
-          const idToken = await user.getIdToken();
-
-          const emailResponse = await fetch("/api/send-welcome", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({
-              email: user.email || '',
-              userName: user.displayName || "there",
-            }),
-          });
-
-          if (!emailResponse.ok) {
-            console.error("Failed to send welcome email.");
-          }
-        } catch (emailErr) {
-          console.error("Welcome email request failed:", emailErr);
-        }
+        sendWelcomeEmail(user, user.displayName || '');
       }
 
       localStorage.setItem('has_created_account', 'true');
       localStorage.setItem('user_authenticated', 'true');
 
       router.push('/dashboard');
-      router.refresh();
     } catch (err: any) {
       console.error(err);
       // Closing the Google popup isn't a real error — don't show anything for it.
@@ -96,55 +105,31 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      if (fullName) {
-        await updateProfile(user, { displayName: fullName });
-      }
-
-      await setDoc(doc(db, 'users', user.uid), {
-  uid: user.uid,
-  email: user.email,
-  name: fullName,
-  isPro: false,
-  aiRemindersUsed: 0,
-  createdAt: serverTimestamp(),
-});
+      // Save the name and the account profile at the same time.
+      await Promise.all([
+        fullName ? updateProfile(user, { displayName: fullName }) : Promise.resolve(),
+        setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          name: fullName,
+          isPro: false,
+          aiRemindersUsed: 0,
+          createdAt: serverTimestamp(),
+        }),
+      ]);
 
       track('Signup', { method: 'email' });
+      sendWelcomeEmail(user, fullName, email);
 
-      
-      // Send automated SaaS welcome email through the server API endpoint
-      try {
-        const idToken = await user.getIdToken();
-
-        const emailResponse = await fetch("/api/send-welcome", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            email: user.email || email,
-            userName: fullName || "there",
-          }),
-        });
-
-        if (!emailResponse.ok) {
-          console.error("Failed to send welcome email.");
-        }
-      } catch (emailErr) {
-        console.error("Welcome email request failed:", emailErr);
-      }
-      
       localStorage.setItem('has_created_account', 'true');
       localStorage.setItem('user_authenticated', 'true');
-      
+
       router.push('/dashboard');
-      router.refresh();
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/email-already-in-use') {
@@ -161,13 +146,13 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-[#0F172A] antialiased flex flex-col selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
-      
+
       {/* --- REFINED STICKY TOP NAV --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between" suppressHydrationWarning={true}>
-          
-          <button 
-            onClick={() => router.push('/')} 
+
+          <button
+            onClick={() => router.push('/')}
             className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-600 hover:text-[#245B92] transition cursor-pointer group"
             suppressHydrationWarning={true}
           >
@@ -177,10 +162,10 @@ export default function RegisterPage() {
 
           <div className="flex items-center gap-4" suppressHydrationWarning={true}>
             <span className="hidden sm:inline-block text-xs font-semibold text-slate-400">Already have an account?</span>
-            <button 
-              onClick={() => router.push('/login')} 
-              className="text-xs sm:text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-md hover:opacity-95 active:scale-[0.98] transition cursor-pointer" 
-              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
+            <button
+              onClick={() => router.push('/login')}
+              className="text-xs sm:text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-md hover:opacity-95 active:scale-[0.98] transition cursor-pointer"
+              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
               suppressHydrationWarning={true}
             >
               Sign In
@@ -192,7 +177,7 @@ export default function RegisterPage() {
 
       {/* --- MAIN SPLIT CONTAINER --- */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2">
-        
+
         {/* LEFT SIDE: BRANDED HIGHLIGHT PANEL */}
         <div className="hidden lg:flex bg-gradient-to-br from-[#1C2E8F] via-[#245B92] to-[#2BB6A8] p-12 flex-col justify-between text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/10 blur-3xl pointer-events-none -mr-20 -mt-20"></div>
@@ -241,26 +226,26 @@ export default function RegisterPage() {
 
         {/* RIGHT SIDE: MODERN CARD FORM */}
         <div className="flex flex-col justify-center px-4 sm:px-12 lg:px-20 py-8">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/50"
           >
-            
+
             <div className="flex justify-center mb-4 cursor-pointer" onClick={() => router.push('/')}>
               <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
                 <Image src="/icon.png" alt="DueBlink Icon" width={96} height={96} priority className="w-20 h-20 object-contain" />
               </div>
             </div>
-            
+
             <div className="text-center mb-5">
               <h2 className="text-lg font-black text-slate-900 tracking-tight">Get Started Free</h2>
               <p className="text-xs text-slate-500 font-medium mt-0.5">Set up your workspace in seconds</p>
             </div>
 
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-2xl text-center shadow-2xs mb-3.5"
@@ -301,13 +286,13 @@ export default function RegisterPage() {
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <User className="w-4 h-4" />
                   </div>
-                  <input 
-                    type="text" 
-                    required 
+                  <input
+                    type="text"
+                    required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
-                    placeholder="John Doe" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400"
+                    placeholder="John Doe"
                   />
                 </div>
               </div>
@@ -318,13 +303,13 @@ export default function RegisterPage() {
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Mail className="w-4 h-4" />
                   </div>
-                  <input 
-                    type="email" 
-                    required 
+                  <input
+                    type="email"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
-                    placeholder="name@company.com" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400"
+                    placeholder="name@company.com"
                   />
                 </div>
               </div>
@@ -335,17 +320,17 @@ export default function RegisterPage() {
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Lock className="w-4 h-4" />
                   </div>
-                  <input 
-                    type={showPassword ? "text" : "password"} 
-                    required 
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-11 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
-                    placeholder="••••••••" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-11 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400"
+                    placeholder="••••••••"
                   />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)} 
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg transition"
                     aria-label="Toggle password visibility"
                   >
@@ -354,8 +339,8 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={loading || googleLoading}
                 className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-1 disabled:opacity-70 flex items-center justify-center gap-2"
               >

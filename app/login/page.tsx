@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -21,6 +21,12 @@ export default function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState('');
+
+  // Load the dashboard in the background while the user types, so it
+  // opens straight away after signing in.
+  useEffect(() => {
+    router.prefetch('/dashboard');
+  }, [router]);
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -54,7 +60,6 @@ export default function LoginPage() {
       localStorage.setItem('user_authenticated', 'true');
 
       router.push('/dashboard');
-      router.refresh();
     } catch (err: any) {
       console.error("Google Login Error:", err);
       // Closing the Google popup isn't a real error — don't show anything for it.
@@ -120,7 +125,6 @@ export default function LoginPage() {
       localStorage.setItem('has_created_account', 'true');
       localStorage.setItem('user_authenticated', 'true');
       router.push('/dashboard');
-      router.refresh(); 
     } catch (err: any) {
       console.error("Login Error:", err.code);
       if (err.code === 'auth/invalid-credential') {
@@ -137,13 +141,13 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-[#0F172A] antialiased flex flex-col selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
-      
+
       {/* --- REFINED STICKY TOP NAV --- */}
       <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between" suppressHydrationWarning={true}>
-          
-          <button 
-            onClick={() => router.push('/')} 
+
+          <button
+            onClick={() => router.push('/')}
             className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-600 hover:text-[#245B92] transition cursor-pointer group"
             suppressHydrationWarning={true}
           >
@@ -153,10 +157,10 @@ export default function LoginPage() {
 
           <div className="flex items-center gap-4" suppressHydrationWarning={true}>
             <span className="hidden sm:inline-block text-xs font-semibold text-slate-400">Don't have an account?</span>
-            <button 
-              onClick={() => router.push('/create-account')} 
-              className="text-xs sm:text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-md hover:opacity-95 active:scale-[0.98] transition cursor-pointer" 
-              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }} 
+            <button
+              onClick={() => router.push('/create-account')}
+              className="text-xs sm:text-sm font-bold text-white px-4 py-2.5 rounded-xl shadow-md hover:opacity-95 active:scale-[0.98] transition cursor-pointer"
+              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
               suppressHydrationWarning={true}
             >
               Create Account
@@ -168,7 +172,7 @@ export default function LoginPage() {
 
       {/* --- MAIN SPLIT CONTAINER --- */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-2">
-        
+
         {/* LEFT SIDE: BRANDED HIGHLIGHT PANEL MATCHING LANDING PAGE AESTHETIC */}
         <div className="hidden lg:flex bg-gradient-to-br from-[#1C2E8F] via-[#245B92] to-[#2BB6A8] p-12 flex-col justify-between text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/10 blur-3xl pointer-events-none -mr-20 -mt-20"></div>
@@ -217,13 +221,13 @@ export default function LoginPage() {
 
         {/* RIGHT SIDE: MODERN CARD FORM - OPTIMIZED PADDING TO MATCH CREATE ACCOUNT */}
         <div className="flex flex-col justify-center px-4 sm:px-12 lg:px-20 py-8">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="max-w-md w-full mx-auto bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/50"
           >
-            
+
             <div className="flex justify-center mb-4 cursor-pointer" onClick={() => router.push('/')}>
               <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-100 shadow-xs">
                 <Image src="/icon.png" alt="DueBlink Icon" width={96} height={96} priority className="w-20 h-20 object-contain" />
@@ -236,7 +240,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-2xl text-center shadow-2xs mb-3.5"
@@ -277,13 +281,13 @@ export default function LoginPage() {
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Mail className="w-4 h-4" />
                   </div>
-                  <input 
-                    type="email" 
-                    required 
+                  <input
+                    type="email"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
-                    placeholder="name@company.com" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-4 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400"
+                    placeholder="name@company.com"
                   />
                 </div>
               </div>
@@ -304,17 +308,17 @@ export default function LoginPage() {
                   <div className="absolute left-3.5 text-slate-400 pointer-events-none">
                     <Lock className="w-4 h-4" />
                   </div>
-                  <input 
-                    type={showPassword ? "text" : "password"} 
-                    required 
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-11 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400" 
-                    placeholder="••••••••" 
+                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl pl-11 pr-11 py-3 text-sm font-medium focus:outline-none focus:border-[#245B92] focus:bg-white focus:ring-4 focus:ring-[#245B92]/10 transition text-slate-900 placeholder:text-slate-400"
+                    placeholder="••••••••"
                   />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)} 
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg transition"
                     aria-label="Toggle password visibility"
                   >
@@ -350,8 +354,8 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={loading || googleLoading}
                 className="w-full py-3.5 bg-gradient-to-r from-[#245B92] to-[#20B8BE] text-white text-sm font-bold rounded-xl hover:opacity-95 active:scale-[0.98] transition shadow-lg shadow-[#245B92]/20 cursor-pointer mt-1 disabled:opacity-70 flex items-center justify-center gap-2"
               >
