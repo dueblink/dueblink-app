@@ -88,6 +88,16 @@ export default function LandingPage() {
     router.push('/create-account');
   };
   const pathname = usePathname();
+
+  // Load the next pages quietly in the background (after the landing page
+  // has finished loading), so Login, Create account, Pricing and Contact
+  // open instantly when clicked.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      ['/login', '/create-account', '/pricing', '/contact'].forEach((p) => router.prefetch(p));
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [router]);
     
   // Auth & Pro State
   const [user, setUser] = useState<any>(null);
@@ -99,6 +109,11 @@ export default function LandingPage() {
   const [myClients, setMyClients] = useState<any[]>([]);
   const [clientsLoaded, setClientsLoaded] = useState(false);
   const [isIndia, setIsIndia] = useState(true);
+
+  // Signed in: get the dashboard ready too.
+  useEffect(() => {
+    if (user) router.prefetch('/dashboard');
+  }, [user, router]);
 
   // Festival greeting above the problem badge.
   // Visitors in India see every festival; visitors outside India
