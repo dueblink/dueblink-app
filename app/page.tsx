@@ -267,6 +267,42 @@ export default function LandingPage() {
   const [tone, setTone] = useState('professional');
   const [language, setLanguage] = useState<string>('english');
 
+  // "Try an example": fills the form with a sample client and generates
+  // in one tap, for visitors who don't have a late client in mind yet.
+  const generatorFormRef = useRef<HTMLFormElement>(null);
+  const [exampleQueued, setExampleQueued] = useState(false);
+  // Used once: the button goes away (remembered on this browser).
+  const [exampleUsed, setExampleUsed] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('dueblink_example_used') === '1') setExampleUsed(true);
+    } catch {
+      // storage blocked: the button just shows
+    }
+  }, []);
+  const tryExample = () => {
+    if (isGenerating) return;
+    setExampleUsed(true);
+    try {
+      localStorage.setItem('dueblink_example_used', '1');
+    } catch {
+      // storage blocked: it still hides for this visit
+    }
+    setClientName('Rahul Mehta');
+    setAmount('25000');
+    setCurrency('₹ INR');
+    setInvoiceRef('');
+    setDaysOverdue('7');
+    setTone('gentle');
+    track('try_example');
+    setExampleQueued(true);
+  };
+  useEffect(() => {
+    if (!exampleQueued) return;
+    setExampleQueued(false);
+    generatorFormRef.current?.requestSubmit();
+  }, [exampleQueued]);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
@@ -1446,7 +1482,22 @@ export default function LandingPage() {
               <span className="self-start sm:self-center text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-100 px-2.5 py-1 rounded-full" suppressHydrationWarning={true}>{getStageLabel()}</span>
             </div>
 
-            <form onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
+            {/* No client in mind? One tap fills a sample and generates.
+                Shown once: hidden after it's used or after any reminder is generated. */}
+            {!exampleUsed && reminderCount === 0 && (
+            <button
+              type="button"
+              onClick={tryExample}
+              disabled={isGenerating}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[#20B8BE]/40 bg-teal-50 text-xs font-bold text-teal-700 hover:bg-teal-100 transition cursor-pointer disabled:opacity-60"
+              suppressHydrationWarning={true}
+            >
+              <Sparkles className="w-3.5 h-3.5" suppressHydrationWarning={true} />
+              No client in mind? Try an example
+            </button>
+            )}
+
+            <form ref={generatorFormRef} onSubmit={handleGenerate} className="space-y-4" suppressHydrationWarning={true}>
               <div suppressHydrationWarning={true}>
                 <motion.label
                   animate={{ color: focusedField === 'clientName' ? '#20B8BE' : '#334155', y: focusedField === 'clientName' ? -1 : 0 }}
