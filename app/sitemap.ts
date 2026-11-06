@@ -21,6 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     // Guides
     { path: '/guides/msme-45-day-payment-rule', priority: 0.7, changeFrequency: 'monthly' },
+    { path: '/guides/client-not-paying', priority: 0.7, changeFrequency: 'monthly' },
 
     { path: '/help/automated-reminders', priority: 0.5, changeFrequency: 'monthly' },
     { path: '/contact', priority: 0.5, changeFrequency: 'yearly' },

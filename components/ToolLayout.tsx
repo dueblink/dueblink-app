@@ -50,6 +50,11 @@ const RELATED_TOOLS = [
     text: 'Work out MSME interest on a late payment under the 45-day rule.',
   },
   {
+    href: '/guides/client-not-paying',
+    title: 'Client not paying? What to do',
+    text: 'A step-by-step plan, from the first friendly reminder to MSME Samadhaan.',
+  },
+  {
     href: '/guides/msme-45-day-payment-rule',
     title: 'MSME 45-day payment rule, explained',
     text: 'Who it covers, how the days are counted, and what to do when a buyer pays late.',
