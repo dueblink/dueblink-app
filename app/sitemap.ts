@@ -7,7 +7,6 @@ import type { MetadataRoute } from 'next';
 const SITE_URL = 'https://www.dueblink.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
 
   const pages: { path: string; priority: number; changeFrequency: 'weekly' | 'monthly' | 'yearly' }[] = [
     { path: '', priority: 1.0, changeFrequency: 'weekly' },
@@ -29,7 +28,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return pages.map((page) => ({
     url: `${SITE_URL}${page.path}`,
-    lastModified: now,
     changeFrequency: page.changeFrequency,
     priority: page.priority,
   }));

@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ChevronDown, Mail } from 'lucide-react';
+import { Menu, X, ChevronDown, Mail, ArrowRight } from 'lucide-react';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -18,6 +18,66 @@ export const FREE_TOOLS = [
   { href: '/tools/payment-reminder-email-templates', label: 'Payment reminder emails' },
   { href: '/tools/late-payment-interest-calculator', label: 'Late payment interest calculator' },
 ];
+
+// "More free tools" cards shown above the footer on every tool page.
+// Plain links with clear words, so visitors and Google can move between
+// the tools. The page you're on is left out automatically.
+const RELATED_TOOLS = [
+  {
+    href: '/#reminder-generator',
+    title: 'AI payment reminder generator',
+    text: 'Write a unique reminder for WhatsApp or email in seconds. Free, no sign-up.',
+  },
+  {
+    href: '/tools/payment-reminder-email-templates',
+    title: 'Payment reminder email templates',
+    text: '15 emails with subject lines, plus a formal payment reminder letter format.',
+  },
+  {
+    href: '/tools/whatsapp-payment-reminder',
+    title: 'WhatsApp payment reminder messages',
+    text: '15 ready-to-send WhatsApp messages, from polite to firm.',
+  },
+  {
+    href: '/tools/late-payment-interest-calculator',
+    title: 'Late payment interest calculator',
+    text: 'Work out MSME interest on a late payment under the 45-day rule.',
+  },
+  {
+    href: '/tools/invoice-due-date-calculator',
+    title: 'Invoice due date calculator',
+    text: 'Find the due date for an invoice from its date and payment terms.',
+  },
+];
+
+function RelatedTools() {
+  const pathname = usePathname();
+  const tools = RELATED_TOOLS.filter((tool) => tool.href !== pathname);
+
+  return (
+    <section className="py-14 sm:py-16 px-4 border-t border-slate-100 bg-slate-50/60" suppressHydrationWarning={true}>
+      <div className="max-w-5xl mx-auto space-y-6" suppressHydrationWarning={true}>
+        <h2 className="text-xl sm:text-2xl font-black text-center text-[#0F172A]" suppressHydrationWarning={true}>More free tools</h2>
+        <div className="grid sm:grid-cols-2 gap-4" suppressHydrationWarning={true}>
+          {tools.map((tool) => (
+            <a
+              key={tool.href}
+              href={tool.href}
+              className="group bg-white border border-slate-200 rounded-2xl p-5 hover:border-[#245B92]/30 hover:shadow-md transition flex items-start justify-between gap-3"
+              suppressHydrationWarning={true}
+            >
+              <div className="space-y-1" suppressHydrationWarning={true}>
+                <p className="text-sm font-black text-[#0F172A] group-hover:text-[#245B92] transition-colors" suppressHydrationWarning={true}>{tool.title}</p>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed" suppressHydrationWarning={true}>{tool.text}</p>
+              </div>
+              <ArrowRight size={16} className="shrink-0 mt-0.5 text-slate-300 group-hover:text-[#245B92] transition-colors" />
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function ToolNav() {
   const router = useRouter();
@@ -160,6 +220,8 @@ export function ToolFooter() {
   const pathname = usePathname();
 
   return (
+    <>
+    <RelatedTools />
     <motion.footer
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
@@ -237,5 +299,6 @@ export function ToolFooter() {
 
       </div>
     </motion.footer>
+    </>
   );
 }
