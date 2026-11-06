@@ -4,8 +4,8 @@ import { FAQS } from './faqs';
 
 // Title leads with what people search for ("payment reminder email templates").
 export const metadata = pageMetadata({
-  title: "Payment Reminder Email Templates (Free) | DueBlink",
-  description: "15 free payment reminder email templates with subject lines: friendly, firm and final notice, from before the due date to 2+ weeks overdue. Add your invoice details and send. No sign-up.",
+  title: "Payment Reminder Email Templates & Letter Format (Free) | DueBlink",
+  description: "15 free payment reminder email templates with subject lines, plus a formal payment reminder letter format. Friendly to final notice. Add your details and send. No sign-up.",
   path: '/tools/payment-reminder-email-templates',
 });
 

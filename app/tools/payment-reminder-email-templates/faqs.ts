@@ -19,6 +19,14 @@ export const FAQS = [
     a: 'Stay professional and factual. Mention your earlier reminders, give a clear deadline (for example 3 or 7 working days), and say what happens next: pausing work, late fees as per your terms, or formal recovery. Only mention consequences you’re really prepared to follow through on.',
   },
   {
+    q: 'What is the format of a payment reminder letter?',
+    a: 'A payment reminder letter has your details at the top, the date, the client’s name and address, a subject line with the invoice number, a short body with the amount, what it’s for and the due date, your payment details (bank, IFSC, UPI), and a sign-off with your name and signature. Keep it polite and factual.',
+  },
+  {
+    q: 'Should I send a payment reminder letter or an email?',
+    a: 'For most clients, an email is faster and works well. A formal letter is useful for larger companies, government or corporate clients, or as a final reminder you want on record. You can also attach the letter as a PDF to an email.',
+  },
+  {
     q: 'Can I charge interest on late payments in India?',
     a: 'If you’re registered as an MSME (Udyam) and your client is a business, the MSMED Act lets you claim compound interest at three times the RBI bank rate on payments delayed beyond the agreed date (maximum 45 days). Otherwise, late fees apply only if they were agreed in your contract or invoice terms.',
   },

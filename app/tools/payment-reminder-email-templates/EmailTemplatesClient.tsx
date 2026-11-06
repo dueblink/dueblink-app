@@ -36,6 +36,87 @@ function formatDueDate(value: string): string {
   });
 }
 
+
+// ============================================================
+// PAYMENT REMINDER LETTER FORMAT
+// A formal letter (for print, PDF or a formal email), filled in with
+// the details from the form above. Anything not filled in stays as a
+// [placeholder] to complete by hand.
+// ============================================================
+type LetterParts = {
+  today: string;
+  sender: string;
+  client: string;
+  dear: string;
+  payment: string;
+  ref: string;
+  dueOn: string;
+  refSubject: string;
+};
+
+function letterHeader(p: LetterParts, subject: string): string {
+  return `${p.sender || '[Your name / business name]'}
+[Your address]
+[Your phone] | [Your email]
+
+Date: ${p.today}
+
+To,
+${p.client || '[Client name]'}
+[Client company name]
+[Client address]
+
+Subject: ${subject}${p.refSubject}
+
+Dear ${p.dear},`;
+}
+
+function letterFooter(p: LetterParts): string {
+  return `Payment details:
+Bank: [Bank name], A/c No.: [Account number], IFSC: [IFSC code]
+UPI: [Your UPI ID]
+
+Thanking you,
+Yours sincerely,
+
+${p.sender || '[Your name]'}
+[Signature]`;
+}
+
+function reminderLetter(p: LetterParts): string {
+  const due = p.dueOn ? `, due on ${p.dueOn},` : '';
+  return `${letterHeader(p, 'Payment reminder')}
+
+This is a reminder that ${p.payment}${p.ref}${due} is still pending in our records.
+
+We request you to kindly arrange the payment at the earliest. If you have already made the payment, please ignore this letter and share the payment details so we can update our records.
+
+${letterFooter(p)}`;
+}
+
+function finalReminderLetter(p: LetterParts): string {
+  const due = p.dueOn ? `, which was due on ${p.dueOn},` : '';
+  return `${letterHeader(p, 'Final reminder for overdue payment')}
+
+Despite our earlier reminders, ${p.payment}${p.ref}${due} remains unpaid.
+
+We request you to clear the full amount within 7 days from the date of this letter. If the payment is not received by then, we may have to pause any ongoing work and take further steps to recover the amount, as per our agreed terms.
+
+If there is any issue with the invoice, please let us know right away so we can resolve it.
+
+${letterFooter(p)}`;
+}
+
+const LETTER_PARTS_GUIDE = [
+  { title: 'Your details', text: 'Name or business name, address, phone and email at the top.' },
+  { title: 'Date', text: 'The date you send the letter.' },
+  { title: "Client's details", text: 'Client name, company and address, starting with "To,".' },
+  { title: 'Subject', text: 'Payment reminder, with the invoice number.' },
+  { title: 'Body', text: 'Amount, what it is for, the due date, and a clear request to pay.' },
+  { title: 'Payment details', text: 'Bank account, IFSC and UPI, so paying is easy.' },
+  { title: 'Sign-off', text: '"Yours sincerely", your name and signature.' },
+];
+
 export default function EmailTemplatesClient() {
   const router = useRouter();
 
@@ -69,6 +150,32 @@ export default function EmailTemplatesClient() {
       sender: yourName.trim(),
     };
   }, [clientName, amount, currency, invoiceNo, dueDate, work, yourName]);
+
+  // Same details, written for a formal letter ("our", "Dear Sir/Madam").
+  const letterParts: LetterParts = useMemo(() => {
+    const money = formatAmount(amount, currency);
+    const forWork = work.trim() ? ` for ${work.trim()}` : '';
+    const invoice = invoiceNo.trim();
+    return {
+      today: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+      sender: yourName.trim(),
+      client: clientName.trim(),
+      dear: clientName.trim() || 'Sir/Madam',
+      payment: money
+        ? `the payment of ${money}${forWork}`
+        : forWork
+          ? `the payment${forWork}`
+          : 'the payment for our invoice',
+      ref: invoice ? ` (invoice ${invoice})` : '',
+      dueOn: formatDueDate(dueDate),
+      refSubject: invoice ? ` – Invoice ${invoice}` : '',
+    };
+  }, [clientName, amount, currency, invoiceNo, dueDate, work, yourName]);
+
+  const letters = [
+    { key: 'letter-reminder', title: 'Payment reminder letter', tone: 'friendly' as Tone, text: reminderLetter(letterParts) },
+    { key: 'letter-final', title: 'Final reminder letter', tone: 'final' as Tone, text: finalReminderLetter(letterParts) },
+  ];
 
   const stage = STAGES[stageIndex];
   const template = stage.templates[variant % stage.templates.length];
@@ -289,6 +396,54 @@ export default function EmailTemplatesClient() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* --- PAYMENT REMINDER LETTER FORMAT --- */}
+      <section id="letter-format" className="py-14 sm:py-20 px-4 border-b border-slate-100" suppressHydrationWarning={true}>
+        <div className="max-w-3xl mx-auto space-y-8" suppressHydrationWarning={true}>
+          <div className="text-center space-y-2">
+            <h2 className="text-xl sm:text-2xl font-black" suppressHydrationWarning={true}>Payment reminder letter format</h2>
+            <p className="text-sm text-slate-500 font-medium max-w-xl mx-auto" suppressHydrationWarning={true}>
+              For clients who expect something formal, or when you want to print it or send it as a PDF. Your details from the form above are filled in; complete the parts in [brackets].
+            </p>
+          </div>
+
+          {/* The 7 parts of the letter */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6" suppressHydrationWarning={true}>
+            <p className="text-sm font-black text-[#0F172A] mb-3" suppressHydrationWarning={true}>What a payment reminder letter includes</p>
+            <ol className="space-y-2 text-xs text-slate-600 font-medium list-decimal list-inside" suppressHydrationWarning={true}>
+              {LETTER_PARTS_GUIDE.map((part) => (
+                <li key={part.title}>
+                  <span className="font-bold text-slate-800">{part.title}:</span> {part.text}
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* The two letters */}
+          <div className="space-y-4" suppressHydrationWarning={true}>
+            {letters.map((l) => (
+              <div key={l.key} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3" suppressHydrationWarning={true}>
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-black text-[#0F172A]" suppressHydrationWarning={true}>{l.title}</h3>
+                  <span className={`inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${TONE_STYLES[l.tone].className}`}>
+                    {TONE_STYLES[l.tone].label}
+                  </span>
+                </div>
+                <p className="text-[13px] leading-relaxed text-slate-700 whitespace-pre-line bg-slate-50/70 border border-slate-100 rounded-xl p-4" suppressHydrationWarning={true}>
+                  {l.text}
+                </p>
+                <button
+                  onClick={() => copy(l.text, l.key)}
+                  className="inline-flex items-center gap-1.5 border border-slate-200 text-slate-600 text-[11px] font-bold px-3 py-1.5 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                >
+                  {copiedKey === l.key ? <Check size={12} /> : <Copy size={12} />}
+                  {copiedKey === l.key ? 'Copied' : 'Copy letter'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
