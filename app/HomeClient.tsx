@@ -53,6 +53,30 @@ function formatWithCommas(val: string): string {
 // Counts a number up from its last value whenever it mounts or changes.
 // Used for the stat slides (each slide remounts when it appears) and for the
 // live client numbers, which re-animate when Firestore pushes an update.
+
+// Remembers on this browser that the signed-in person can't get the
+// early offer (they already had Pro). Then, even before they log in,
+// the page doesn't show them ₹99 and switch to another price after login.
+const EARLY_OFFER_USED_KEY = 'dueblink_early_offer_used';
+
+function rememberEarlyOffer(signedIn: boolean, eligible: boolean) {
+  if (!signedIn) return;
+  try {
+    if (eligible) localStorage.removeItem(EARLY_OFFER_USED_KEY);
+    else localStorage.setItem(EARLY_OFFER_USED_KEY, '1');
+  } catch {
+    // storage blocked: nothing to remember
+  }
+}
+
+function earlyOfferUsedOnThisBrowser(): boolean {
+  try {
+    return localStorage.getItem(EARLY_OFFER_USED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function LandingPage() {
   // True when the visitor's phone or computer asks for less motion
   // (an accessibility setting). The hero cards then stay still.
@@ -177,7 +201,10 @@ export default function LandingPage() {
           headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
         });
         const data = await response.json();
-        if (!cancelled) setEarlyOffer({ eligible: !!data.eligible, spotsLeft: Number(data.spotsLeft || 0) });
+        let eligible = !!data.eligible;
+        rememberEarlyOffer(!!user, eligible);
+        if (!user && earlyOfferUsedOnThisBrowser()) eligible = false;
+        if (!cancelled) setEarlyOffer({ eligible, spotsLeft: Number(data.spotsLeft || 0) });
       } catch {
         if (!cancelled) setEarlyOffer({ eligible: false, spotsLeft: 0 });
       }
@@ -189,7 +216,10 @@ export default function LandingPage() {
 
   // Top strip: the early offer first; otherwise a running festival offer
   // (not the founder's birthday one). Never for Pro users or outside India.
-  const showEarlyStrip = showEarlyOffer && !!earlyOffer && earlyOffer.spotsLeft > 0;
+  // Only for signed-in users: first-time visitors see the free tool first,
+  // not a price, so they don't leave before trying it. Prices are still in
+  // the Pricing section and on the Pricing page.
+  const showEarlyStrip = !!user && showEarlyOffer && !!earlyOffer && earlyOffer.spotsLeft > 0;
   const FESTIVAL_STRIP_EMOJI: Record<string, string> = {
     'diwali': '🪔',
     'holi': '🎨',
@@ -200,7 +230,7 @@ export default function LandingPage() {
     'republic-day': '🇮🇳',
   };
   const festivalStripOffer =
-    !showEarlyStrip && isIndia && !isPro && earlyOffer !== null &&
+    !!user && !showEarlyStrip && isIndia && !isPro && earlyOffer !== null &&
     seasonalPricing && seasonalPricing.id !== 'founders-birthday'
       ? seasonalPricing
       : null;
@@ -886,7 +916,7 @@ export default function LandingPage() {
         >
           <span aria-hidden="true">🎉</span>
           <span className="truncate">
-            <span className="font-bold">Early offer:</span> Pro at ₹{EARLY_OFFER.monthly} for the first month
+            <span className="font-bold">Early offer for new users:</span> Pro at ₹{EARLY_OFFER.monthly} for the first month
             {earlyOffer.spotsLeft >= EARLY_OFFER.totalSpots ? (
               <>
                 <span className="hidden sm:inline"> · first {EARLY_OFFER.totalSpots} users only</span>
@@ -2766,7 +2796,7 @@ export default function LandingPage() {
             {isIndia ? (
               showEarlyOffer ? (
                 <span className="text-[#20B8BE] font-bold">
-                  Early offer · first {EARLY_OFFER.totalSpots} users · {earlyOffer?.spotsLeft} {earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left
+                  Early offer for first-time Pro users · first {EARLY_OFFER.totalSpots} · {earlyOffer?.spotsLeft} {earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left
                 </span>
               ) : seasonalPricing ? (
                 <span className="text-[#20B8BE] font-bold">

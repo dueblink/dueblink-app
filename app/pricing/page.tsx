@@ -21,6 +21,30 @@ import SiteFooter from '@/components/SiteFooter';
 // counted in Google Analytics when the user comes back here.
 const DODO_PENDING_KEY = 'dueblink_dodo_checkout';
 
+
+// Remembers on this browser that the signed-in person can't get the
+// early offer (they already had Pro). Then, even before they log in,
+// the page doesn't show them ₹99 and switch to another price after login.
+const EARLY_OFFER_USED_KEY = 'dueblink_early_offer_used';
+
+function rememberEarlyOffer(signedIn: boolean, eligible: boolean) {
+  if (!signedIn) return;
+  try {
+    if (eligible) localStorage.removeItem(EARLY_OFFER_USED_KEY);
+    else localStorage.setItem(EARLY_OFFER_USED_KEY, '1');
+  } catch {
+    // storage blocked: nothing to remember
+  }
+}
+
+function earlyOfferUsedOnThisBrowser(): boolean {
+  try {
+    return localStorage.getItem(EARLY_OFFER_USED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function PricingPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -62,8 +86,11 @@ export default function PricingPage() {
           headers: idToken ? { Authorization: `Bearer ${idToken}` } : {},
         });
         const data = await response.json();
+        let eligible = !!data.eligible;
+        rememberEarlyOffer(!!user, eligible);
+        if (!user && earlyOfferUsedOnThisBrowser()) eligible = false;
         if (!cancelled) {
-          setEarlyOffer({ eligible: !!data.eligible, spotsLeft: Number(data.spotsLeft || 0) });
+          setEarlyOffer({ eligible, spotsLeft: Number(data.spotsLeft || 0) });
         }
       } catch {
         if (!cancelled) setEarlyOffer({ eligible: false, spotsLeft: 0 });
@@ -901,7 +928,7 @@ return (
                   {isIndia
                     ? (
                         showEarlyOffer
-                          ? `Early offer for the first ${EARLY_OFFER.totalSpots} users · ${earlyOffer?.spotsLeft} ${earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left · Then ₹${normalIndiaPrice.toLocaleString('en-IN')}${billingCycle === 'monthly' ? '/month' : '/year'}`
+                          ? `Early offer for first-time Pro users · first ${EARLY_OFFER.totalSpots} · ${earlyOffer?.spotsLeft} ${earlyOffer?.spotsLeft === 1 ? 'spot' : 'spots'} left · Then ₹${normalIndiaPrice.toLocaleString('en-IN')}${billingCycle === 'monthly' ? '/month' : '/year'}`
                           : seasonalPricing
                             ? `${seasonalPricing.name} · Limited time`
                             : (
