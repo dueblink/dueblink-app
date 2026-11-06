@@ -19,6 +19,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/tools/late-payment-interest-calculator', priority: 0.8, changeFrequency: 'monthly' },
     { path: '/tools/invoice-due-date-calculator', priority: 0.8, changeFrequency: 'monthly' },
 
+    // Guides
+    { path: '/guides/msme-45-day-payment-rule', priority: 0.7, changeFrequency: 'monthly' },
+
     { path: '/help/automated-reminders', priority: 0.5, changeFrequency: 'monthly' },
     { path: '/contact', priority: 0.5, changeFrequency: 'yearly' },
     { path: '/create-account', priority: 0.5, changeFrequency: 'yearly' },
