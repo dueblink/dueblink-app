@@ -3,13 +3,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Percent, ArrowRight, HelpCircle, Copy, Check, CheckCircle2, AlertTriangle, Mail } from 'lucide-react';
+import { Percent, ArrowRight, HelpCircle, Copy, Check, CheckCircle2, AlertTriangle, Mail, Download, FileSpreadsheet } from 'lucide-react';
+import { track } from '@/lib/track';
 import { ToolNav, ToolFooter } from '@/components/ToolLayout';
 import {
   calculateInterest, parseDate, formatDate, formatINR,
   RBI_BANK_RATE, RBI_BANK_RATE_AS_OF, MSME_MAX_DAYS, MSME_NO_AGREEMENT_DAYS,
 } from './interest';
 import { FAQS } from './faqs';
+
+// Free Excel version of this calculator (file lives in public/downloads/).
+const EXCEL_URL = '/downloads/DueBlink-MSME-Late-Payment-Interest-Calculator.xlsx';
 
 const CREDIT_OPTIONS = [
   { label: 'No agreement', days: MSME_NO_AGREEMENT_DAYS as number | null },
@@ -229,6 +233,28 @@ export default function InterestCalculatorClient() {
               <Mail size={14} /> Need to send a reminder? Use our free email templates
             </button>
           )}
+
+          {/* Free Excel download */}
+          <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4" suppressHydrationWarning={true}>
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-[#20B8BE]/10 flex items-center justify-center">
+              <FileSpreadsheet size={20} className="text-[#178F94]" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <p className="text-sm font-black text-[#0F172A]">Prefer Excel? Download it free</p>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                The same MSME interest calculation in an Excel sheet, plus a table for up to 20 invoices. Works offline. No sign-up.
+              </p>
+            </div>
+            <a
+              href={EXCEL_URL}
+              download
+              onClick={() => track('download_excel', { tool: 'msme_interest' })}
+              className="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-1.5 text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:opacity-95 transition"
+              style={gradient}
+            >
+              <Download size={14} /> Download Excel
+            </a>
+          </div>
 
           <p className="mt-4 text-[11px] text-slate-400 font-medium text-center leading-relaxed">
             An estimate to help you know where you stand, not legal advice. For a formal claim, check with your CA or legal advisor.

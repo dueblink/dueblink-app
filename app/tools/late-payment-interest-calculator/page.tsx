@@ -5,8 +5,8 @@ import { FAQS } from './faqs';
 // Title leads with what people search for ("late payment interest calculator"),
 // plus "MSME" because Indian freelancers and small businesses search for that rule.
 export const metadata = pageMetadata({
-  title: "Late Payment Interest Calculator (MSME 45-Day Rule) | DueBlink",
-  description: "Calculate the interest a client owes on a late payment in India under the MSMED Act: 3× the RBI bank rate, compounded monthly, after 45 days. Or use your own contract rate. Free, no sign-up.",
+  title: "MSME Late Payment Interest Calculator + Free Excel | DueBlink",
+  description: "Calculate MSME late payment interest in India: 3× the RBI bank rate, compounded monthly, after 45 days. Use it online or download the free Excel calculator. No sign-up.",
   path: '/tools/late-payment-interest-calculator',
 });
 

@@ -21,6 +21,10 @@ export const FAQS = [
     a: 'Start with polite reminders that mention the amount and the MSMED Act. If that doesn’t work, micro and small enterprises can file a delayed-payment complaint on the government’s MSME Samadhaan portal, which refers the case to the MSE Facilitation Council for conciliation or arbitration.',
   },
   {
+    q: 'Can I download the MSME interest calculator in Excel?',
+    a: 'Yes. Download the free Excel version from this page. It uses the same calculation as the online calculator (3× the RBI bank rate, compounded monthly), works offline, and has a table for up to 20 invoices. No sign-up needed.',
+  },
+  {
     q: 'Is this calculation legally exact?',
     a: 'It’s a close estimate to help you know where you stand. The exact figure can depend on the acceptance date, the bank rate in force during the delay and how months are counted. For a formal claim, check the figures with your chartered accountant or legal advisor.',
   },
