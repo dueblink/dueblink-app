@@ -8,7 +8,8 @@ import { Plus, Sparkles, Loader2, X, User, Building, Mail, Phone, IndianRupee, C
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { addDoc, collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { formatAmountWithCurrency, normalizeLanguage, finalReminderNote, msmeApplies, isIndianCurrency, formatTotalsByCurrency, guessDefaultCurrency, getCurrencySymbol } from '@/lib/reminderRules';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, analytics } from '@/lib/firebase';
+import { setUserProperties } from 'firebase/analytics';
 import { track, trackOnce } from '@/lib/track';
 import FloatingRobot from '@/components/FloatingRobot';
 import SeasonalBanner from '@/components/SeasonalBanner';
@@ -126,6 +127,50 @@ export default function DashboardPage() {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
   const [aiTone, setAiTone] = useState('Professional');
+
+  // ============================================================
+  // "WHAT KIND OF WORK DO YOU DO?" — asked once, one tap.
+  // Saved on the user's account (users/{uid}.userType) and sent to
+  // Google Analytics, so we can see which kind of user signs up,
+  // adds clients and buys Pro.
+  // undefined = still loading, null = not answered yet.
+  // ============================================================
+  const [userType, setUserType] = useState<string | null | undefined>(undefined);
+  const USER_TYPES: { value: string; label: string }[] = [
+    { value: 'freelancer', label: 'Freelancer' },
+    { value: 'agency', label: 'Agency / studio' },
+    { value: 'creator', label: 'Creator / UGC' },
+    { value: 'consultant', label: 'Consultant / coach' },
+    { value: 'small_business', label: 'Small business / shop' },
+    { value: 'tutor', label: 'Tutor / classes' },
+    { value: 'other', label: 'Other' },
+  ];
+
+  // Labels this user in Google Analytics reports.
+  const labelUserTypeInAnalytics = (type: string) => {
+    if (!analytics) return;
+    analytics
+      .then((instance) => {
+        if (instance) setUserProperties(instance, { user_type: type });
+      })
+      .catch(() => {});
+  };
+
+  const saveUserType = async (type: string) => {
+    setUserType(type); // hide the card straight away
+    track('select_user_type', { user_type: type });
+    labelUserTypeInAnalytics(type);
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        userType: type,
+        userTypeAt: new Date().toISOString(),
+      });
+    } catch {
+      // Not important enough to show an error; it just asks again next visit.
+    }
+  };
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [reminderNotifs, setReminderNotifs] = useState(true);
 
@@ -256,6 +301,11 @@ export default function DashboardPage() {
             }
 
             if (data.aiTone) setAiTone(data.aiTone);
+
+            // What kind of work they do (asked once on the dashboard).
+            const savedType = typeof data.userType === 'string' ? data.userType : null;
+            setUserType(savedType);
+            if (savedType && savedType !== 'skipped') labelUserTypeInAnalytics(savedType);
             if (data.emailNotifs !== undefined) setEmailNotifs(data.emailNotifs);
             if (data.reminderNotifs !== undefined) setReminderNotifs(data.reminderNotifs);
           }
@@ -1622,6 +1672,48 @@ export default function DashboardPage() {
               </div>
 
             </header>
+
+            {/* WHAT KIND OF WORK — asked once, one tap, can be skipped */}
+            {userType === null && (
+              <motion.section
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                className="p-5 sm:p-6 bg-white border border-slate-200 rounded-3xl shadow-xs space-y-4"
+                suppressHydrationWarning={true}
+              >
+                <div className="flex items-start justify-between gap-3" suppressHydrationWarning={true}>
+                  <div suppressHydrationWarning={true}>
+                    <h2 className="text-base font-black text-slate-900" suppressHydrationWarning={true}>What kind of work do you do?</h2>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5" suppressHydrationWarning={true}>
+                      One tap. It helps DueBlink fit your work.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => saveUserType('skipped')}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-600 transition cursor-pointer whitespace-nowrap"
+                    suppressHydrationWarning={true}
+                  >
+                    Skip
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2" suppressHydrationWarning={true}>
+                  {USER_TYPES.map((t) => (
+                    <motion.button
+                      key={t.value}
+                      type="button"
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => saveUserType(t.value)}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#245B92] bg-white border border-[#245B92]/20 hover:bg-[#245B92]/5 transition cursor-pointer"
+                      suppressHydrationWarning={true}
+                    >
+                      {t.label}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.section>
+            )}
 
             {/* Install DueBlink like an app (phones only, once they have a client) */}
             {clients.length > 0 && <InstallAppCard />}
