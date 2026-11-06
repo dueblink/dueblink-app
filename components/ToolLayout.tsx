@@ -15,6 +15,7 @@ import { auth } from '@/lib/firebase';
 export const FREE_TOOLS = [
   { href: '/tools/invoice-due-date-calculator', label: 'Invoice due date calculator' },
   { href: '/tools/whatsapp-payment-reminder', label: 'WhatsApp payment reminders' },
+  { href: '/tools/payment-reminder-message-hindi', label: 'Reminders in Hindi & Hinglish' },
   { href: '/tools/payment-reminder-email-templates', label: 'Payment reminder emails' },
   { href: '/tools/late-payment-interest-calculator', label: 'Late payment interest calculator' },
 ];
@@ -37,6 +38,11 @@ const RELATED_TOOLS = [
     href: '/tools/whatsapp-payment-reminder',
     title: 'WhatsApp payment reminder messages',
     text: '15 ready-to-send WhatsApp messages, from polite to firm.',
+  },
+  {
+    href: '/tools/payment-reminder-message-hindi',
+    title: 'Payment reminder messages in Hindi & Hinglish',
+    text: '20 ready-to-send WhatsApp messages in Hindi and Hinglish, polite or firm.',
   },
   {
     href: '/tools/late-payment-interest-calculator',

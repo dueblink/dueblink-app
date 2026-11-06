@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     // Free tools
     { path: '/tools/whatsapp-payment-reminder', priority: 0.8, changeFrequency: 'monthly' },
+    { path: '/tools/payment-reminder-message-hindi', priority: 0.8, changeFrequency: 'monthly' },
     { path: '/tools/payment-reminder-email-templates', priority: 0.8, changeFrequency: 'monthly' },
     { path: '/tools/late-payment-interest-calculator', priority: 0.8, changeFrequency: 'monthly' },
     { path: '/tools/invoice-due-date-calculator', priority: 0.8, changeFrequency: 'monthly' },
