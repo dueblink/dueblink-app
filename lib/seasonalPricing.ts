@@ -1,3 +1,5 @@
+import { FESTIVAL_DAYS } from './festivalDates';
+
 // ==================================================
 // DUEBLINK PRICING (INDIA)
 // ==================================================
@@ -90,42 +92,26 @@ const BIRTHDAY_MONTHLY_PRICE = 199;
 const BIRTHDAY_YEARLY_PRICE = 1499;
 
 // ==================================================
-// CHANGING FESTIVAL DATES
+// FESTIVAL DATES
 // ==================================================
 //
-// ONLY UPDATE THESE DATES WHEN THE FESTIVAL DATE
-// CHANGES FROM YEAR TO YEAR.
+// Dates come from lib/festivalDates.ts (one list for the whole site,
+// filled in until 2030). Nothing to update here each year.
 //
 // ==================================================
 
 const FESTIVAL_DATES = [
   // 🌙 Eid al-Fitr
-  {
-    id: 'eid-al-fitr',
-    name: 'Eid al-Fitr Offer',
-    festivalDate: '2027-03-10',
-  },
+  ...FESTIVAL_DAYS.eidFitr.map((day) => ({ id: 'eid-al-fitr', name: 'Eid al-Fitr Offer', festivalDate: day })),
 
   // 🌙 Eid al-Adha
-  {
-    id: 'eid-al-adha',
-    name: 'Eid al-Adha Offer',
-    festivalDate: '2027-05-17',
-  },
+  ...FESTIVAL_DAYS.eidAdha.map((day) => ({ id: 'eid-al-adha', name: 'Eid al-Adha Offer', festivalDate: day })),
 
   // 🪔 Diwali
-  {
-    id: 'diwali',
-    name: 'Diwali Offer',
-    festivalDate: '2026-11-09',
-  },
+  ...FESTIVAL_DAYS.diwali.map((day) => ({ id: 'diwali', name: 'Diwali Offer', festivalDate: day })),
 
   // 🎨 Holi
-  {
-    id: 'holi',
-    name: 'Holi Offer',
-    festivalDate: '2027-03-22',
-  },
+  ...FESTIVAL_DAYS.holi.map((day) => ({ id: 'holi', name: 'Holi Offer', festivalDate: day })),
 ];
 
 // ==================================================

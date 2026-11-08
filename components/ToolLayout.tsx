@@ -121,17 +121,17 @@ export function ToolNav() {
   };
 
   return (
-    <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-all duration-300 shadow-3xs" suppressHydrationWarning={true}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
+    <nav className="sticky top-0 z-50 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none" suppressHydrationWarning={true}>
+      <div className="pointer-events-auto max-w-7xl mx-auto rounded-2xl border border-slate-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] px-3 sm:px-5 h-16 sm:h-[72px] flex items-center justify-between" suppressHydrationWarning={true}>
 
         <motion.div
           whileHover={{ scale: 1.03 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
-          className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none"
+          className="flex items-center justify-start cursor-pointer h-12 sm:h-14 w-[380px] sm:w-[500px] overflow-hidden relative select-none"
           onClick={() => router.push('/')}
           suppressHydrationWarning={true}
         >
-          <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
+          <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-28 w-full max-w-none shrink-0 object-contain object-left" />
         </motion.div>
 
         <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
@@ -206,7 +206,7 @@ export function ToolNav() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
+            className="pointer-events-auto md:hidden max-w-7xl mx-auto mt-2 rounded-2xl border border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
           >
             <div className="flex flex-col space-y-3 font-bold text-slate-700">
               <button onClick={() => { router.push('/pricing'); setMobileMenuOpen(false); }} className="text-left py-2 px-3 rounded-lg text-[#1E293B] hover:bg-slate-50 font-bold">Pricing</button>

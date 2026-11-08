@@ -7,9 +7,24 @@ import {
   SeasonalEvent,
 } from '@/lib/seasonalEvents';
 
-export default function SeasonalBanner() {
+// ============================================================
+// FESTIVAL NUDGE (dashboard)
+// During a festival: a useful nudge tied to the user's own dues,
+// e.g. "Clear your dues before Diwali · 3 clients owe you ₹83,000",
+// with a button that jumps to the Today list. If nothing is pending,
+// it shows a short greeting instead. Can be closed (remembered per festival).
+// ============================================================
+
+type SeasonalBannerProps = {
+  pendingCount?: number;    // clients with pending payments
+  pendingText?: string;     // e.g. "₹83,000"
+  targetId?: string;        // section to scroll to (the Today list)
+};
+
+export default function SeasonalBanner({ pendingCount = 0, pendingText = '', targetId = 'today-list' }: SeasonalBannerProps) {
   const [event, setEvent] =
     useState<SeasonalEvent | null>(null);
+  const [dismissed, setDismissed] = useState(false);
 
   // null = still checking the visitor's country
   const [isIndia, setIsIndia] = useState<boolean | null>(null);
@@ -17,6 +32,14 @@ export default function SeasonalBanner() {
   useEffect(() => {
     const todayEvent = getSeasonalEvent();
     setEvent(todayEvent);
+
+    if (todayEvent) {
+      try {
+        if (localStorage.getItem(`dueblink_festive_closed_${todayEvent.id}`) === '1') setDismissed(true);
+      } catch {
+        // storage blocked: it just shows
+      }
+    }
 
     // Christmas is shown to everyone, so no country check is needed.
     if (!todayEvent || todayEvent.type === 'christmas') return;
@@ -27,8 +50,8 @@ export default function SeasonalBanner() {
       .catch(() => setIsIndia(true));
   }, []);
 
-  // Normal days
-  if (!event) {
+  // Normal days, or closed for this festival
+  if (!event || dismissed) {
     return null;
   }
 
@@ -37,6 +60,16 @@ export default function SeasonalBanner() {
   if (event.type !== 'christmas' && isIndia !== true) {
     return null;
   }
+
+  // "Clear your dues before Diwali: send a warm festive reminder."
+  //  → title "Clear your dues before Diwali", action "Send a warm festive reminder."
+  const hasDues = pendingCount > 0 && !!pendingText;
+  const [tipHead, ...tipRest] = event.tip.split(':');
+  const tipTitle = tipRest.length ? tipHead.trim() : event.tip;
+  const tipActionRaw = tipRest.join(':').trim();
+  const tipAction = tipActionRaw
+    ? tipActionRaw.charAt(0).toUpperCase() + tipActionRaw.slice(1)
+    : 'Send a friendly reminder today.';
 
   const isIndiaEvent =
     event.type === 'independence' ||
@@ -520,7 +553,7 @@ export default function SeasonalBanner() {
 
       {/* Main content */}
 
-      <div className="relative px-4 sm:px-5 py-4 flex items-center gap-4">
+      <div className="relative px-4 sm:px-5 py-4 flex items-start sm:items-center gap-4">
 
         {/* Festival icon */}
 
@@ -540,20 +573,44 @@ export default function SeasonalBanner() {
 
         {/* Text */}
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
 
           <h3 className="text-sm sm:text-[15px] font-black text-slate-900">
-            {event.greeting.replace(
-              /[^\p{L}\p{N}\s&'-]/gu,
-              ''
-            )}
+            {hasDues
+              ? tipTitle
+              : event.greeting.replace(/[^\p{L}\p{N}\s&'-]/gu, '')}
           </h3>
 
           <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1">
-            {event.subtitle}
+            {hasDues
+              ? `${pendingCount} ${pendingCount === 1 ? 'client owes' : 'clients owe'} you ${pendingText}. ${tipAction}`
+              : event.subtitle}
           </p>
 
+          {hasDues && (
+            <button
+              type="button"
+              onClick={() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="mt-2.5 inline-flex items-center gap-1.5 text-white text-xs font-bold px-4 py-2 rounded-xl hover:opacity-95 transition cursor-pointer"
+              style={{ background: 'linear-gradient(to right, #245B92, #20B8BE)' }}
+            >
+              Send reminders
+            </button>
+          )}
         </div>
+
+        {/* Close for this festival */}
+        <button
+          type="button"
+          onClick={() => {
+            setDismissed(true);
+            try { localStorage.setItem(`dueblink_festive_closed_${event.id}`, '1'); } catch {}
+          }}
+          aria-label="Close"
+          className="self-start shrink-0 p-1.5 -mr-1.5 -mt-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white/60 transition cursor-pointer"
+        >
+          ✕
+        </button>
 
       </div>
 

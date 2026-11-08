@@ -148,8 +148,9 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-slate-50 text-[#0F172A] antialiased flex flex-col selection:bg-[#20B8BE]/20" suppressHydrationWarning={true}>
 
       {/* --- REFINED STICKY TOP NAV --- */}
-      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between" suppressHydrationWarning={true}>
+      {/* FLOATING NAVBAR — a glass bar that floats over the page on every screen size */}
+      <nav className="sticky top-0 z-50 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none" suppressHydrationWarning={true}>
+        <div className="pointer-events-auto max-w-7xl mx-auto rounded-2xl border border-slate-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] px-3 sm:px-5 h-16 sm:h-[72px] flex items-center justify-between" suppressHydrationWarning={true}>
 
           <button
             onClick={() => router.push('/')}

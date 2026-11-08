@@ -1447,17 +1447,18 @@ export default function DashboardPage() {
         onOpenAddClient={() => { setClientToEdit(null); setIsModalOpen(true); }}
       />
 
-      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-[10px] sticky top-0 z-50 transition-all duration-200 shadow-xs" suppressHydrationWarning={true}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
+      {/* FLOATING NAVBAR — a glass bar that floats over the page on every screen size */}
+      <nav className="sticky top-0 z-50 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none" suppressHydrationWarning={true}>
+        <div className="pointer-events-auto max-w-7xl mx-auto rounded-2xl border border-slate-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] px-3 sm:px-5 h-16 sm:h-[72px] flex items-center justify-between" suppressHydrationWarning={true}>
           
           <motion.div 
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none" 
+            className="flex items-center justify-start cursor-pointer h-12 sm:h-14 w-[380px] sm:w-[500px] overflow-hidden relative select-none" 
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-28 w-full max-w-none shrink-0 object-contain object-left" />
           </motion.div>
 
           <div className="hidden md:flex items-center gap-8" suppressHydrationWarning={true}>
@@ -1533,7 +1534,7 @@ export default function DashboardPage() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
+              className="pointer-events-auto md:hidden max-w-7xl mx-auto mt-2 rounded-2xl border border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
               suppressHydrationWarning={true}
             >
               <div className="flex flex-col space-y-3 font-bold text-slate-700">
@@ -1602,8 +1603,6 @@ export default function DashboardPage() {
             transition={{ duration: 0.2 }}
             className="space-y-6 sm:space-y-8"
           >
-            {!isPro && <SeasonalBanner />}
-
             {/* Pro ends within 3 days: remind them to renew */}
             {isPro && proExpiresAt && proExpiresAt.getTime() - Date.now() <= 3 * 24 * 60 * 60 * 1000 && proExpiresAt.getTime() > Date.now() && (
               <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4" suppressHydrationWarning={true}>
@@ -1673,6 +1672,13 @@ export default function DashboardPage() {
 
             </header>
 
+            {/* FESTIVAL NUDGE — "Clear your dues before Diwali", only during a festival */}
+            <SeasonalBanner
+              pendingCount={pendingCount}
+              pendingText={formatTotalsByCurrency(clients.filter((c) => c.status === 'Pending'))}
+              targetId="today-list"
+            />
+
             {/* WHAT KIND OF WORK — asked once, one tap, can be skipped */}
             {userType === null && (
               <motion.section
@@ -1738,7 +1744,7 @@ export default function DashboardPage() {
 
             {/* TODAY — who to chase today, with the stage, advice and quick actions */}
             {clients.some((c) => c.status === 'Pending') && (
-              <section className="p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-4" suppressHydrationWarning={true}>
+              <section id="today-list" className="scroll-mt-28 p-5 sm:p-8 bg-white border border-[#2BB6A8]/30 rounded-3xl shadow-xs border-l-8 border-l-[#2BB6A8] space-y-4" suppressHydrationWarning={true}>
                 <div className="flex items-center justify-between gap-3" suppressHydrationWarning={true}>
                   <h2 className="text-[10px] font-black text-[#2BB6A8] uppercase tracking-widest" suppressHydrationWarning={true}>Today</h2>
                   <span className="text-[11px] font-bold text-slate-500" suppressHydrationWarning={true}>

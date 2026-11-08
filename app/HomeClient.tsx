@@ -16,7 +16,7 @@ import { auth, db } from '@/lib/firebase';
 import SiteFooter from '@/components/SiteFooter';
 import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import FloatingRobot from '@/components/FloatingRobot';
-import SeasonalLandingAccent from '@/components/SeasonalLandingAccent';
+import FestiveDecor from '@/components/FestiveDecor';
 import { getSeasonalPricing, NORMAL_PRICES, EARLY_OFFER } from '@/lib/seasonalPricing';
 import { getSeasonalEvent } from '@/lib/seasonalEvents';
 import { REMINDER_LANGUAGES } from '@/lib/reminderRules';
@@ -952,18 +952,19 @@ export default function LandingPage() {
       )}
 
       {/* --- GLOBAL STICKY HEADER BAR WITH FEATURES, FAQ, CONTACT, PRICING & INDEPENDENT ACTIVE INDICATORS --- */}
-      <nav className="border-b border-slate-100 bg-white/90 backdrop-blur-md sticky top-0 z-50 transition-all duration-200 shadow-3xs" suppressHydrationWarning={true}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-32 flex items-center justify-between" suppressHydrationWarning={true}>
+      {/* FLOATING NAVBAR — a glass bar that floats over the page on every screen size */}
+      <nav className="sticky top-0 z-50 px-3 sm:px-4 pt-2 sm:pt-3 pointer-events-none" suppressHydrationWarning={true}>
+        <div className="pointer-events-auto max-w-7xl mx-auto rounded-2xl border border-slate-100 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)] px-3 sm:px-5 h-16 sm:h-[72px] flex items-center justify-between" suppressHydrationWarning={true}>
             
           {/* LOGO */}
           <motion.div 
             whileHover={{ scale: 1.02 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="flex items-center justify-start cursor-pointer h-28 w-[380px] sm:w-[500px] relative select-none" 
+            className="flex items-center justify-start cursor-pointer h-12 sm:h-14 w-[380px] sm:w-[500px] overflow-hidden relative select-none" 
             onClick={() => router.push('/')} 
             suppressHydrationWarning={true}
           >
-            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-full w-full object-contain object-left" />
+            <Image src="/logo.png" alt="DueBlink Logo" width={500} height={112} priority className="h-28 w-full max-w-none shrink-0 object-contain object-left" />
           </motion.div>
 
           {/* DESKTOP NAV LINKS & AUTH BUTTONS */}
@@ -1098,7 +1099,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="md:hidden border-t border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
+            className="pointer-events-auto md:hidden max-w-7xl mx-auto mt-2 rounded-2xl border border-slate-100 bg-white px-6 py-6 space-y-4 shadow-xl overflow-hidden"
             suppressHydrationWarning={true}
           >
             <div className="flex flex-col space-y-3 font-bold text-slate-700">
@@ -1178,16 +1179,16 @@ export default function LandingPage() {
   className={`relative overflow-hidden bg-white pt-12 sm:pt-16 pb-10 sm:pb-12 border-b border-slate-50 px-4 ${showOfferStrip ? 'min-h-[calc(100svh-10.25rem)]' : 'min-h-[calc(100svh-8rem)]'} sm:portrait:min-h-0 flex flex-col justify-center`}
   suppressHydrationWarning={true}
 >
+  {/* FESTIVE DECOR — lights, colours, lanterns or snow, only during a festival */}
+  {showFestivalGreeting && festivalType && <FestiveDecor type={festivalType} />}
+
   <div
-    className="w-full max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
+    className="relative z-10 w-full max-w-4xl mx-auto text-center space-y-6 sm:space-y-8"
     suppressHydrationWarning={true}
   >
 
-    {/* SEASONAL LANDING ACCENT */}
-    {showFestivalGreeting && <SeasonalLandingAccent />}
-
-    {/* PROBLEM BADGE (changes every 3s; hidden when a festival greeting shows) */}
-    {!showFestivalGreeting && (
+    {/* PROBLEM BADGE (changes every 3s; always shown — festivals only add decorations) */}
+    {true && (
     <motion.div
       variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
       transition={{ duration: 0.35, ease: "easeOut" }}
