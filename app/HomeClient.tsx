@@ -292,7 +292,7 @@ export default function LandingPage() {
   const [clientName, setClientName] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState('₹ INR');
-  const [invoiceRef, setInvoiceRef] = useState('');
+  const [workDescription, setWorkDescription] = useState('');
   const [daysOverdue, setDaysOverdue] = useState('7');
   const [tone, setTone] = useState('professional');
   const [language, setLanguage] = useState<string>('english');
@@ -321,7 +321,7 @@ export default function LandingPage() {
     setClientName('Rahul Mehta');
     setAmount('25000');
     setCurrency('₹ INR');
-    setInvoiceRef('');
+    setWorkDescription('Website design');
     setDaysOverdue('7');
     setTone('gentle');
     track('try_example');
@@ -790,7 +790,7 @@ export default function LandingPage() {
           clientName, 
           amount: formatWithCommas(amount), 
           currency, 
-          invoiceRef: invoiceRef.trim(), // only what the user typed; never a made-up number 
+          workDescription: workDescription.trim().slice(0, 120), // what the payment is for 
           daysOverdue, 
           tone,
           language,
@@ -1652,19 +1652,20 @@ export default function LandingPage() {
               </div>
                 <div suppressHydrationWarning={true}>
               <motion.label
-                animate={{ color: focusedField === 'invoiceRef' ? '#20B8BE' : '#334155', y: focusedField === 'invoiceRef' ? -1 : 0 }}
+                animate={{ color: focusedField === 'workDescription' ? '#20B8BE' : '#334155', y: focusedField === 'workDescription' ? -1 : 0 }}
                 transition={{ duration: 0.15 }}
                 className="block text-xs font-bold mb-1.5"
               >
-                Invoice #
+                Payment for
               </motion.label>
               <motion.input
                 type="text"
-                placeholder="INV-2025-042"
-                value={invoiceRef}
-                onChange={e => setInvoiceRef(e.target.value)}
-                onFocus={() => setFocusedField('invoiceRef')}
-                onBlur={() => setFocusedField((f) => (f === 'invoiceRef' ? null : f))}
+                placeholder="e.g. Website design"
+                maxLength={120}
+                value={workDescription}
+                onChange={e => setWorkDescription(e.target.value)}
+                onFocus={() => setFocusedField('workDescription')}
+                onBlur={() => setFocusedField((f) => (f === 'workDescription' ? null : f))}
                 whileFocus={{ scale: 1.012 }}
                 transition={{ duration: 0.15 }}
                 className="w-full text-sm px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg outline-none transition-colors duration-150 focus:border-[#20B8BE] focus:ring-2 focus:ring-[#20B8BE]/20 placeholder:text-slate-300"
