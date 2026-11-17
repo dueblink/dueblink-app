@@ -75,6 +75,116 @@ WRITE LIKE A REAL PERSON:
   [Payment Link], [Insert Payment Link], [Invoice Number] or [Date].
 `;
 
+// ============================================================
+// HUMAN, PROFESSIONAL EMAILS
+// ============================================================
+// Every reminder email should read like the freelancer sat down and
+// wrote it: a natural subject, a proper greeting, what the payment is
+// for, the amount and the date, one clear ask, a warm close and a real
+// sign-off. Never an invoice number. Shared by the automatic emails,
+// the dashboard (tap-to-send) and the landing page generator.
+
+// "2026-11-10" -> "10 November 2026" (or "" if it isn't a real date).
+export function formatDueDateLong(value: unknown): string {
+  const raw = String(value ?? '').trim().substring(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const [y, m, d] = raw.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(date);
+}
+
+// What the payment is for, cleaned ("Website design"), or "".
+export function cleanWorkDescription(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+// The writing guide for every reminder EMAIL.
+export function humanEmailRules(details: {
+  workDescription?: string;
+  dueDateText?: string;
+  daysOverdue?: number;
+  stage?: string;
+  previousSentDates?: string[];
+}): string {
+  const work = cleanWorkDescription(details.workDescription);
+  const due = String(details.dueDateText || '').trim();
+  const days = Number(details.daysOverdue || 0);
+  const stage = String(details.stage || 'first');
+  const sentDates = (details.previousSentDates || []).filter(Boolean);
+
+  const stageGuide =
+    stage === 'final'
+      ? 'FINAL reminder: calm and firm. Say clearly that earlier reminders have gone unanswered, give the deadline, and the next step. Still respectful, never rude.'
+      : stage === 'stalled'
+        ? 'The client has gone quiet. Warm and practical: ask what is holding it up, offer to split the payment or have a short call. Do not just demand the full amount again.'
+        : stage === 'follow-up'
+          ? 'FOLLOW-UP: polite but direct. Mention you wrote earlier, and ask for a date by which they will pay.'
+          : 'FIRST reminder: warm and friendly. Assume they simply forgot.';
+
+  return `
+HOW THE EMAIL MUST READ (very important):
+- It must read like the sender personally wrote it to someone they work with:
+  warm, natural, professional, never robotic or like a system notice.
+- Subject: natural and specific, like a person would write it, e.g.
+  ${work ? `"Payment for ${work}" or "Following up on the ${work} payment"` : '"Quick reminder about the pending payment" or "Following up on the payment"'}.
+  No "Reminder #2", no ticket-style codes, no ALL CAPS, at most one dash or colon.
+- Structure:
+  1. Greeting with the client's first name ("Hi Rahul," or "Dear Rahul,").
+  2. One short friendly line (vary it every time).
+  3. The facts in a normal sentence: ${work ? `that the payment is for "${work}", ` : ''}the amount${due ? `, and the due date (${due})` : ''}${days > 0 ? `, and that it is now ${days} ${days === 1 ? 'day' : 'days'} overdue` : ''}.
+  4. One clear, polite ask (when can they pay / please clear it by a date).
+  5. A helpful line: reply if anything is unclear or they need something from the sender.
+  6. A warm closing line and the sign-off.
+- Length: about 70 to 150 words, in 3 or 4 short paragraphs separated by a blank line.
+- ${stageGuide}
+${sentDates.length ? `- Earlier reminders were sent on: ${sentDates.join(', ')}. You may mention that you wrote before (you may name these dates in a final reminder). Do not invent other dates.` : '- Do not claim any earlier reminder was sent unless told above.'}
+- NEVER write any invoice number, bill number, reference code or "#123", even if one appears anywhere else. Refer to it as "the payment"${work ? ` or "the payment for ${work}"` : ''}.
+- Never invent: amounts, dates, work done, fees, discounts, penalties, legal threats or links.
+- Every email must be worded differently from the previous ones: new opening,
+  new sentences, new closing. Same facts, fresh words.`;
+}
+
+// Removes any invoice / bill number that slipped into a reminder, keeping
+// the sentence readable ("Invoice INV-042 is overdue" -> "The invoice is overdue").
+export function stripInvoiceNumbers(text: string): string {
+  const natural = (_m: string, the: string | undefined, offset: number, whole: string) => {
+    if (the) return `${the}invoice`;
+    const before = whole.slice(0, offset);
+    if (offset === 0 || /[.!?]\s*$/.test(before)) return 'The invoice';
+    if (/:\s*$/.test(before)) return 'Invoice';
+    return 'the invoice';
+  };
+  return String(text || '')
+    .replace(/(\bthe\s+)?\b(?:invoice|bill)\s*(?:#|no\.?|number)\s*:?\s*[A-Z0-9][\w/-]*/gi, natural)
+    .replace(/(\bthe\s+)?\binvoice\s*:?\s*(?:INV[-\s]?)?\d[\w/-]*/gi, natural)
+    .replace(/(\bthe\s+)?#?\bINV[-\s]?\d[\w/-]*/gi, natural)
+    .replace(/\s*\((?:the )?invoice\)/gi, '')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+// Word-overlap check so a new reminder never repeats an earlier one.
+function wordsOf(text: string): Set<string> {
+  return new Set(
+    String(text || '').toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean)
+  );
+}
+
+export function textSimilarity(a: string, b: string): number {
+  const A = wordsOf(a);
+  const B = wordsOf(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let same = 0;
+  for (const w of A) if (B.has(w)) same++;
+  return same / (A.size + B.size - same);
+}
+
+export function isTooSimilar(candidate: string, previous: string[], threshold = 0.6): boolean {
+  return previous.some((p) => p && textSimilarity(candidate, p) >= threshold);
+}
+
 // The sign-off rule for the prompt, using the freelancer's real name.
 export function signOffRule(senderName?: string): string {
   const name = String(senderName || '').trim();
@@ -158,7 +268,7 @@ Never use Devanagari script. Be polite and respectful (use "aap").`;
 }
 
 const KEEP_EXACT =
-  'Keep the client name, amounts (e.g. "₹25,000"), dates, invoice numbers and links exactly as given.';
+  'Keep the client name, amounts (e.g. "₹25,000"), dates, what the payment is for, and links exactly as given.';
 
 // The language instruction added to every AI reminder prompt
 // (landing generator, tap-to-send and automatic emails).
@@ -288,15 +398,14 @@ export function finalReminderNote(client: {
   currency?: unknown;
   msmeRegistered?: unknown;
 }): string {
-  const invoice = String(client.invoiceNumber || client.invoiceRef || '').trim();
   const lateFee = String(client.lateFee || '').trim();
 
   return `
 FIRM FINAL REMINDER (this is the last reminder before formal steps):
-- State the amount, ${invoice ? `the invoice number (${invoice}), ` : ''}and how many days overdue it is.
+- State the amount, what it is for (if given), and how many days overdue it is. Never write an invoice number.
 - Give a clear deadline: ${finalDeadlineText()}.
 - Say the next step plainly: if it is not paid by then, the matter moves to formal recovery, which may include a legal notice.
-- Invite them to reply if there is a problem with the invoice.
+- Invite them to reply if there is a problem with the work or the amount.
 ${lateFee ? `- Mention the late fee that was agreed: ${lateFee}. Do not invent any other fee.` : '- Do NOT mention any late fee or extra charge.'}
 ${msmeApplies(client) ? '- Add one calm line: as a Udyam (MSME) registered supplier, under the MSMED Act, 2006, delayed payments carry compound interest at three times the RBI bank rate.' : '- Do NOT mention the MSMED Act or MSME interest.'}
 - Firm and calm. No insults, no shaming, no threats other than the formal step above, no apologizing.`;

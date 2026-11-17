@@ -1780,212 +1780,115 @@ export async function sendPasswordResetEmail(
 // ============================================================
 // Automated Payment Reminder Email
 // ============================================================
+// Looks like a normal personal email from the freelancer: their name
+// as the sender ("Juned Kazi via DueBlink"), plain readable text, the
+// "Pay Now" button only when there's a real link, and a small footer.
+
+function escapeHtml(text: string) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// "Juned Kazi via DueBlink <no-reply@dueblink.com>". Characters that
+// could break the From line are removed from the name.
+function reminderFrom(fromName?: string) {
+  const name = String(fromName || "")
+    .replace(/["<>\r\n\\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+
+  return name
+    ? `"${name} via DueBlink" <no-reply@dueblink.com>`
+    : EMAIL_FROM;
+}
 
 export async function sendAutomatedReminderEmail(
   toEmail: string,
   subject: string,
   body: string,
   paymentLink?: string,
-  replyTo?: string
+  replyTo?: string,
+  fromName?: string
 ) {
   try {
     const resend = getResendClient();
 
-    const emailBody = body
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\n/g, "<br />");
+    // Paragraphs: a blank line starts a new paragraph, a single
+    // line break stays a line break (for the sign-off).
+    const paragraphs = String(body || "")
+      .trim()
+      .split(/\n\s*\n/)
+      .map((para) => escapeHtml(para.trim()).replace(/\n/g, "<br />"))
+      .filter(Boolean)
+      .map(
+        (para) =>
+          `<p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#1E293B;">${para}</p>`
+      )
+      .join("");
 
     const safePaymentLink =
       typeof paymentLink === "string" &&
-      paymentLink.trim().length > 0
+      /^https?:\/\//i.test(paymentLink.trim())
         ? paymentLink.trim()
         : "";
 
     const paymentButton = safePaymentLink
       ? `
-        <div
-          style="
-            margin:32px 0;
-            text-align:center;
-          "
-        >
-          <a
-            href="${safePaymentLink}"
-            target="_blank"
-            rel="noopener noreferrer"
-            style="
-              display:inline-block;
-              padding:14px 28px;
-              background:#159A9F;
-              color:#ffffff;
-              text-decoration:none;
-              border-radius:10px;
-              font-size:14px;
-              font-weight:700;
-            "
-          >
-            Pay Now
-          </a>
-        </div>
+        <table border="0" cellpadding="0" cellspacing="0" style="margin:8px 0 20px;">
+          <tr>
+            <td style="border-radius:8px;background:#159A9F;">
+              <a
+                href="${escapeHtml(safePaymentLink)}"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="display:inline-block;padding:12px 24px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;border-radius:8px;"
+              >
+                Pay Now
+              </a>
+            </td>
+          </tr>
+        </table>
       `
       : "";
 
     const data = await resend.emails.send({
-      from: EMAIL_FROM,
+      from: reminderFrom(fromName),
       to: [toEmail],
       ...(replyTo && replyTo.trim() ? { replyTo: replyTo.trim() } : {}),
       subject,
+      // Plain-text copy too: looks personal and helps delivery.
+      text: `${String(body || "").trim()}${safePaymentLink ? `\n\nPay here: ${safePaymentLink}` : ""}`,
       html: `
         <!DOCTYPE html>
         <html lang="en">
-
         <head>
           <meta charset="utf-8">
-
-          <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1.0"
-          >
-
-          <title>${subject}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${escapeHtml(subject)}</title>
         </head>
-
-        <body
-          style="
-            margin:0;
-            padding:0;
-            background-color:#F8FAFC;
-            font-family:-apple-system,BlinkMacSystemFont,
-            'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-            color:#0F172A;
-          "
-        >
-
-          <table
-            border="0"
-            cellpadding="0"
-            cellspacing="0"
-            width="100%"
-            style="
-              background-color:#F8FAFC;
-              padding:32px 12px;
-            "
-          >
-
+        <body style="margin:0;padding:0;background-color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1E293B;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#ffffff;">
             <tr>
-              <td align="center">
-
-                <table
-                  border="0"
-                  cellpadding="0"
-                  cellspacing="0"
-                  width="100%"
-                  style="
-                    max-width:620px;
-                    background-color:#ffffff;
-                    border-radius:24px;
-                    overflow:hidden;
-                    border:1px solid #E2E8F0;
-                  "
-                >
-
-                  <!-- HEADER -->
-
+              <td align="left" style="padding:24px 20px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;">
                   <tr>
-                    <td
-                      style="
-                        padding:28px 36px 20px;
-                        background-color:#ffffff;
-                        border-bottom:1px solid #F1F5F9;
-                      "
-                    >
-
-                      <a
-                        href="https://dueblink.com/"
-                        target="_blank"
-                        style="
-                          text-decoration:none;
-                          display:inline-block;
-                        "
-                      >
-
-                        <img
-                          src="https://dueblink.com/logo.png"
-                          alt="DueBlink Logo"
-                          width="130"
-                          style="
-                            display:block;
-                            width:130px;
-                            height:auto;
-                            border:0;
-                          "
-                        />
-
-                      </a>
-
-                    </td>
-                  </tr>
-
-                  <!-- BODY -->
-
-                  <tr>
-                    <td
-                      style="
-                        padding:40px 36px 36px;
-                      "
-                    >
-
-                      <div
-                        style="
-                          font-size:15px;
-                          line-height:1.7;
-                          color:#475569;
-                        "
-                      >
-                        ${emailBody}
-                      </div>
-
+                    <td>
+                      ${paragraphs}
                       ${paymentButton}
-
-                    </td>
-                  </tr>
-
-                  <!-- FOOTER -->
-
-                  <tr>
-                    <td
-                      align="center"
-                      style="
-                        padding:24px 36px;
-                        background:#F8FAFC;
-                        border-top:1px solid #F1F5F9;
-                      "
-                    >
-
-                      <p
-                        style="
-                          font-size:11px;
-                          color:#94A3B8;
-                          margin:0;
-                        "
-                      >
-                        Sent automatically by DueBlink.
+                      <p style="margin:28px 0 0;padding-top:14px;border-top:1px solid #F1F5F9;font-size:11px;line-height:1.5;color:#94A3B8;">
+                        ${replyTo && replyTo.trim() ? "Sent with DueBlink. Reply to this email to reach the sender directly." : "Sent with DueBlink."}
                       </p>
-
                     </td>
                   </tr>
-
                 </table>
-
               </td>
             </tr>
-
           </table>
-
         </body>
-
         </html>
       `,
     });

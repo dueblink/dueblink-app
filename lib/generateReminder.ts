@@ -7,6 +7,11 @@ import {
   signOffRule,
   cleanReminderText,
   languageRule,
+  humanEmailRules,
+  formatDueDateLong,
+  cleanWorkDescription,
+  stripInvoiceNumbers,
+  isTooSimilar,
 } from "@/lib/reminderRules";
 
 const openai = createOpenAI({
@@ -18,12 +23,17 @@ export type GenerateEmailReminderInput = {
   currency: string;
   amount: string | number;
   daysOverdue?: number;
+  // Old field, still accepted but never written into the email.
   invoiceRef?: string;
   tone?: string;
   paymentLink?: string;
   // Extra details the reminder job sends.
   stage?: string;
   dueDate?: string;
+  // What the payment is for, e.g. "Website design".
+  workDescription?: string;
+  // Dates earlier reminders went out, e.g. ["10 November", "13 November"].
+  previousSentDates?: string[];
   senderName?: string; // the freelancer's name, used to sign the email
   paymentLinkShownAsButton?: boolean; // the email already shows a "Pay Now" button
   previousReminders?: Array<{
@@ -33,6 +43,15 @@ export type GenerateEmailReminderInput = {
   variationInstruction?: string;
   language?: string; // the client's reminder language (english, hinglish, hindi, marathi)
 };
+
+// Different ways to start, so emails to the same client never feel copied.
+const OPENING_STYLES = [
+  "Open with a short, friendly check-in before the payment.",
+  "Open by getting straight to the point, politely.",
+  "Open with a warm thank-you for working together.",
+  "Open with a brief, natural line about the work that was done.",
+  "Open with a simple, personal greeting and move to the payment in the second sentence.",
+];
 
 export async function generateEmailReminder(
   input: GenerateEmailReminderInput
@@ -58,144 +77,93 @@ export async function generateEmailReminder(
       ? previousReminders
           .map(
             (reminder, index) => `
-Previous Version ${index + 1}:
-
-Email Subject:
-${reminder.email_subject || ""}
-
-Email Body:
+Previous email ${index + 1}:
+Subject: ${reminder.email_subject || ""}
 ${reminder.email_body || ""}
 `
           )
           .join("\n")
-      : "No previous email reminders are available.";
+      : "No earlier emails were sent to this client.";
 
-  const result = await generateObject({
-    model: openai("gpt-4o-mini"),
-    temperature: 0.85,
+  const work = cleanWorkDescription(input.workDescription);
+  const dueDateText = formatDueDateLong(input.dueDate);
+  const amountText = formatAmountWithCurrency(input.amount, input.currency);
+  const days = Number(input.daysOverdue || 0);
 
-    schema: z.object({
-      email_subject: z.string(),
-      email_body: z.string(),
-    }),
+  const buildPrompt = (attempt: number) => `
+You are writing a payment reminder email on behalf of a freelancer or small
+business owner, to one of their clients. Write it exactly as that person
+would write it themselves.
 
-    prompt: `
-You are an expert Payment Recovery Specialist for freelancers.
-Your goal is to recover payments quickly while maintaining great client relationships.
+THE FACTS (use them exactly):
+- Client name: ${input.clientName}
+- Amount: ${amountText}
+- What the payment is for: ${work || "not given (just say \"the payment\")"}
+- Due date: ${dueDateText || "not given"}
+- Days overdue: ${days <= 0 ? "due today" : `${days} days`}
+- Tone: ${input.tone || "professional"}
+- Payment link: ${input.paymentLink ? "yes (see below)" : "none"}
 
-You are generating an AUTOMATED PAYMENT REMINDER EMAIL.
-
-Details:
-- Client Name: ${input.clientName}
-- Amount Due: ${formatAmountWithCurrency(input.amount, input.currency)}
-- Days Overdue: ${input.daysOverdue || "0"} days
-- Invoice Reference: ${input.invoiceRef || 'NONE. No invoice number was given. Do not write any invoice number anywhere (no "INV-...", no "#123"). Just say "the invoice" or "the payment".'}
-- Payment Link: ${input.paymentLink || "No payment link provided"}
-- Tone Preference: ${input.tone || "professional"}
-
-Tone Guidelines:
-- 'gentle': Use warm, polite, and helpful language. Assume the client simply forgot.
-- 'professional': Use formal, direct, and objective language. Focus on the agreement.
-- 'firm': Use urgent, clear, and assertive language. Remain respectful and professional.
-
-============================================================
-FRESH EMAIL REQUIREMENTS
-============================================================
-
-Every email must feel freshly written.
-
-Do NOT simply reuse the same reminder template and replace
-the client name or amount.
-
-Reminder stage:
-${input.daysOverdue === 0 ? "FIRST REMINDER — due date" : "FOLLOW-UP REMINDER"}
-
-Variation direction:
+STAGE AND DIRECTION:
 ${variationInstruction}
 
-Previous generated emails:
+${humanEmailRules({
+  workDescription: work,
+  dueDateText,
+  daysOverdue: days,
+  stage: input.stage,
+  previousSentDates: input.previousSentDates,
+})}
+
+STYLE FOR THIS EMAIL: ${OPENING_STYLES[(previousReminders.length + attempt) % OPENING_STYLES.length]}
+
+EARLIER EMAILS TO THIS CLIENT (do NOT reuse their sentences, opening,
+closing or subject):
 ${previousReminderText}
-
-If previous reminders are available:
-
-- Do NOT copy previous sentences.
-- Do NOT reuse the same opening.
-- Do NOT reuse the same closing.
-- Do NOT reuse the same call-to-action.
-- Do NOT closely imitate previous sentence structures.
-- Do NOT simply replace a few words from a previous reminder.
-- Use genuinely different wording and sentence flow.
-- Keep the selected tone.
-- Keep all payment information accurate.
-
-============================================================
-IMPORTANT
-============================================================
-
-Freshness must NEVER override factual accuracy.
-
-Never invent:
-- Invoice numbers
-- Payment dates
-- Penalties
-- Discounts
-- Legal threats
-- Fees
-- Services
-- Promises
-- Payment links
-
-If an invoice reference is not provided, do NOT invent one.
-
+${attempt > 0 ? "\nYour last attempt was too close to an earlier email. Write it again with clearly different wording from start to finish.\n" : ""}
 ${input.paymentLink && input.paymentLinkShownAsButton
-  ? `The email already shows a "Pay Now" button with the payment link below your text.
-- Do NOT paste the link itself into the email body.
-- You may say the client can use the "Pay Now" button below.
-`
-  : ""}If a payment link is provided:
-- Use the exact payment link supplied.
-- Do not modify it.
-- Do not shorten it.
-- Do not replace it.
-- You may naturally mention that the client can use the link to make the payment.
+  ? `PAYMENT: The email already shows a "Pay Now" button below your text.
+- Do NOT paste the link into the email. You may say they can use the "Pay Now" button below.`
+  : input.paymentLink
+    ? `PAYMENT: Mention they can pay using this exact link: ${input.paymentLink}`
+    : `PAYMENT: There is no payment link. Do NOT mention a link, a button or a placeholder.`}
 
-If NO payment link is provided:
-- Do NOT mention a payment link.
-- Do NOT write "[Insert Payment Link]".
-- Do NOT create a fake URL.
-- Do NOT create a placeholder URL.
-
-============================================================
-EMAIL OUTPUT RULES
-============================================================
-
-- Email Subject: Professional and clear.
-- Include the invoice number ONLY when an actual invoice number is provided.
-- Email Body: Keep under 150 words.
-- Address the client naturally by name.
-- Clearly mention the outstanding amount.
-- Clearly explain that the payment is due/overdue based on the supplied information.
-- Include a polite call-to-action asking the client to complete the payment.
-- If a real payment link is provided, naturally direct the client to use it.
-- If no payment link is provided, simply ask the client to complete the payment without mentioning any link.
-- Do not claim that an email, reminder, or follow-up was previously sent unless that information was provided.
-- Do not mention that AI generated the email.
-- Do not add WhatsApp or SMS content.
 ${signOffRule(input.senderName)}
 
 ${NATURAL_WRITING_RULES}
 
 ${languageRule(input.language)}
 
-Return only:
-- email_subject
-- email_body
-`,
-  });
+Return only email_subject and email_body.
+`;
 
-  // Last safety net: never send "[Payment Link]" or "[Your Name]".
+  const previousBodies = previousReminders.map((r) => r.email_body || "");
+
+  let subject = "";
+  let body = "";
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await generateObject({
+      model: openai("gpt-4o-mini"),
+      temperature: attempt === 0 ? 0.85 : 0.95,
+      schema: z.object({
+        email_subject: z.string(),
+        email_body: z.string(),
+      }),
+      prompt: buildPrompt(attempt),
+    });
+
+    subject = result.object.email_subject;
+    body = result.object.email_body;
+
+    // Fresh enough? Keep it. Otherwise try again with clearer wording.
+    if (!isTooSimilar(body, previousBodies)) break;
+  }
+
+  // Last safety nets: no invoice numbers, no "[Payment Link]" or
+  // "[Your Name]" placeholders ever reach a client.
   return {
-    email_subject: cleanReminderText(result.object.email_subject, input.senderName),
-    email_body: cleanReminderText(result.object.email_body, input.senderName),
+    email_subject: cleanReminderText(stripInvoiceNumbers(subject), input.senderName),
+    email_body: cleanReminderText(stripInvoiceNumbers(body), input.senderName),
   };
 }

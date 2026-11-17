@@ -11,6 +11,10 @@ import {
   signOffRule,
   cleanReminderText,
   languageRule,
+  humanEmailRules,
+  formatDueDateLong,
+  cleanWorkDescription,
+  stripInvoiceNumbers,
 } from '@/lib/reminderRules';
 
 const openai = createOpenAI({
@@ -349,12 +353,19 @@ ${reminder.sms_text || ''}
     // AI GENERATION (with uniqueness-enforcing retry)
     // ============================================================
 
-    // Only a real invoice number the user typed counts. Empty, "Pending"
-    // or "N/A" means there is none — and then the AI must not invent one.
-    const rawInvoiceRef = String(body.invoiceRef || '').trim();
-    const invoiceRef = /^(pending|n\/?a|none|null|undefined|-)?$/i.test(rawInvoiceRef)
-      ? ''
-      : rawInvoiceRef;
+    // Invoice numbers are never written into reminders any more.
+    // Instead the reminder says what the payment is for, e.g. "Website design".
+    const workDescription = cleanWorkDescription(body.workDescription);
+    const dueDateText = formatDueDateLong(body.dueDate);
+    const daysOverdueNumber = Math.max(0, Number(body.daysOverdue ?? 7) || 0);
+    const stage =
+      typeof body.stage === 'string' && body.stage.trim()
+        ? body.stage.trim()
+        : daysOverdueNumber >= 7
+          ? 'final'
+          : daysOverdueNumber >= 3
+            ? 'follow-up'
+            : 'first';
 
     // One clean amount, e.g. "₹5,000" (never "₹ INR 5,000").
     const amountDueText = formatAmountWithCurrency(body.amount, body.currency);
@@ -382,7 +393,9 @@ ${reminder.sms_text || ''}
         - Client Name: ${body.clientName}
         - Amount Due: ${amountDueText}
         - Days Overdue: ${body.daysOverdue || '7'} days
-        - Invoice Reference: ${invoiceRef || 'NONE. No invoice number was given. Do not write any invoice number anywhere (no "INV-...", no "#123"). Just say "the invoice" or "the payment".'}
+        - What the payment is for: ${workDescription || 'not given (just say "the payment")'}
+        - Due date: ${dueDateText || 'not given'}
+        - Never write any invoice number, bill number or reference code (no "INV-...", no "#123").
         - Tone Preference: ${body.tone || 'professional'}
        
         Tone Guidelines:
@@ -445,17 +458,21 @@ ${reminder.sms_text || ''}
         OUTPUT RULES
         ============================================================
 
-        - Email Subject: Professional and clear.
-          Include the invoice number only when an actual invoice
-          number is provided. Never invent one.
-
-        - Email Body: Keep under 150 words.
-          Be helpful and clear. Do not mention a payment link and do not
-          write any link placeholder. Just ask the client to complete the payment.
+        EMAIL (subject + body):
+        ${humanEmailRules({
+          workDescription,
+          dueDateText,
+          daysOverdue: daysOverdueNumber,
+          stage,
+        })}
+        - Do not mention a payment link and do not write any link placeholder
+          (a link, if any, is added separately).
         ${signOffRule(senderName)}
 
-        - WhatsApp: Short, conversational, friendly.
-          Use appropriate emojis for the selected tone.
+        - WhatsApp: 2 to 4 short lines, like a real person texting someone
+          they work with. Greet by first name, say ${workDescription ? `it is for "${workDescription}", ` : ''}the amount${dueDateText ? ` and the due date (${dueDateText})` : ''},
+          one clear ask, and a short thanks. At most one emoji, only if it
+          fits the tone. Never an invoice number.
 
         - SMS: Extremely brief (under 160 characters).
 
@@ -518,32 +535,7 @@ ${reminder.sms_text || ''}
       `;
     }
 
-    // Replaces an invented invoice number with natural words, keeping the
-    // sentence readable: "Invoice INV-2026-042 is overdue" -> "The invoice
-    // is overdue"; "settle INV-2026-042" -> "settle the invoice".
-    const naturalInvoiceWords = (
-      match: string,
-      the: string | undefined,
-      offset: number,
-      whole: string
-    ) => {
-      if (the) return `${the}invoice`;
-      const before = whole.slice(0, offset);
-      if (offset === 0 || /[.!?]\s*$/.test(before)) return 'The invoice';
-      if (/:\s*$/.test(before)) return 'Invoice';
-      return 'the invoice';
-    };
-
-    const removeInventedInvoiceNumbers = (text: string) =>
-      invoiceRef
-        ? text
-        : String(text || '')
-            .replace(
-              /(\bthe\s+)?\binvoice\s*(?:#|no\.?|number)?\s*:?\s*(?:INV[-\s]?)?\d[\w-]*/gi,
-              naturalInvoiceWords
-            )
-            .replace(/(\bthe\s+)?#?\bINV[-\s]?\d[\w-]*/gi, naturalInvoiceWords)
-            .replace(/[ \t]{2,}/g, ' ');
+    const removeInventedInvoiceNumbers = (text: string) => stripInvoiceNumbers(text);
 
     const finalReminder = generated as GeneratedReminder;
 

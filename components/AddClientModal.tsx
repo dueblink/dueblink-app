@@ -40,7 +40,7 @@ export default function AddClientModal({
     whatsapp: '',
     amount: '',
     dueDate: '',
-    invoiceNumber: '',
+    workDescription: '',
     paymentLink: '',
     language: 'english',
     currency: 'INR',
@@ -76,7 +76,7 @@ export default function AddClientModal({
         whatsapp: clientToEdit.whatsapp || '',
         amount: clientToEdit.amount || '',
         dueDate: clientToEdit.dueDate || '',
-        invoiceNumber: clientToEdit.invoiceNumber || '',
+        workDescription: clientToEdit.workDescription || '',
         paymentLink: clientToEdit.paymentLink || '',
         language: normalizeLanguage(clientToEdit.language),
         currency: normalizeCurrencyCode(clientToEdit.currency),
@@ -85,7 +85,7 @@ export default function AddClientModal({
       setAutomatedReminders(clientToEdit.automatedReminders || false);
       setMsmeRegistered(clientToEdit.msmeRegistered === true);
     } else {
-      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', invoiceNumber: '', paymentLink: '', language: 'english', currency: guessDefaultCurrency(), lateFee: '' });
+      setFormData({ name: '', company: '', email: '', whatsapp: '', amount: '', dueDate: '', workDescription: '', paymentLink: '', language: 'english', currency: guessDefaultCurrency(), lateFee: '' });
       setAutomatedReminders(false);
       setMsmeRegistered(false);
     }
@@ -188,7 +188,7 @@ export default function AddClientModal({
           whatsapp: formData.whatsapp,
           amount: formData.amount,
           dueDate: formData.dueDate,
-          invoiceNumber: formData.invoiceNumber,
+          workDescription: formData.workDescription.trim(),
           paymentLink: formData.paymentLink.trim(),
           language: normalizeLanguage(formData.language),
           currency: normalizeCurrencyCode(formData.currency),
@@ -222,7 +222,7 @@ export default function AddClientModal({
         whatsapp: formData.whatsapp,
         amount: formData.amount,
         dueDate: formData.dueDate,
-        invoiceNumber: formData.invoiceNumber,
+        workDescription: formData.workDescription.trim(),
         paymentLink: formData.paymentLink.trim(),
         language: normalizeLanguage(formData.language),
         currency: normalizeCurrencyCode(formData.currency),
@@ -257,7 +257,7 @@ export default function AddClientModal({
       whatsapp: '',
       amount: '',
       dueDate: '',
-      invoiceNumber: '',
+      workDescription: '',
       paymentLink: '',
       language: 'english',
       currency: 'INR',
@@ -588,7 +588,7 @@ export default function AddClientModal({
                 </div>
               </motion.div>
 
-              {/* Invoice Number */}
+              {/* What the payment is for */}
               <motion.div 
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -597,21 +597,25 @@ export default function AddClientModal({
                 suppressHydrationWarning={true}
               >
                 <label className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase" suppressHydrationWarning={true}>
-                  Invoice Number <span className="text-slate-400 font-normal lowercase">(Optional)</span>
+                  What is this payment for? <span className="text-slate-400 font-normal lowercase">(Optional)</span>
                 </label>
                 <div className="relative flex items-center" suppressHydrationWarning={true}>
                   <FileText className="absolute left-2.5 sm:left-3 text-slate-400" size={16} suppressHydrationWarning={true} />
                   <input 
                     ref={invoiceInputRef}
                     type="text" 
+                    maxLength={120}
                     className="w-full pl-9 pr-3 py-2.5 sm:pl-10 sm:pr-4 sm:py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#245B92] focus:ring-2 focus:ring-[#245B92]/25 transition" 
-                    placeholder="INV-2026-001" 
-                    value={formData.invoiceNumber} 
-                    onChange={(e) => handleChange('invoiceNumber', e.target.value)}
+                    placeholder="e.g. Website design, Wedding photoshoot" 
+                    value={formData.workDescription} 
+                    onChange={(e) => handleChange('workDescription', e.target.value)}
                     onKeyDown={(e) => handleKeyDown(e, paymentLinkInputRef)}
                     suppressHydrationWarning={true}
                   />
                 </div>
+                <p className="text-[10px] text-slate-400 pl-1">
+                  Reminders mention this, so your client knows exactly which payment it is.
+                </p>
               </motion.div>
 
               {/* Payment Link */}

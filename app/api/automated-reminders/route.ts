@@ -3,7 +3,7 @@ import { getAdminDb } from "@/lib/firebaseAdmin";
 import { getAdminAuth } from "@/lib/firebaseAdminAuth";
 import { createPaymentActionToken } from "@/lib/paymentActionToken";
 import { generateEmailReminder } from "@/lib/generateReminder";
-import { finalReminderNote } from "@/lib/reminderRules";
+import { finalReminderNote, formatAmountWithCurrency } from "@/lib/reminderRules";
 import {
   sendAutomatedReminderEmail,
   sendOwnerPaymentStatusEmail,
@@ -97,6 +97,23 @@ async function getOwnerInfo(
 
     return { email: null, name: "" };
   }
+}
+
+// "10 November" style dates of earlier reminders, so a follow-up or
+// final email can honestly say when the client was written to before.
+function previousSentDates(history: any[]): string[] {
+  return history
+    .map((r) => toDateOrNull(r?.sentAt))
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime())
+    .slice(-4)
+    .map((d) =>
+      new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "numeric",
+        month: "long",
+      }).format(d)
+    );
 }
 
 export async function GET(request: Request) {
@@ -201,8 +218,8 @@ export async function GET(request: Request) {
           // Firm final reminder extras (set in Add/Edit Client).
           lateFee: data.lateFee || "",
           msmeRegistered: data.msmeRegistered === true,
-          // The add-client form saves "invoiceNumber"; older records may use "invoiceRef".
-          invoiceRef: data.invoiceRef || data.invoiceNumber || "",
+          // What the payment is for, e.g. "Website design" (shown in the email).
+          workDescription: data.workDescription || "",
           reminderStage,
           lastAutomatedReminderStage:
             (data.lastAutomatedReminderStage as string | undefined) ||
@@ -303,7 +320,8 @@ export async function GET(request: Request) {
           currency: client.currency,
           amount: client.amount || "0",
           daysOverdue: client.daysOverdue,
-          invoiceRef: client.invoiceRef,
+          workDescription: client.workDescription,
+          previousSentDates: previousSentDates(client.reminderHistory),
           tone: client.tone,
           paymentLink: client.paymentLink,
           // The email shows a "Pay Now" button for the link.
@@ -339,7 +357,9 @@ export async function GET(request: Request) {
           generatedEmail.email_subject,
           generatedEmail.email_body,
           client.paymentLink,
-          ownerEmail || undefined
+          ownerEmail || undefined,
+          // Shown as the sender: "Juned Kazi via DueBlink".
+          owner.name
         );
 
         if (!sendResult.success) {
@@ -405,7 +425,7 @@ export async function GET(request: Request) {
 
           ownerPaymentItems.get(ownerEmail)!.items.push({
             clientName: client.name || "Client",
-            amount: `${client.currency}${client.amount || "0"}`,
+            amount: formatAmountWithCurrency(client.amount || "0", client.currency),
             paidLink,
             notYetLink,
           });

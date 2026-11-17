@@ -840,12 +840,17 @@ export default function DashboardPage() {
   const buildTapMessage = (c: any, days: number, forceStage?: string) => {
     const stage = forceStage || getTodayStage(c, days).label;
     // Firm final reminder extras (set per client in Add/Edit Client).
-    const invoice = String(c.invoiceNumber || c.invoiceRef || '').trim();
+    // What the payment is for, e.g. "Website design" (never an invoice number).
+    const work = String(c.workDescription || '').replace(/\s+/g, ' ').trim();
     const lateFee = String(c.lateFee || '').trim();
     const msme = msmeApplies(c);
     const language = normalizeLanguage(c.language);
     const firstName = String(c.name || '').trim().split(' ')[0];
     const amount = formatAmountWithCurrency(c.amount, c.currency);
+    // "₹25,000 (Website design)" in Hinglish, Hindi and Marathi.
+    const amountFor = work ? `${amount} (${work})` : amount;
+    // "₹25,000 for Website design" in English.
+    const forWork = work ? ` for ${work}` : '';
     const ownerName = String(user?.displayName || '').trim();
     const link = tapLinkLine(c);
 
@@ -864,7 +869,7 @@ export default function DashboardPage() {
       if (stage === 'Stalled') {
         return {
           subject: 'Pending payment ke baare mein baat karein?',
-          text: `${hi}, ${amount} ke pending payment ke baare mein check karna tha. Agar ek saath dena mushkil ho, toh do hisson mein bhi de sakte hain. Is hafte ek chhoti si call kar lein?${link}${sign}`,
+          text: `${hi}, ${amountFor} ke pending payment ke baare mein check karna tha. Agar ek saath dena mushkil ho, toh do hisson mein bhi de sakte hain. Is hafte ek chhoti si call kar lein?${link}${sign}`,
         };
       }
       if (stage === 'Final reminder') {
@@ -872,18 +877,18 @@ export default function DashboardPage() {
         const msmeLine = msme ? ' Udyam (MSME) registered supplier hone ke naate, MSMED Act, 2006 ke tahat late payment par interest lagta hai.' : '';
         return {
           subject: `Final reminder: ${amount} ka payment overdue`,
-          text: `${hi}, ${amount}${invoice ? ` (invoice ${invoice})` : ''} ka payment ${late}, aur pichhle reminders ke baad bhi abhi tak nahi mila hai. Yeh final reminder hai. Please ${deadline} tak payment clear kar dijiye. Tab tak payment nahi aaya toh formal recovery shuru karni padegi, jismein legal notice bhi ho sakta hai.${fee}${msmeLine} Invoice mein koi problem ho toh reply karke bata dijiye.${link}${sign}`,
+          text: `${hi}, ${amountFor} ka payment ${late}, aur pichhle reminders ke baad bhi abhi tak nahi mila hai. Yeh final reminder hai. Please ${deadline} tak payment clear kar dijiye. Tab tak payment nahi aaya toh formal recovery shuru karni padegi, jismein legal notice bhi ho sakta hai.${fee}${msmeLine} Kaam ya amount mein koi problem ho toh reply karke bata dijiye.${link}${sign}`,
         };
       }
       if (stage === 'Follow-up') {
         return {
           subject: `Follow-up: ${amount} ka payment`,
-          text: `${hi}, ${amount} ka payment ${late}. Kab tak bhej payenge? Please ek date bata dijiye.${link}${sign}`,
+          text: `${hi}, ${amountFor} ka payment ${late}. Kab tak bhej payenge? Please ek date bata dijiye.${link}${sign}`,
         };
       }
       return {
         subject: days <= 0 ? `${amount} ka payment aaj due hai` : `Reminder: ${amount} ka payment`,
-        text: `${hi}, umeed hai sab badhiya hai! Bas ek chhota sa reminder: ${amount} ka payment ${late}. Ho jaaye toh please bata dijiye.${link}${sign}`,
+        text: `${hi}, umeed hai sab badhiya hai! Bas ek chhota sa reminder: ${amountFor} ka payment ${late}. Ho jaaye toh please bata dijiye.${link}${sign}`,
       };
     }
 
@@ -895,7 +900,7 @@ export default function DashboardPage() {
       if (stage === 'Stalled') {
         return {
           subject: 'बकाया भुगतान के बारे में बात करें?',
-          text: `${hi}, ${amount} के बकाया भुगतान के बारे में पूछना था। अगर एक साथ देना मुश्किल हो, तो दो हिस्सों में भी दे सकते हैं। क्या इस हफ़्ते एक छोटी सी कॉल कर सकते हैं?${link}${sign}`,
+          text: `${hi}, ${amountFor} के बकाया भुगतान के बारे में पूछना था। अगर एक साथ देना मुश्किल हो, तो दो हिस्सों में भी दे सकते हैं। क्या इस हफ़्ते एक छोटी सी कॉल कर सकते हैं?${link}${sign}`,
         };
       }
       if (stage === 'Final reminder') {
@@ -903,18 +908,18 @@ export default function DashboardPage() {
         const msmeLine = msme ? ' Udyam (MSME) पंजीकृत सप्लायर होने के नाते, MSMED Act, 2006 के तहत देर से भुगतान पर ब्याज लगता है।' : '';
         return {
           subject: `अंतिम रिमाइंडर: ${amount} का भुगतान बकाया`,
-          text: `${hi}, ${amount}${invoice ? ` (इनवॉइस ${invoice})` : ''} का भुगतान ${late}, और पिछले रिमाइंडर के बाद भी अभी तक नहीं मिला है। यह अंतिम रिमाइंडर है। कृपया ${deadline} तक भुगतान कर दीजिए। तब तक भुगतान नहीं हुआ, तो औपचारिक वसूली की कार्रवाई शुरू करनी पड़ेगी, जिसमें कानूनी नोटिस भी शामिल हो सकता है।${fee}${msmeLine} इनवॉइस में कोई समस्या हो तो कृपया जवाब देकर बताइए।${link}${sign}`,
+          text: `${hi}, ${amountFor} का भुगतान ${late}, और पिछले रिमाइंडर के बाद भी अभी तक नहीं मिला है। यह अंतिम रिमाइंडर है। कृपया ${deadline} तक भुगतान कर दीजिए। तब तक भुगतान नहीं हुआ, तो औपचारिक वसूली की कार्रवाई शुरू करनी पड़ेगी, जिसमें कानूनी नोटिस भी शामिल हो सकता है।${fee}${msmeLine} काम या रकम में कोई समस्या हो तो कृपया जवाब देकर बताइए।${link}${sign}`,
         };
       }
       if (stage === 'Follow-up') {
         return {
           subject: `फ़ॉलो-अप: ${amount} का भुगतान`,
-          text: `${hi}, ${amount} का भुगतान ${late}। कृपया बता दीजिए कि भुगतान कब तक हो जाएगा?${link}${sign}`,
+          text: `${hi}, ${amountFor} का भुगतान ${late}। कृपया बता दीजिए कि भुगतान कब तक हो जाएगा?${link}${sign}`,
         };
       }
       return {
         subject: days <= 0 ? `${amount} का भुगतान आज देय है` : `रिमाइंडर: ${amount} का भुगतान`,
-        text: `${hi}, आशा है आप ठीक हैं! बस एक छोटा सा रिमाइंडर: ${amount} का भुगतान ${late}। भुगतान हो जाए तो कृपया बता दीजिए।${link}${sign}`,
+        text: `${hi}, आशा है आप ठीक हैं! बस एक छोटा सा रिमाइंडर: ${amountFor} का भुगतान ${late}। भुगतान हो जाए तो कृपया बता दीजिए।${link}${sign}`,
       };
     }
 
@@ -926,7 +931,7 @@ export default function DashboardPage() {
       if (stage === 'Stalled') {
         return {
           subject: 'थकित पेमेंटबद्दल बोलूया का?',
-          text: `${hi}, ${amount} च्या थकित पेमेंटबद्दल विचारायचे होते. एकदम पूर्ण रक्कम देणे अवघड असेल, तर दोन भागांतही देऊ शकता. या आठवड्यात एक छोटा कॉल करूया का?${link}${sign}`,
+          text: `${hi}, ${amountFor} च्या थकित पेमेंटबद्दल विचारायचे होते. एकदम पूर्ण रक्कम देणे अवघड असेल, तर दोन भागांतही देऊ शकता. या आठवड्यात एक छोटा कॉल करूया का?${link}${sign}`,
         };
       }
       if (stage === 'Final reminder') {
@@ -934,18 +939,18 @@ export default function DashboardPage() {
         const msmeLine = msme ? ' Udyam (MSME) नोंदणीकृत पुरवठादार म्हणून, MSMED Act, 2006 नुसार उशिरा पेमेंटवर व्याज लागू होते.' : '';
         return {
           subject: `अंतिम रिमाइंडर: ${amount} चे पेमेंट थकित`,
-          text: `${hi}, ${amount}${invoice ? ` (इनव्हॉइस ${invoice})` : ''} चे पेमेंट ${late}, आणि आधीच्या रिमाइंडरनंतरही अजून मिळालेले नाही. हे अंतिम रिमाइंडर आहे. कृपया ${deadline} पर्यंत पेमेंट करा. तोपर्यंत पेमेंट न झाल्यास औपचारिक वसुलीची कारवाई सुरू करावी लागेल, ज्यात कायदेशीर नोटीसही असू शकते.${fee}${msmeLine} इनव्हॉइसमध्ये काही अडचण असल्यास कृपया उत्तर देऊन कळवा.${link}${sign}`,
+          text: `${hi}, ${amountFor} चे पेमेंट ${late}, आणि आधीच्या रिमाइंडरनंतरही अजून मिळालेले नाही. हे अंतिम रिमाइंडर आहे. कृपया ${deadline} पर्यंत पेमेंट करा. तोपर्यंत पेमेंट न झाल्यास औपचारिक वसुलीची कारवाई सुरू करावी लागेल, ज्यात कायदेशीर नोटीसही असू शकते.${fee}${msmeLine} कामात किंवा रकमेत काही अडचण असल्यास कृपया उत्तर देऊन कळवा.${link}${sign}`,
         };
       }
       if (stage === 'Follow-up') {
         return {
           subject: `फॉलो-अप: ${amount} चे पेमेंट`,
-          text: `${hi}, ${amount} चे पेमेंट ${late}. कृपया पेमेंट कधीपर्यंत होईल ते कळवाल का?${link}${sign}`,
+          text: `${hi}, ${amountFor} चे पेमेंट ${late}. कृपया पेमेंट कधीपर्यंत होईल ते कळवाल का?${link}${sign}`,
         };
       }
       return {
         subject: days <= 0 ? `${amount} चे पेमेंट आज देय आहे` : `रिमाइंडर: ${amount} चे पेमेंट`,
-        text: `${hi}, आशा आहे तुम्ही बरे आहात! फक्त एक छोटेसे रिमाइंडर: ${amount} चे पेमेंट ${late}. पेमेंट झाल्यावर कृपया कळवा.${link}${sign}`,
+        text: `${hi}, आशा आहे तुम्ही बरे आहात! फक्त एक छोटेसे रिमाइंडर: ${amountFor} चे पेमेंट ${late}. पेमेंट झाल्यावर कृपया कळवा.${link}${sign}`,
       };
     }
 
@@ -957,7 +962,7 @@ export default function DashboardPage() {
     if (stage === 'Stalled') {
       return {
         subject: 'Can we sort out the pending payment?',
-        text: `Hi ${name}, I wanted to check in about the pending payment of ${amount}. If paying it all at once is difficult, I'm happy to split it into two parts. Could we have a quick call this week to sort it out?${link}${sign}`,
+        text: `Hi ${name}, I wanted to check in about the pending payment of ${amount}${forWork}. If paying it all at once is difficult, I'm happy to split it into two parts. Could we have a quick call this week to sort it out?${link}${sign}`,
       };
     }
     if (stage === 'Final reminder') {
@@ -965,18 +970,18 @@ export default function DashboardPage() {
       const msmeLine = msme ? ' As a Udyam (MSME) registered supplier, delayed payments carry interest under the MSMED Act, 2006.' : '';
       return {
         subject: `Final reminder: payment of ${amount} overdue`,
-        text: `Hi ${name}, this is my final reminder about the payment of ${amount}${invoice ? ` for invoice ${invoice}` : ''}, which is ${late}. Please clear it by ${deadline}. If it isn't paid by then, I'll have to move to formal recovery, which may include a legal notice.${fee}${msmeLine} If there's an issue with the invoice, just reply and let me know.${link}${sign}`,
+        text: `Hi ${name}, this is my final reminder about the payment of ${amount}${forWork}, which is ${late}. Please clear it by ${deadline}. If it isn't paid by then, I'll have to move to formal recovery, which may include a legal notice.${fee}${msmeLine} If there's an issue with the work or the amount, just reply and let me know.${link}${sign}`,
       };
     }
     if (stage === 'Follow-up') {
       return {
-        subject: `Following up: payment of ${amount}`,
-        text: `Hi ${name}, following up on the payment of ${amount}, which is ${late}. Could you let me know the date I can expect it?${link}${sign}`,
+        subject: work ? `Following up on the ${work} payment` : `Following up: payment of ${amount}`,
+        text: `Hi ${name}, following up on the payment of ${amount}${forWork}, which is ${late}. Could you let me know the date I can expect it?${link}${sign}`,
       };
     }
     return {
-      subject: days <= 0 ? `Payment of ${amount} due today` : `Reminder: payment of ${amount}`,
-      text: `Hi ${name}, hope you're doing well! Just a quick reminder that the payment of ${amount} is ${late}. Could you let me know once it's done?${link}${sign}`,
+      subject: work ? `Payment for ${work}` : days <= 0 ? `Payment of ${amount} due today` : `Reminder: payment of ${amount}`,
+      text: `Hi ${name}, hope you're doing well! Just a quick reminder that the payment of ${amount}${forWork} is ${late}. Could you let me know once it's done?${link}${sign}`,
     };
   };
 
@@ -1023,7 +1028,10 @@ export default function DashboardPage() {
         amount: c.amount,
         currency: c.currency,
         daysOverdue: Math.max(0, days),
-        invoiceRef: c.invoiceNumber || c.invoiceRef || '',
+        // What the payment is for and when it was due (no invoice numbers).
+        workDescription: c.workDescription || '',
+        dueDate: c.dueDate || '',
+        stage: stage === 'Final reminder' ? 'final' : stage === 'Stalled' ? 'stalled' : stage === 'Follow-up' ? 'follow-up' : 'first',
         tone: guide.tone,
         language: normalizeLanguage(c.language),
         variationInstruction: `${guide.note} The payment is ${days <= 0 ? 'due today' : `${days} days overdue`}.${stage === 'Final reminder' ? finalReminderNote(c) : ''}`,
@@ -1204,7 +1212,7 @@ export default function DashboardPage() {
         whatsapp: '',
         amount: firstAmount,
         dueDate: firstDueDate,
-        invoiceNumber: '',
+        workDescription: '',
         paymentLink: '',
         currency: firstCurrency,
         automatedReminders: false,
@@ -2420,9 +2428,9 @@ export default function DashboardPage() {
                                 <span suppressHydrationWarning={true}>
                                   Status: <strong className={c.status === 'Paid' ? 'text-emerald-600' : isWrittenOff ? 'text-slate-500' : isOverdue ? 'text-rose-600' : 'text-amber-600'} suppressHydrationWarning={true}>{c.status === 'Paid' ? 'Paid' : isWrittenOff ? 'Written off' : isOverdue ? `Overdue by ${daysOverdue} days` : 'Pending'}</strong>
                                 </span>
-                                {c.invoiceNumber && (
+                                {c.workDescription && (
                                   <span suppressHydrationWarning={true}>
-                                    Invoice: <strong className="text-slate-900 ml-1">{c.invoiceNumber}</strong>
+                                    For: <strong className="text-slate-900 ml-1">{c.workDescription}</strong>
                                   </span>
                                 )}
                                 {c.paymentLink && (
